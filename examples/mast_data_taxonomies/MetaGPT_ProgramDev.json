@@ -1,0 +1,217 @@
+{
+  "category_a": {
+    "A.1": {
+      "definition": "Unified failure mode: Outputs are invalid, unreliable, or non-reproducible due to misinterpretation of domain rules and robustness failures (including nondeterminism and looping outputs), and/or due to assuming inputs, context, and constraints are always valid, causing memory/context degradation and violations of system-level constraints or task scope when faced with unexpected or ill-formed data.",
+      "rationale": "Auto-merged with A.12 (confused 10x)",
+      "merged_from": [
+        "A.1",
+        "A.12"
+      ]
+    },
+    "A.2": {
+      "code": "A.2",
+      "name": "No output produced",
+      "definition": "Agent emits an empty or whitespace-only response, effectively producing no artifact.",
+      "when_to_use": "When the agent returns an empty or whitespace-only artifact.",
+      "when_not_to_use": "If brief or placeholder content is produced but not meaningful.",
+      "detection_heuristics": [
+        "trimmed_output_length == 0",
+        "no meaningful tokens detected in response"
+      ],
+      "severity": "critical",
+      "evidence": "observed"
+    },
+    "A.4": {
+      "code": "A.4",
+      "name": "Handoff refusal / non-engagement",
+      "definition": "An agent declines to engage or stalls, effectively refusing to continue the task within the trace.",
+      "when_to_use": "When an agent explicitly refuses to proceed or stalls without providing progress.",
+      "when_not_to_use": "If the behavior is a temporary delay but engagement resumes.",
+      "detection_heuristics": [
+        "explicit refusal to continue",
+        "prolonged stall without progress",
+        "no subsequent contribution after prompt"
+      ],
+      "severity": "major",
+      "evidence": "observed"
+    },
+    "A.5": {
+      "code": "A.5",
+      "name": "Execution timeout",
+      "definition": "A generation or processing step exceeds allocated time, indicating a timeout in execution.",
+      "when_to_use": "When processing or generation exceeds the predefined time budget.",
+      "when_not_to_use": "If timeouts are caused by external factors outside the process being timed.",
+      "detection_heuristics": [
+        "elapsed_time > timeout_threshold",
+        "heartbeat or progress signals absent within expected windows",
+        "explicit timeout error in logs"
+      ],
+      "severity": "critical",
+      "evidence": "observed"
+    },
+    "A.11": {
+      "definition": "Unified failure mode: An incorrect or unsafe system outcome caused by either (i) runtime errors or insufficient test coverage that omits critical edge cases or complex interactions, leaving behavior unvalidated, or (ii) reliance on private/internal implementation details or tight coupling of core logic to UI, yielding brittle tests, misinterpretations of behavior, and potential invariant violations.",
+      "rationale": "Auto-merged with C.1 (confused 13x)",
+      "merged_from": [
+        "A.11",
+        "C.1"
+      ]
+    }
+  },
+  "category_b": {
+    "B.1": {
+      "definition": "Unified failure mode: Validation and guidance are flawed, incomplete, or inconsistent, causing missed rules/edge cases (e.g., multi-capture, kinging) and introducing new defects or degraded testability due to added complexity or conflicts.",
+      "rationale": "Auto-merged with B.3 (confused 25x)",
+      "merged_from": [
+        "B.1",
+        "B.3"
+      ]
+    },
+    "B.2": {
+      "code": "B.2",
+      "name": "Checker Rubber-Stamp Approval",
+      "definition": "The checker approves the solver's output with minimal or no critique, failing to probe testability, interface design, or code structure, risking untestable or brittle code.",
+      "when_to_use": "Use when the review consists of generic praise or high-level statements without actionable feedback or attention to testability and maintainability.",
+      "when_not_to_use": "Use when the reviewer provides concrete, testable feedback addressing structure, interfaces, and testability concerns.",
+      "detection_heuristics": [
+        "feedback uses phrases like 'Looks good' or 'Nice job' with no concrete notes",
+        "no mention of testability, modularity, or interfaces",
+        "no critique of edge cases, input validation, or error handling"
+      ],
+      "severity": "major",
+      "applies_to_role": "checker",
+      "agent_heuristics": {
+        "variable": [
+          "repeats generic approval language without substantive critique"
+        ],
+        "feedback_quality": [
+          "lacks concrete suggestions for tests or design improvements"
+        ]
+      }
+    }
+  },
+  "category_c": {
+    "C.8": {
+      "code": "C.8",
+      "name": "Ambiguous or Invalid State Transitions",
+      "definition": "State machine transitions are ill-defined or ambiguous, allowing illegal transitions or confusing end states.",
+      "when_to_use": "Use when traces show multiple possible next states for a given action, or when end conditions can be reached in non-deterministic ways.",
+      "when_not_to_use": "Not applicable if state transitions are well-specified and enforced in tests.",
+      "detection_heuristics": [
+        "Trace reveals alternate allowed transitions for the same action.",
+        "Tests observe illegal or inconsistent state progression (e.g., paused -> setup).",
+        "End-of-game condition is reached through inconsistent paths."
+      ],
+      "severity": "major"
+    },
+    "C.10": {
+      "code": "C.10",
+      "name": "Multiplayer Turn Order and Action Validation Gaps",
+      "definition": "Gaps in enforcing proper turn order, action eligibility, or end-of-turn transitions in turn-based multiplayer scenarios.",
+      "when_to_use": "Use when traces show actions allowed out of order, skipped turns without enforcement, or state drifting between players.",
+      "when_not_to_use": "Not applicable if turn order is strictly enforced and validated in tests.",
+      "detection_heuristics": [
+        "Trace shows a player acting out of their turn without error.",
+        "End-of-turn logic does not consistently switch to the next player.",
+        "Tests fail due to misalignment between allowed moves and active player."
+      ],
+      "severity": "major"
+    },
+    "C.15": {
+      "code": "C.15",
+      "name": "diagonal_spatial_reasoning_gap",
+      "definition": "In spatial reasoning tasks (board games, collision, pathing), diagonal or non-axis-aligned scenarios are under-tested or misunderstood.",
+      "when_to_use": "Use when traces discuss missing diagonal coverage or incorrect geometric reasoning (e.g., collision distance along diagonals not tested).",
+      "when_not_to_use": "Use when spatial reasoning tests cover diagonal scenarios thoroughly.",
+      "detection_heuristics": [
+        "Notes that only horizontal/vertical cases are tested",
+        "Suggestions to test diagonal interactions or distances",
+        "Mention of spatial reasoning gaps in coverage"
+      ],
+      "severity": "minor"
+    },
+    "C.16": {
+      "code": "C.16",
+      "name": "roguelike_and_action_adventure_invariant_violations",
+      "definition": "In roguelike or action-adventure contexts, tests assume procedural content yields a solvable dungeon and balanced loot without enforcing invariants specific to such genres (e.g., dungeon connectivity, loot balance).",
+      "when_to_use": "When trace shows dungeon layouts with disconnected regions or unreachable goals, or loot distribution violates expected rarity/balance without any invariant checks.",
+      "when_not_to_use": "If tests explicitly verify connectivity, reachability, and loot balance and enforce them.",
+      "detection_heuristics": [
+        "Generated dungeon has disconnected components or unreachable areas.",
+        "Start-to-exit reachability is not guaranteed in test traces.",
+        "Loot/item spawn distribution violates expected rarity or balance."
+      ],
+      "severity": "major"
+    },
+    "C.17": {
+      "code": "C.17",
+      "name": "multiplayer_turn_based_synchronization_gaps",
+      "definition": "In multiplayer turn-based strategy, tests reveal gaps in synchronization between clients and server, leading to divergent game state or non-deterministic outcomes.",
+      "when_to_use": "When trace shows client and server states diverging after the same turn, or missing reconciliation after moves.",
+      "when_not_to_use": "If tests include explicit synchronization checks and pass with consistent lockstep replay.",
+      "detection_heuristics": [
+        "Client state diverges from server state after the same action or turn.",
+        "Non-deterministic results across clients despite identical inputs.",
+        "Missing or inconsistent reconciliation steps in trace (e.g., delayed or missing state updates)."
+      ],
+      "severity": "major"
+    }
+  },
+  "role_definitions": {
+    "solver": {
+      "agents": [
+        "mid_col",
+        "choice",
+        "start_row",
+        "cell",
+        "newkey",
+        "column",
+        "end_row",
+        "nx",
+        "ny",
+        "new_y",
+        "id",
+        "my",
+        "player",
+        "row",
+        "start_col",
+        "nr",
+        "new_x",
+        "turn",
+        "nc",
+        "mx",
+        "direction",
+        "level",
+        "category",
+        "name",
+        "col",
+        "clue",
+        "end_col",
+        "mid_row",
+        "letter"
+      ],
+      "definition": "Provides a code snippet for capture-validation logic in a board game (e.g., checkers).",
+      "purpose": "Generate or illustrate game-move validation logic."
+    },
+    "checker": {
+      "agents": [
+        "variable"
+      ],
+      "definition": "Critiques testability and highlights issues with variable scope and test access.",
+      "purpose": "Verify feasibility of tests and code structure."
+    }
+  },
+  "metadata": {
+    "version": "13.0",
+    "timestamp": "2026-04-06T13:56:41.298976",
+    "model": "gpt-5-nano",
+    "pipeline": "Architectural Risk + Behavioral Signals",
+    "traces_analyzed": 30,
+    "counts": {
+      "category_a": 12,
+      "category_b": 3,
+      "category_c": 17,
+      "total": 32
+    }
+  }
+}

@@ -1,0 +1,498 @@
+{
+  "category_a": {
+    "A.1": {
+      "definition": "Incorrect or misleading mathematical reasoning or results in math-related tasks; covers calculation errors, misapplied rules, and faulty conclusions.",
+      "rationale": "Redefined from: Unified failure: The agent fails to propagate upst",
+      "merged_from": [
+        "A.1",
+        "A.2"
+      ]
+    },
+    "A.3": {
+      "definition": "External-tool/external-service invocation failure: problems selecting or using the tool/endpoint, providing invalid arguments, receiving garbled or incomplete responses, token-budget constraints, timeouts, or rate limiting that lead to incomplete or abruptly terminated results.",
+      "rationale": "Auto-merged with A.5 (confused 35x)",
+      "merged_from": [
+        "A.3",
+        "A.5"
+      ]
+    }
+  },
+  "category_b": {
+    "B.1": {
+      "code": "B.1",
+      "name": "Solver_Low_Quality_Reasoning",
+      "definition": "The solver's solution relies on flawed reasoning, with unsupported leaps or weak justification, leading to an incorrect final answer.",
+      "when_to_use": "Use when the solution's steps appear unjustified, inconsistent with the final answer, or rely on weak assumptions.",
+      "when_not_to_use": "Use when the reasoning is sound, fully justified, and well-supported by the steps.",
+      "detection_heuristics": [
+        "Unjustified inferences or leaps between steps",
+        "Final answer not logically supported by preceding steps",
+        "Contradictions between reasoning and result",
+        "Missing or weak justification for key assumptions"
+      ],
+      "severity": "major",
+      "applies_to_role": "solver"
+    },
+    "B.2": {
+      "code": "B.2",
+      "name": "Solver_Missed_Edge_Cases",
+      "definition": "The solver fails to consider edge cases or boundary conditions, producing a solution that works only for typical inputs but fails for unusual or bound-case inputs.",
+      "when_to_use": "Use when tests or descriptions mention boundary or corner cases that the solver ignores.",
+      "when_not_to_use": "Use when all inputs are within standard, non-edge ranges and edge-case handling is unnecessary.",
+      "detection_heuristics": [
+        "Failure on boundary values or special inputs",
+        "Assumptions that exclude edge cases without justification",
+        "Tests omit corner-case scenarios"
+      ],
+      "severity": "major",
+      "applies_to_role": "solver"
+    },
+    "B.3": {
+      "definition": "A failure where outputs are incomplete or improperly formatted due to generation issues, or where workflow configuration is flawed (prompts, phases, sequencing, routing), causing downstream tasks to run under a flawed setup and produce incorrect or unusable results.",
+      "rationale": "Auto-merged with B.6 (confused 30x)",
+      "merged_from": [
+        "B.3",
+        "B.6"
+      ]
+    },
+    "B.5": {
+      "code": "B.5",
+      "name": "Checker_Inconsistent_Verdicts",
+      "definition": "Different checker evaluations or iterative rounds produce inconsistent verdicts for similar outputs, undermining the reliability of the verification process.",
+      "when_to_use": "Use when multiple verification rounds yield conflicting verdicts for analogous outputs.",
+      "when_not_to_use": "Use when verdicts are consistent across rounds and criteria are stable.",
+      "detection_heuristics": [
+        "Inconsistent verdicts for similar outputs",
+        "Different criteria or rubrics applied across rounds",
+        "No justification for verdict changes"
+      ],
+      "severity": "major",
+      "applies_to_role": "checker"
+    },
+    "B.8": {
+      "code": "B.8",
+      "name": "Coordinator_Aggregation_Verdict_Mismatch",
+      "definition": "The aggregated final verdict does not align with the individual verifier verdicts, signaling misaggregation or bias in the final decision.",
+      "when_to_use": "Use when the final verdict contradicts per-verifier results or the aggregation rule is not followed.",
+      "when_not_to_use": "Use when the final verdict is consistent with verifier results.",
+      "detection_heuristics": [
+        "Final verdict contradicts individual verdicts",
+        "Aggregation rule not followed or misapplied",
+        "Discrepancy between per-round conclusions and final result"
+      ],
+      "severity": "major",
+      "applies_to_role": "coordinator"
+    }
+  },
+  "category_c": {
+    "C.1": {
+      "code": "C.1",
+      "name": "context_insensitive_tax_effects",
+      "definition": "Reasoning treats a change in accounting method as if it automatically and identically changes tax payable, ignoring timing rules, deferrals, and tax-specific constraints (e.g., inflation context and regulatory rules).",
+      "when_to_use": "Trace shows someone equating changes in book values directly with tax consequences without discussing deferrals, timing, or tax law specifics.",
+      "when_not_to_use": "Trace distinguishes between book accounting and tax accounting, mentions timing differences, or references deferral mechanisms.",
+      "detection_heuristics": [
+        "claims tax payable moves in lockstep with ending inventory value",
+        "ignores tax timing differences or deferral provisions",
+        "treats inventory method change as if tax impact is identical across periods"
+      ],
+      "severity": "major"
+    },
+    "C.2": {
+      "code": "C.2",
+      "name": "universal_law_principle_application",
+      "definition": "Applying a legal principle in all contexts without recognizing jurisdictional limits, facts, or nuanced applicability (e.g., treating habit evidence as universally admissible or assuming automatic title transfer).",
+      "when_to_use": "Trace uses a legal principle in a blanket fashion without noting scope or jurisdictional constraints.",
+      "when_not_to_use": "Trace acknowledges that a principle has limits or depends on facts/jurisdiction.",
+      "detection_heuristics": [
+        "asserts a legal principle is always or universally applicable",
+        "ignores contextual requirements (e.g., exceptions, prerequisites, or governing rules)"
+      ],
+      "severity": "major"
+    },
+    "C.3": {
+      "code": "C.3",
+      "name": "outdated_guideline_misapplication",
+      "definition": "Clearer definition",
+      "when_to_use": "Trace uses a guideline beyond its validity or outside appropriate clinical context.",
+      "when_not_to_use": "Trace aligns with current, context-appropriate guidelines.",
+      "detection_heuristics": [
+        "references guidelines from an inappropriate time period",
+        "treats outdated recommendations as if current"
+      ],
+      "severity": "major",
+      "rationale": "Redefined from: Clearer definition"
+    },
+    "C.4": {
+      "code": "C.4",
+      "name": "assumed_vulnerability_without_evidence",
+      "definition": "Asserting a system or asset is vulnerable without evidence or appropriate threat model justification.",
+      "when_to_use": "Trace asserts an unknown vulnerability exists or is exploitable without showing basis or evidence.",
+      "when_not_to_use": "Trace requires evidence, threat modeling, or testing before asserting vulnerability.",
+      "detection_heuristics": [
+        "claims a vulnerability or risk without supporting data",
+        "lacks justification from threat model or evidence"
+      ],
+      "severity": "major"
+    },
+    "C.5": {
+      "code": "C.5",
+      "name": "causality_from_correlation_in_econometrics",
+      "definition": "Infers causal effect from correlations without addressing endogeneity, confounding, or identification strategy.",
+      "when_to_use": "Trace asserts a causal link based solely on correlation or regression coefficients without robustness checks.",
+      "when_not_to_use": "Trace discusses potential endogeneity, instrument validity, or identification concerns.",
+      "detection_heuristics": [
+        "claims causation from correlation",
+        "no discussion of endogeneity or identification strategy"
+      ],
+      "severity": "major"
+    },
+    "C.6": {
+      "code": "C.6",
+      "name": "instant_policy_effect_misunderstanding",
+      "definition": "Assumes macro policy effects are instantaneous or ignore dynamic adjustment and time lags.",
+      "when_to_use": "Trace treats policy changes as having immediate, full impact without delay or hysteresis.",
+      "when_not_to_use": "Trace acknowledges delay, anticipation, adaptation, or dynamic effects.",
+      "detection_heuristics": [
+        "asserts immediate impact of policy",
+        "ignores lagged responses or business-cycle dynamics"
+      ],
+      "severity": "major"
+    },
+    "C.7": {
+      "code": "C.7",
+      "name": "geographic_overgeneralization",
+      "definition": "Extends findings from one region to all regions, ignoring local variation, heterogeneity, or spatial dependence.",
+      "when_to_use": "Trace generalizes a geographic result to all places without justification.",
+      "when_not_to_use": "Trace notes regional differences or limits applicability to a region.",
+      "detection_heuristics": [
+        "applies region-specific result universally",
+        "neglects spatial heterogeneity or autocorrelation"
+      ],
+      "severity": "major"
+    },
+    "C.8": {
+      "code": "C.8",
+      "name": "outcome_bias_in_ethics",
+      "definition": "Judges ethical considerations by outcomes alone, neglecting process, rights, or procedural integrity.",
+      "when_to_use": "Trace argues ethics solely on end results; ignores process fairness or rights.",
+      "when_not_to_use": "Trace weighs both outcomes and process considerations.",
+      "detection_heuristics": [
+        "ethics judged by outcome alone",
+        "no discussion of process or rights"
+      ],
+      "severity": "major"
+    },
+    "C.9": {
+      "code": "C.9",
+      "name": "quantifier_scope_ambiguity_in_logic",
+      "definition": "Mistakes in quantifier scope (e.g., all/some/each) leading to faulty generalizations or conclusions.",
+      "when_to_use": "Trace shows improper handling of universal/existential quantifiers in reasoning.",
+      "when_not_to_use": "Trace uses correct logical quantifier scope with clear boundaries.",
+      "detection_heuristics": [
+        "ambiguous or contradictory statements about 'all' vs 'some'",
+        "inconsistent logical scope throughout the trace"
+      ],
+      "severity": "major"
+    },
+    "C.10": {
+      "code": "C.10",
+      "name": "off_by_one_indexing",
+      "definition": "Indexing mismatch between human-intended options and programmatic representation (e.g., 0-based vs 1-based indexing) leading to wrong selections.",
+      "when_to_use": "Trace shows or relies on an off-by-one error in option indexing or mapping.",
+      "when_not_to_use": "Trace uses correct indexing consistently and validates inputs/outputs.",
+      "detection_heuristics": [
+        "output index does not align with presented option",
+        "explicitly demonstrates an off-by-one mismatch in the trace"
+      ],
+      "severity": "major"
+    },
+    "C.11": {
+      "code": "C.11",
+      "name": "non_linear_oversimplification_in_math",
+      "definition": "Applying linear intuition or inequalities to a non-linear context without justification.",
+      "when_to_use": "Trace uses linear reasoning where non-linearity or boundary conditions matter.",
+      "when_not_to_use": "Trace correctly accounts for non-linearity, curvature, or domain limits.",
+      "detection_heuristics": [
+        "assumes additivity or proportionality where not valid",
+        "ignores domain constraints or functional form"
+      ],
+      "severity": "major"
+    },
+    "C.12": {
+      "code": "C.12",
+      "name": "frame_of_reference_misinterpretation_in_physics",
+      "definition": "Misinterpreting a physical quantity due to incorrect frame or reference, leading to sign or direction errors.",
+      "when_to_use": "Trace uses an incorrect frame of reference to interpret a physical result.",
+      "when_not_to_use": "Trace explicitly states and uses the correct frame of reference.",
+      "detection_heuristics": [
+        "messes up vectors, signs, or energy vs momentum distinctions",
+        "claims results without stating the frame of reference"
+      ],
+      "severity": "major"
+    },
+    "C.13": {
+      "code": "C.13",
+      "name": "ethics_baseline_bias",
+      "definition": "Grounding moral judgments on a biased baseline or norm that excludes context or stakeholder perspectives.",
+      "when_to_use": "Trace relies on a biased moral baseline without justification.",
+      "when_not_to_use": "Trace acknowledges multiple ethical baselines or contextual factors.",
+      "detection_heuristics": [
+        "bias toward a single normative baseline",
+        "ignores stakeholder context or competing ethical frameworks"
+      ],
+      "severity": "major"
+    },
+    "C.14": {
+      "code": "C.14",
+      "name": "temporal_lag_misunderstanding_in_macro",
+      "definition": "Misunderstanding of time lags and dynamic adjustment in macro phenomena, leading to incorrect short-run vs long-run conclusions.",
+      "when_to_use": "Trace treats effects as contemporaneous without recognizing lag structure.",
+      "when_not_to_use": "Trace discusses lag structure, adjustment dynamics, or policy horizon differences.",
+      "detection_heuristics": [
+        "assumes immediate impact where lags exist",
+        "neglects dynamic feedback or horizon effects"
+      ],
+      "severity": "major"
+    },
+    "C.19": {
+      "code": "C.19",
+      "name": "Non_deterministic_Output",
+      "definition": "Repeated runs over the same or equivalent prompts yield different final answers, indicating non-deterministic or unstable output behavior.",
+      "when_to_use": "Apply when the trace shows varying final answers for the same prompt across multiple runs or sessions without changes to the prompt or input.",
+      "when_not_to_use": "Do not apply if identical inputs consistently yield the same answer across runs.",
+      "detection_heuristics": [
+        "different final indices for equivalent questions in separate traces",
+        "explicit note of variability in outputs across calls for the same input"
+      ],
+      "severity": "minor"
+    },
+    "C.20": {
+      "code": "C.20",
+      "name": "universal_moral_principle_application",
+      "definition": "Assumes a single moral principle applies universally across cultures and contexts, ignoring moral pluralism, situational nuance, and stakeholder differences.",
+      "when_to_use": "Trace shows a universal applicability claim without context-specific justification.",
+      "when_not_to_use": "Trace acknowledges context-specific moral frameworks or stakeholder differences.",
+      "detection_heuristics": [
+        "claims universal applicability of a single moral principle",
+        "ignores cultural or situational variation",
+        "no stakeholder-specific considerations"
+      ],
+      "severity": "major"
+    },
+    "C.21": {
+      "code": "C.21",
+      "name": "nutrition_evidence_overgeneralization",
+      "definition": "Generalizes dietary guidance from limited or non-representative nutrition studies, ignoring populations, confounders, and study quality.",
+      "when_to_use": "Trace uses a single small or non-representative study to generalize diet advice.",
+      "when_not_to_use": "Trace references meta-analyses or clearly states limitations.",
+      "detection_heuristics": [
+        "cites a single study as definitive",
+        "ignores population heterogeneity (age, health status, ethnicity)",
+        "omits confounders (lifestyle, comorbidities)"
+      ],
+      "severity": "major"
+    },
+    "C.22": {
+      "code": "C.22",
+      "name": "clinical_knowledge_inference_without_evidence",
+      "definition": "Infers clinical conclusions or treatment recommendations without supporting evidence or applicable guidelines.",
+      "when_to_use": "Trace makes treatment suggestions lacking supporting evidence.",
+      "when_not_to_use": "Trace cites RCTs, guidelines, or systematic reviews.",
+      "detection_heuristics": [
+        "claims treatment without citing evidence",
+        "ignores study quality or sample size",
+        "applies general principle outside indication"
+      ],
+      "severity": "major"
+    },
+    "C.23": {
+      "code": "C.23",
+      "name": "threat_model_absence_in_security_assessment",
+      "definition": "Assumes system security without performing a threat model or risk assessment, overlooking plausible attacker vectors.",
+      "when_to_use": "Trace asserts security based solely on controls without threat modeling.",
+      "when_not_to_use": "Trace includes threat modeling or risk assessment.",
+      "detection_heuristics": [
+        "no threat scenarios considered",
+        "ignores attacker capabilities or supply-chain risks",
+        "security claim rests on a single control"
+      ],
+      "severity": "major"
+    },
+    "C.24": {
+      "code": "C.24",
+      "name": "policy_interaction_oversimplification_in_macro",
+      "definition": "Treats macro policy effects as independent and ignores interactions between instruments (e.g., fiscal vs monetary), lags, and expectation dynamics.",
+      "when_to_use": "Trace assumes one policy works in isolation without interactions.",
+      "when_not_to_use": "Trace discusses policy interactions and dynamic effects.",
+      "detection_heuristics": [
+        "ignores interaction between fiscal/monetary policy",
+        "assumes no crowding-out or offsetting effects",
+        "no discussion of time lags or feedback"
+      ],
+      "severity": "major"
+    },
+    "C.25": {
+      "code": "C.25",
+      "name": "undisclosed_conflict_of_interest_in_business_ethics_reasoning",
+      "definition": "Reasoning biased by undisclosed financial or organizational ties to a party benefiting from the conclusion.",
+      "when_to_use": "Trace shows justification linked to sponsor or insider interests without disclosure.",
+      "when_not_to_use": "Trace provides independent justification or discloses conflicts.",
+      "detection_heuristics": [
+        "mentions sponsor or internal party as primary justification",
+        "omits potential conflicts of interest",
+        "conclusion aligns with beneficiary interests"
+      ],
+      "severity": "major"
+    },
+    "C.26": {
+      "code": "C.26",
+      "name": "philosophical_claims_without_justification",
+      "definition": "States philosophical claims as facts without presenting premises, arguments, or counterarguments.",
+      "when_to_use": "Trace asserts a claim without outlining reasoning or evidence.",
+      "when_not_to_use": "Trace presents argument structure and addresses objections.",
+      "detection_heuristics": [
+        "claim stated without premises or evidence",
+        "no argumentative structure",
+        "no consideration of counterarguments"
+      ],
+      "severity": "major"
+    },
+    "C.27": {
+      "code": "C.27",
+      "name": "training_data_leakage_in_model_evaluation",
+      "definition": "Evaluates ML models on training data or uses leakage between train and test, inflating performance.",
+      "when_to_use": "Trace reports accuracy on training data or lacks a proper holdout.",
+      "when_not_to_use": "Trace uses held-out data or proper cross-validation.",
+      "detection_heuristics": [
+        "performance reported on training set",
+        "no separation between training and testing",
+        "no cross-validation described"
+      ],
+      "severity": "major"
+    },
+    "C.28": {
+      "code": "C.28",
+      "name": "data_structure_misuse_in_algorithms",
+      "definition": "Misuses fundamental data structures, leading to incorrect algorithm conclusions (e.g., treating arrays as dynamic lists).",
+      "when_to_use": "Trace shows improper data-structure semantics in reasoning.",
+      "when_not_to_use": "Trace uses correct data-structure semantics.",
+      "detection_heuristics": [
+        "assumes dynamic resizing of fixed-size arrays",
+        "uses list-like operations on arrays without correct methods",
+        "contradictory indexing semantics"
+      ],
+      "severity": "major"
+    },
+    "C.29": {
+      "code": "C.29",
+      "name": "basic_math_rules_misapplication",
+      "definition": "Applies advanced or inappropriate rules to a basic math problem, causing incorrect results.",
+      "when_to_use": "Trace applies rule not valid for the given operation.",
+      "when_not_to_use": "Trace uses standard rules properly.",
+      "detection_heuristics": [
+        "uses non-applicable exponent/log/identity rules",
+        "ignores domain restrictions",
+        "produces incorrect result attributed to rule misuse"
+      ],
+      "severity": "major"
+    },
+    "C.30": {
+      "code": "C.30",
+      "name": "naive_kinematics_in_conceptual_physics",
+      "definition": "Using overly simplistic physics reasoning that ignores proper dynamics, conservation laws, or correct reference frames.",
+      "when_to_use": "Trace applies oversimplified kinematics without valid justification.",
+      "when_not_to_use": "Trace uses correct physical principles and acknowledges limitations.",
+      "detection_heuristics": [
+        "ignores momentum/energy conservation where relevant",
+        "assumes frictionless or force-free motion without stating assumptions",
+        "applies incorrect frame of reference without transformation"
+      ],
+      "severity": "major"
+    },
+    "C.31": {
+      "code": "C.31",
+      "name": "framing_bias_in_moral_disputes",
+      "definition": "Reasoning in moral disputes is dominated by framing or presentation bias rather than substantive normative justification.",
+      "when_to_use": "Trace relies on how issue is framed rather than normative arguments.",
+      "when_not_to_use": "Trace presents substantive ethical reasoning and premises.",
+      "detection_heuristics": [
+        "emphasizes emotional framing over argument content",
+        "leverages framing to influence perceived acceptability",
+        "omits normative premises and objections"
+      ],
+      "severity": "major"
+    },
+    "C.32": {
+      "code": "C.32",
+      "name": "phillips_curve_misinterpretation_in_basic_macroeconomics",
+      "definition": "Misinterprets the inflation-unemployment tradeoff, treating it as fixed or ignoring expectations and dynamics in macro contexts.",
+      "when_to_use": "Trace claims a fixed tradeoff or ignores adaptive expectations.",
+      "when_not_to_use": "Trace acknowledges dynamic tradeoffs and role of expectations.",
+      "detection_heuristics": [
+        "claims guaranteed inverse relation across contexts",
+        "ignores expectations or time-varying dynamics",
+        "neglects the role of policy surprises"
+      ],
+      "severity": "major"
+    },
+    "C.33": {
+      "code": "C.33",
+      "name": "geography_spatial_variation_and_MAUP_ignored",
+      "definition": "Ignores spatial heterogeneity and effects of geographic aggregation (MAUP), treating region-level results as universal.",
+      "when_to_use": "Trace generalizes results across regions without sensitivity to MAUP or regional variation.",
+      "when_not_to_use": "Trace analyzes multiple geographic units or discusses spatial dependence.",
+      "detection_heuristics": [
+        "generalizes across regions without checking sensitivity to spatial units",
+        "no regional stratification or spatial tests",
+        "assumes results independent of geographic aggregation"
+      ],
+      "severity": "major"
+    }
+  },
+  "role_definitions": {
+    "solver": {
+      "agents": [
+        "chatting",
+        "codecomplete",
+        "codecompleteall",
+        "programmer"
+      ],
+      "definition": "Generates direct problem-solving outputs (answers, steps) in response to user prompts.",
+      "purpose": "Produce direct problem solutions"
+    },
+    "coordinator": {
+      "agents": [
+        "preprocessing",
+        "Chief Executive Officer",
+        "roleplaying",
+        "Chief Product Officer",
+        "Chief Technology Officer"
+      ],
+      "definition": "Initializes the multi-agent setup: loads configs, prepares task prompts, and organizes workflow.",
+      "purpose": "Orchestrate task setup and environment"
+    },
+    "checker": {
+      "agents": [
+        "codereview",
+        "Code Reviewer",
+        "codereviewcomment"
+      ],
+      "definition": "Generates feedback and critique on code or outputs to validate quality.",
+      "purpose": "Quality verification of outputs"
+    }
+  },
+  "metadata": {
+    "version": "13.0",
+    "timestamp": "2026-04-06T14:18:13.206665",
+    "model": "gpt-5-nano",
+    "pipeline": "Architectural Risk + Behavioral Signals",
+    "traces_analyzed": 91,
+    "counts": {
+      "category_a": 5,
+      "category_b": 10,
+      "category_c": 33,
+      "total": 48
+    }
+  }
+}

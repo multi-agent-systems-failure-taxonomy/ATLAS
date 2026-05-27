@@ -1,0 +1,59 @@
+{
+  "category_a": {
+    "A.1": {
+      "definition": "Unified failure mode: a systemic reliability breakdown across reasoning, memory/context, grounding, or coordination (including external service unavailability) that can cause deadlock or stagnation and produce outputs with weak structure, insufficient justification, or vague conclusions, coupled with misdiagnosis of underlying tool errors or root causes and misalignment of cross-modal evidence, leading to ineffective remediation and inconsistent or unsupported conclusions.",
+      "rationale": "Auto-merged with B.9 (confused 10x)",
+      "merged_from": [
+        "A.1",
+        "B.9"
+      ]
+    }
+  },
+  "category_b": {},
+  "category_c": {},
+  "role_definitions": {
+    "coordinator": {
+      "agents": [
+        "root",
+        "row"
+      ],
+      "definition": "Main orchestrator that reads prompts and triggers tasks across agents, routing workflow.",
+      "purpose": "Orchestrate task flow."
+    },
+    "solver": {
+      "agents": [
+        "Val Rupp Chief People Officer",
+        "zamzar",
+        "browser_use",
+        "pdf",
+        "browser",
+        "name",
+        "ejected_ball",
+        "html",
+        "Community Manager"
+      ],
+      "definition": "Generates content snippets (marketing/HR related) as part of the data generation workflow.",
+      "purpose": "Produce content snippets."
+    },
+    "refiner": {
+      "agents": [
+        "col"
+      ],
+      "definition": "Diagnoses tool errors and refines the workflow to continue the task execution.",
+      "purpose": "Improve workflow reliability."
+    }
+  },
+  "metadata": {
+    "version": "13.0",
+    "timestamp": "2026-04-06T12:21:28.449404",
+    "model": "gpt-5-nano",
+    "pipeline": "Architectural Risk + Behavioral Signals",
+    "traces_analyzed": 30,
+    "counts": {
+      "category_a": 9,
+      "category_b": 15,
+      "category_c": 5,
+      "total": 29
+    }
+  }
+}

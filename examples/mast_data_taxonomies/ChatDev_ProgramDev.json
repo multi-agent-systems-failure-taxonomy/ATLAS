@@ -1,0 +1,374 @@
+{
+  "category_a": {
+    "A.1": {
+      "definition": "Processing failure where progress is blocked or the produced output is unusable due to either (a) the output being unparsable/undecodable because of format/encoding issues or truncation, or (b) an internal runtime error or external dependency failure that prevents execution.",
+      "rationale": "Auto-merged with A.6 (confused 13x)",
+      "merged_from": [
+        "A.1",
+        "A.6"
+      ]
+    },
+    "A.2": {
+      "code": "A.2",
+      "name": "Constraint_Drift_Contradiction",
+      "definition": "Earlier-established constraints or facts are contradicted later in the trace, causing inconsistent or invalid artifacts.",
+      "when_to_use": "When inconsistencies are detected between constraints or facts across the trace.",
+      "when_not_to_use": "If no contradictions are observed and constraints remain coherent.",
+      "detection_heuristics": [
+        "A later step asserts a constraint that conflicts with an earlier assertion.",
+        "Contradictory values for the same variable appear at different stages.",
+        "Automated consistency checks fail due to opposing constraints."
+      ],
+      "severity": "major",
+      "evidence": "observed"
+    },
+    "A.3": {
+      "definition": "In ChatDev_Chess tasks, inconsistent or faulty reasoning leading to incorrect moves or strategy drift.",
+      "rationale": "Redefined from: Outputs are unusable or misleading because essenti",
+      "merged_from": [
+        "A.3",
+        "A.9"
+      ]
+    },
+    "A.5": {
+      "code": "A.5",
+      "name": "Execution_Timeout",
+      "definition": "Agent or tool invocation exceeds allocated time or resource budget, causing termination or timeout errors.",
+      "when_to_use": "When a call or task exceeds time/resource budgets.",
+      "when_not_to_use": "If execution finishes within the allocated time.",
+      "detection_heuristics": [
+        "Elapsed time for a call exceeds the predefined timeout.",
+        "Timeout error codes or signals are returned by a tool.",
+        "Resource usage spikes leading to timeout before task completion."
+      ],
+      "severity": "critical",
+      "evidence": "observed"
+    },
+    "A.10": {
+      "code": "A.10",
+      "name": "Repetitive_output_looping",
+      "definition": "Agent produces repetitive or looping content, indicating stalled progress or circular reasoning.",
+      "when_to_use": "When outputs show repeated patterns with no substantive progress.",
+      "when_not_to_use": "If outputs show continuous, meaningful progress.",
+      "detection_heuristics": [
+        "Same sentence or sequence repeated verbatim multiple times.",
+        "No new information or variation after several iterations.",
+        "Extended sequences of identical tokens with no novelty."
+      ],
+      "severity": "major",
+      "evidence": "observed"
+    }
+  },
+  "category_b": {
+    "B.1": {
+      "code": "B.1",
+      "name": "Solver_Low_Quality_Reasoning",
+      "definition": "The solver's artifact demonstrates superficial or poorly justified reasoning, omits critical state updates (e.g.",
+      "when_to_use": "When the solver's reasoning is shallow, lacks justification, or misses critical state updates that affect downstream outcomes.",
+      "when_not_to_use": "When the solver provides thorough, justified reasoning with complete state updates and traceable rationale.",
+      "detection_heuristics": [
+        "Rationale is abbreviated or missing key steps",
+        "State updates are incomplete or inconsistent with the artifact's claims",
+        "No traceable justification or evidence for critical decisions",
+        "Contradictions between reasoning and observed outcomes"
+      ],
+      "severity": "major",
+      "applies_to_role": "solver"
+    },
+    "B.2": {
+      "code": "B.2",
+      "name": "Coordinator_NonOptimal_Orchestration",
+      "definition": "The coordinator's plan is inefficient or conflicts with constraints, resulting in ambiguous responsibilities, conflicting requirements, or weak alignm...",
+      "when_to_use": "When the coordinator's plan is notably inefficient, conflicts constraints are present, or responsibilities are ambiguously assigned.",
+      "when_not_to_use": "When the plan is efficient, well-aligned with constraints, and responsibilities are clearly defined.",
+      "detection_heuristics": [
+        "Redundant steps or unnecessary work detected in the plan",
+        "Conflicting requirements or ownership gaps remain unresolved",
+        "Ambiguity in who is responsible for key deliverables",
+        "Schedule or resource constraints are violated or poorly resolved"
+      ],
+      "severity": "major",
+      "applies_to_role": "coordinator"
+    },
+    "B.3": {
+      "code": "B.3",
+      "name": "Checker_Rubber_Stamp_Approval",
+      "definition": "The checker approves artifacts without performing meaningful validation, effectively rubber-stamping results regardless of content quality or complian...",
+      "when_to_use": "When approvals are given with minimal validation and no evidence of thorough checks.",
+      "when_not_to_use": "When the checker performs thorough validation with documented evidence of checks.",
+      "detection_heuristics": [
+        "Approval lacks justification or validation artifacts",
+        "No cross-checks against requirements or constraints",
+        "Missing evidence of tests, reviews, or verifications conducted",
+        "Acceptance criteria not clearly demonstrated"
+      ],
+      "severity": "major",
+      "applies_to_role": "checker (recommended) / could also function as an additional verifier within checker tier"
+    },
+    "B.5": {
+      "code": "B.5",
+      "name": "Checker_Superficial_Verification",
+      "definition": "The checker performs verification that is superficial or incomplete, failing to validate critical invariants, cross-field dependencies, or requirement traces, allowing latent defects to pass unchecked.",
+      "when_to_use": "When verification appears surface-level and lacks depth or cross-checks against critical criteria.",
+      "when_not_to_use": "When thorough, multi-faceted verification is performed with traceable evidence.",
+      "detection_heuristics": [
+        "Limited scope of checks without cross-field validation",
+        "No linkage to requirements traceability or critical invariants",
+        "Rapid verification with minimal supporting artifacts",
+        "Discrepancies between checks and actual risk/impact"
+      ],
+      "severity": "major",
+      "applies_to_role": "checker (recommended) / could also function as an additional verifier within checker tier"
+    },
+    "B.6": {
+      "code": "B.6",
+      "name": "Checker_Independent_Verification_Reliance",
+      "definition": "The checker relies on the outputs of solver or other roles without performing independent verification, failing to challenge assumptions.",
+      "when_to_use": "When the checker defers to others' outputs without independent cross-checks.",
+      "when_not_to_use": "When the checker independently verifies critical aspects or validates cross-role outputs.",
+      "detection_heuristics": [
+        "No independent verification steps documented",
+        "Validation relies solely on outputs from other roles",
+        "No evidence of re-checking assumptions or constraints",
+        "Unverified dependencies or invariants cited as accepted"
+      ],
+      "severity": "major",
+      "applies_to_role": "checker (recommended) / could also function as an additional verifier within checker tier"
+    },
+    "B.7": {
+      "code": "B.7",
+      "name": "Coordinator_Stakeholder_Engagement_Deficit",
+      "definition": "The coordinator engages stakeholders insufficiently or late, resulting in misaligned requirements, unaddressed constraints, or lack of buy-in.",
+      "when_to_use": "When stakeholder involvement is delayed or inadequate, leading to misalignment.",
+      "when_not_to_use": "When stakeholder engagement is thorough with timely feedback and approvals.",
+      "detection_heuristics": [
+        "Few or late stakeholder meetings documented",
+        "Missing or inconsistent stakeholder sign-offs",
+        "Requirements or constraints appear not to reflect stakeholder input",
+        "Communication artifacts show gaps between stakeholder expectations and plan"
+      ],
+      "severity": "major",
+      "applies_to_role": "coordinator"
+    },
+    "B.8": {
+      "code": "B.8",
+      "name": "Coordinator_Timeline_Management_Deficit",
+      "definition": "The coordinator fails to manage timelines, resulting in unrealistic schedules, missed milestones, or poor alignment with dependencies.",
+      "when_to_use": "When timelines are consistently unrealistic or milestones are routinely missed due to planning gaps.",
+      "when_not_to_use": "When timeline management is accurate, with dependencies tracked and milestones met.",
+      "detection_heuristics": [
+        "Unrealistic or frequently shifting milestones",
+        "Missed dependencies or misaligned sequencing",
+        "Backlogs or shots of tasks not synchronized with downstream work",
+        "Inadequate risk buffers or contingency plans"
+      ],
+      "severity": "major",
+      "applies_to_role": "coordinator"
+    }
+  },
+  "category_c": {
+    "C.1": {
+      "code": "C.1",
+      "name": "Coordinate/Index mapping mismatch",
+      "definition": "Inconsistent translation between user-facing coordinates and internal board indices, including axis orientation mismatches, swapped row/column mappings, or one-based vs zero-based indexing. This causes moves, selections, or displays to reference the wrong cells or elements.",
+      "when_to_use": "Use when the trace shows user inputs targeting a different internal cell than what is shown, or when rendering/display mappings omit or misplace boundary cells due to offset or swapped axes.",
+      "when_not_to_use": "Use when mapping between input, internal data, and rendering is consistent across trace entries.",
+      "detection_heuristics": [
+        "Move targets a cell that differs from the one expected by the displayed board",
+        "Axis orientation between input and render is swapped (rows vs columns)",
+        "One-based vs zero-based indexing mismatch detected via boundary moves",
+        "First/last elements missing or misread due to a consistent offset"
+      ],
+      "severity": "major"
+    },
+    "C.3": {
+      "code": "C.3",
+      "name": "Input parsing failure",
+      "definition": "Clearer definition",
+      "when_to_use": "Trace shows parsing logic misinterpreting a valid move (e.g., A3-B4) as invalid, or misreading coordinates, or failing to support multiple formats documented.",
+      "when_not_to_use": "Input parsing correctly handles all documented formats and provides clear feedback for invalid inputs.",
+      "detection_heuristics": [
+        "Parse errors for valid notations that are known to be valid in the problem domain.",
+        "Incorrect rejection of legal moves or acceptance of illegal moves due to parsing mistakes.",
+        "Ambiguity in input formats leading to inconsistent behavior."
+      ],
+      "severity": "major",
+      "rationale": "Redefined from: Clearer definition"
+    },
+    "C.4": {
+      "code": "C.4",
+      "name": "Uninitialized reference usage",
+      "definition": "Attempting to use a board cell, piece, or object that has not been initialized (None/null), causing crashes or undefined behavior.",
+      "when_to_use": "Trace shows dereferencing a None/null object when accessing board.grid[x][y] before initialization, or using an object attribute that was never set.",
+      "when_not_to_use": "All referenced objects are properly initialized before use; no null dereferences occur.",
+      "detection_heuristics": [
+        "Tracebacks or error messages indicating NoneType has no attribute or similar null dereference.",
+        "Access to board elements that were never created or assigned.",
+        "Initialization routines missing or skipped under certain code paths."
+      ],
+      "severity": "critical"
+    },
+    "C.5": {
+      "code": "C.5",
+      "name": "Performance issues on larger scopes",
+      "definition": "Algorithmic or rendering paths become prohibitively slow as board size, move complexity, or AI search depth grows, indicating scalability problems.",
+      "when_to_use": "Trace mentions slow frames, profiling hints, or explicit remarks about hot loops or heavy computations on larger boards (e.g., 20x20, 30x30, or deeper AI).",
+      "when_not_to_use": "Performance remains acceptable across small and large boards with efficient code paths.",
+      "detection_heuristics": [
+        "Profile or timing data showing exponential or quadratic growth with board size.",
+        "Comments or logs describing optimization opportunities or slow loops.",
+        "No major correctness issues, but latency grows unacceptably with scale."
+      ],
+      "severity": "minor"
+    },
+    "C.9": {
+      "code": "C.9",
+      "name": "Puzzle rule-encoding mismatch",
+      "definition": "Constraint or rule encoding for a puzzle does not align with the puzzle's stated constraints, causing acceptance of constraint-violating moves or rejection of valid moves.",
+      "when_to_use": "Use when trace shows moves that violate puzzle constraints are accepted or valid moves are rejected due to misencoded rules.",
+      "when_not_to_use": "Use when puzzle rules are encoded consistently with their stated constraints and enforced correctly.",
+      "detection_heuristics": [
+        "Move violates an explicit puzzle constraint but is allowed",
+        "Valid move rejected due to mismatch between rules and constraints",
+        "Constraint checks inconsistent with puzzle description in logs",
+        "Contradictory constraint outcomes observed across moves"
+      ],
+      "severity": "major"
+    },
+    "C.10": {
+      "code": "C.10",
+      "name": "Hitbox misalignment in arcade/skill games",
+      "definition": "Collision detection uses incorrect bounding shapes or thresholds, causing hits to register when not overlapping or misses when overlapping.",
+      "when_to_use": "Use when trace shows hits/misses that do not align with the visible overlap of sprites or playfield elements.",
+      "when_not_to_use": "Use when collision detections align with visuals and expectations.",
+      "detection_heuristics": [
+        "Hit registered without visible overlap",
+        "Overlap exists but no hit registered",
+        "Hit/miss inconsistencies across frames with same positions",
+        "Collision test thresholds do not correspond to rendered shapes"
+      ],
+      "severity": "major"
+    },
+    "C.11": {
+      "code": "C.11",
+      "name": "Feedback/scoring misalignment in educational games",
+      "definition": "Feedback or scoring does not align with correct answers or intended learning outcomes, rewarding incorrect behavior or overlooking correct solutions.",
+      "when_to_use": "Use when trace shows correct solutions not rewarded or incorrect solutions rewarded or praised.",
+      "when_not_to_use": "Use when feedback scoring matches educational objectives and correct answers consistently.",
+      "detection_heuristics": [
+        "Correct answer receives no credit or reward",
+        "Incorrect answer rewarded or praised",
+        "Scoring changes do not reflect correctness",
+        "Feedback messages contradict the correct solution path"
+      ],
+      "severity": "major"
+    },
+    "C.12": {
+      "code": "C.12",
+      "name": "Ambiguity in command parsing in text-based games",
+      "definition": "Natural-language command parser misinterprets user inputs, leading to unintended actions or inconsistent behavior across identical inputs.",
+      "when_to_use": "Use when trace shows the same input yielding different actions or when the parser selects an unintended interpretation.",
+      "when_not_to_use": "Use when commands are consistently interpreted and executed as intended.",
+      "detection_heuristics": [
+        "Identical input parsed into different actions across runs",
+        "Same text yields divergent behavior without input changes",
+        "Ambiguity resolution paths triggered in logs",
+        "User intent inferred differently from similar commands"
+      ],
+      "severity": "major"
+    }
+  },
+  "role_definitions": {
+    "solver": {
+      "agents": [
+        "end_row",
+        "index",
+        "green",
+        "start_row",
+        "c2",
+        "ny",
+        "new_y",
+        "position",
+        "new_x",
+        "r1",
+        "installation",
+        "troubleshooting",
+        "side",
+        "preprocessing",
+        "next_y",
+        "nx",
+        "col",
+        "yellow",
+        "end_col",
+        "next_x",
+        "introduction",
+        "direction",
+        "r2",
+        "scoring",
+        "choice_index",
+        "grey",
+        "chatting",
+        "character",
+        "row",
+        "level",
+        "column",
+        "color_name",
+        "c1",
+        "start_col"
+      ],
+      "definition": "Implements piece movement on a board; updates board state and king position.",
+      "purpose": "Generate in-game move logic"
+    },
+    "coordinator": {
+      "agents": [
+        "roleplaying",
+        "category"
+      ],
+      "definition": "Oversees product/creative roles and high-level coordination among agents.",
+      "purpose": "Manage multi-agent collaboration"
+    },
+    "checker": {
+      "agents": [],
+      "definition": "References roles and quality expectations; evaluates outputs.",
+      "purpose": "Review and validate outputs"
+    },
+    "checker (recommended) / could also function as an additional verifier within checker tier": {
+      "agents": [
+        "Software Test Engineer"
+      ],
+      "definition": "Agent that performs checker (recommended) / could also function as an additional verifier within checker tier functions.",
+      "purpose": "Perform checker (recommended) / could also function as an additional verifier within checker tier tasks"
+    },
+    "checker (correct)": {
+      "agents": [
+        "Code Reviewer"
+      ],
+      "definition": "Agent that performs checker (correct) functions.",
+      "purpose": "Perform checker (correct) tasks"
+    },
+    "coordinator (correct)": {
+      "agents": [
+        "Chief Creative Officer",
+        "Chief Human Resource Officer",
+        "Chief Technology Officer",
+        "Chief Product Officer",
+        "Chief Executive Officer"
+      ],
+      "definition": "Agent that performs coordinator (correct) functions.",
+      "purpose": "Perform coordinator (correct) tasks"
+    }
+  },
+  "metadata": {
+    "version": "13.0",
+    "timestamp": "2026-04-06T12:37:00.858500",
+    "model": "gpt-5-nano",
+    "pipeline": "Architectural Risk + Behavioral Signals",
+    "traces_analyzed": 30,
+    "counts": {
+      "category_a": 12,
+      "category_b": 8,
+      "category_c": 12,
+      "total": 32
+    }
+  }
+}
