@@ -1,0 +1,29 @@
+# Simple-scenario knobs. Override per-run via the matching environment variable.
+
+[induction]
+# Trigger T1 once the accumulator reaches this many traces.
+t1_threshold = 5                    # env: ATLAS_T1
+# Quality floor before promotion (MAST -> induced).
+min_support_per_code = 2            # env: ATLAS_MIN_SUPPORT
+min_total_codes = 8                 # env: ATLAS_MIN_CODES (the K from the spec)
+max_codes_cap = 30                  # cap on induced taxonomy size
+# Inducer model — strong, pinned independently of the runtime agent.
+inducer_model = "claude-opus-4-8"   # env: ATLAS_INDUCER_MODEL
+
+[refinement]
+# Refine every ΔN new traces past the last refinement.
+delta_n = 5                         # env: ATLAS_DELTA_N
+# Don't refine more often than this many traces apart, even if delta_n fires.
+min_interval = 3                    # env: ATLAS_MIN_REFINE_INTERVAL
+# Refiner model — same as inducer; both are strong, both independent of agent.
+refiner_model = "claude-opus-4-8"   # env: ATLAS_REFINER_MODEL
+
+[gate]
+# Final-gate repair retry cap.
+max_retries = 3                     # env: ATLAS_MAX_FINAL_RETRIES
+
+[hooks.post_tool_use]
+# At most one checkpoint reminder per N tool calls.
+throttle_every_n_calls = 5          # env: ATLAS_POSTTOOL_THROTTLE
+# If a checkpoint was emitted within this many recent turns, suppress.
+recency_window_turns = 3            # env: ATLAS_POSTTOOL_RECENCY
