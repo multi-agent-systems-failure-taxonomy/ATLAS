@@ -1,0 +1,18 @@
+{
+  "taxonomy_id": "tax-placeholder-aaa-005",
+  "repo": "acme/widget-service",
+  "domain": "placeholder-domain-a",
+  "codes": [
+    {
+      "code": 1,
+      "name": "Placeholder failure mode A1",
+      "explanation": "Placeholder explanation for the first failure mode in this placeholder taxonomy."
+    },
+    {
+      "code": 2,
+      "name": "Placeholder failure mode A2",
+      "explanation": "Placeholder explanation for the second failure mode.",
+      "example": "some placeholder example snippet"
+    }
+  ]
+}
