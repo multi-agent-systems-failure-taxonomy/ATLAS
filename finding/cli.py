@@ -36,7 +36,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--store-dir",
         default=store.DEFAULT_STORE_DIR,
-        help="Path to the flat taxonomy store (default: <repo>/taxonomies).",
+        help=f"Path to the flat taxonomy store (default: {store.DEFAULT_STORE_DIR}).",
     )
     return parser
 

@@ -1,71 +1,132 @@
-# atlas_skill
+# 🧭 ATLAS
 
-A fresh, general-purpose ATLAS implementation — agent- and model-agnostic. It
-is a framework, driven entirely through a Python runtime API, so any agent
-runtime or model provider can use it without ATLAS knowing anything about them.
-Current scope:
+### A failure-mode taxonomy that watches an agent work, intervenes at meaningful checkpoints, and learns from its traces.
 
-- Taxonomy Finding and the built-in MAST floor.
-- Program identity through mandatory `--trace-output`.
-- A minimal pre-submission gate with bounded repair retries.
-- Program-scoped trace persistence.
-- Initial MAST-to-generated-taxonomy transition at N traces.
-- Program-local refinement cadence with globally shared taxonomy successors.
-- Basic structural refinement plus optional one-shot judge-guided repair.
-- Persistent live localhost taxonomy dashboard.
-- Validated flat taxonomy registration.
-- Claude Code blocking checkpoint integration.
-- Single-model, no-harness checkpoint integration.
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Claude Code](https://img.shields.io/badge/Claude_Code-blocking_hooks-D97757)](atlas_integration/claude_code/README.md)
+[![Runtime](https://img.shields.io/badge/runtime-harness_neutral-7C3AED)](atlas_runtime/)
+[![Taxonomy](https://img.shields.io/badge/taxonomy-dynamic_at_checkpoints-0EA5E9)](finding/mast.json)
+[![Tests](https://img.shields.io/badge/tests-164_passing-16A34A)](tests/)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-The engine remains harness-neutral. Supported runtime skins currently include
-Claude Code and direct single-model conversations. Other frameworks can drive
-the public API (`start_session` / `record_trace` / `pre_submission` /
-`end_session`) directly.
+---
 
-## Install
+## ✨ What is ATLAS?
 
-Python 3.10 or newer is required.
+Agents often repeat the same *kinds* of mistakes: skipping verification, losing
+track of requirements, persisting after a failed approach, or declaring success
+too early.
 
-Install directly from the release branch:
+ATLAS turns those recurring patterns into an active **failure-mode taxonomy**.
+It begins with the general-purpose MAST taxonomy, observes the agent at
+meaningful runtime boundaries, records the codes that actually fire, and can
+generate a taxonomy specialized to the user's own traces.
 
-```sh
+> **The short version:** ATLAS gives an agent a structured way to notice its
+> own mistakes before submission—without forcing a failure or an unnecessary
+> edit.
+
+### The interaction model
+
+Every checkpoint follows the same two-perspective reflection:
+
+1. **Observe → Map → Correlate** — inspect the recent trajectory like a neutral
+   third-party reviewer and map only evidence-supported failure modes.
+2. **Decide** — recognize that the trajectory is your own and change course
+   only when necessary.
+
+`none apply` is a valid result. ATLAS enforces that reflection happened in the
+required shape; it cannot guarantee that the reflection is insightful.
+
+---
+
+## 🔄 How it works
+
+```mermaid
+flowchart LR
+    A["Agent works"] --> B{"Meaningful boundary"}
+    B -->|"sub-task / subagent"| C["Checkpoint reflection"]
+    B -->|"tool failure"| D["Advisory nudge"]
+    B -->|"completion"| E["Blocking final gate"]
+    C --> A
+    D --> A
+    E -->|"repair required"| A
+    E -->|"ready"| F["Trace captured"]
+    F --> G{"Enough traces?"}
+    G -->|"No"| H["Keep active taxonomy"]
+    G -->|"Yes"| I["Generate + validate taxonomy"]
+    I --> J["Activate on the next task"]
+    J --> K["Refine as more traces arrive"]
+```
+
+| Stage | What happens |
+|---|---|
+| 🟦 **Start** | Resolve a stored taxonomy or begin with built-in MAST. |
+| 🟨 **Runtime** | Surface taxonomy codes only when a checkpoint fires—never dump them into context at startup. |
+| 🟥 **Gate** | Block completion until a valid reflection and final-gate decision exist. |
+| 🟩 **Evidence** | Record fired codes, task IDs, reasoning, and evidence for the live dashboard. |
+| 🟪 **Learning** | Capture one canonical trace and trigger generation or refinement at configured thresholds. |
+
+---
+
+## 🚀 Choose your path
+
+| I want to… | Start here |
+|---|---|
+| Use ATLAS with **Claude Code** | [Claude Code quick start](#-claude-code-quick-start) |
+| Wrap a **single LLM call** without a harness | [Single-LLM quick start](#-single-llm-quick-start) |
+| Generate a taxonomy from **my existing traces** | [Import your own traces](#-bring-your-own-traces) |
+| Pick a stored taxonomy interactively | [Taxonomy inheritance](#-taxonomy-inheritance) |
+| Watch codes fire live | [Dashboard](#-live-dashboard) |
+| Integrate another harness | [Public runtime API](#-public-runtime-api) |
+
+---
+
+## 📦 Install
+
+**Requirements:** Python 3.10 or newer.
+
+### From the release branch
+
+```bash
 python -m pip install "git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git@ATLAS_SKILL"
 ```
 
-Or from a local checkout:
+### From a local checkout
 
-```sh
+```bash
 python -m pip install .
 ```
 
-Anthropic-backed task or learning calls additionally require:
+### Anthropic support
 
-```sh
-python -m pip install ".[anthropic]"
+```bash
+python -m pip install "atlas-skill[anthropic] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git@ATLAS_SKILL"
 ```
 
-The package installs `atlas-find`, `atlas-dashboard`,
-`atlas-import-traces`, `atlas-claude-install`, `atlas-claude-uninstall`, and
-`atlas-single-run`.
+The installation provides:
 
-Taxonomy selection follows the same three forms across supported CLIs:
+| Command | Purpose |
+|---|---|
+| `atlas-claude-install` | Register project-local Claude Code hooks |
+| `atlas-claude-uninstall` | Remove ATLAS hooks without disturbing unrelated settings |
+| `atlas-single-run` | Run one no-harness model task through ATLAS |
+| `atlas-import-traces` | Generate a stored taxonomy from existing traces |
+| `atlas-find` | Resolve or interactively choose a taxonomy |
+| `atlas-dashboard` | Open the live taxonomy dashboard |
 
-- omit `--inherit` to begin with MAST;
-- pass `--inherit <taxonomy_id>` to select a stored taxonomy;
-- pass `--inherit` without a value to open the local taxonomy picker.
+> 🔐 **Credentials are never written into ATLAS configuration.** OpenAI-compatible
+> calls use `OPENAI_API_KEY`; Anthropic uses its SDK environment credentials;
+> Gemini uses `GEMINI_API_KEY` or `GOOGLE_API_KEY`.
 
-OpenAI-compatible calls use `OPENAI_API_KEY` and optional
-`OPENAI_BASE_URL`. Anthropic calls use the credential environment variables
-recognized by the Anthropic SDK. Gemini learning calls use `GEMINI_API_KEY`
-or `GOOGLE_API_KEY`. Credentials are never written into ATLAS configuration.
+---
 
-The static [SKILL.md](SKILL.md) contains only standing interaction behavior.
-It deliberately does not embed the active taxonomy; runtime integrations
-surface taxonomy codes only when a checkpoint fires.
+## 🟠 Claude Code quick start
 
-## Claude Code
+ATLAS uses Claude Code's installed hook system and verifies the required events
+against the installed version **before writing any configuration**.
 
-Install project-local hooks after installing the package:
+### 1. Install ATLAS into a project
 
 ```powershell
 atlas-claude-install `
@@ -74,62 +135,111 @@ atlas-claude-install `
   --atlas-model gpt-5
 ```
 
-The hook command invokes the installed Python module, so moving or deleting
-the source checkout does not break registration. To remove the integration:
+On macOS or Linux:
+
+```bash
+atlas-claude-install \
+  --project-dir /path/to/project \
+  --trace-output /path/to/atlas-program \
+  --atlas-model gpt-5
+```
+
+### 2. Use Claude Code normally
+
+ATLAS registers seven project-local events:
+
+| Event | Behavior | Can block? |
+|---|---|:---:|
+| `SessionStart` | Hold the active taxonomy and inject only standing checkpoint instructions | No |
+| `TaskCompleted` | Reflect on the completed sub-task | **Yes** |
+| `SubagentStop` | Reflect on that subagent's trajectory | **Yes** |
+| `Stop` | Run the full final submission gate | **Yes** |
+| `PostToolUseFailure` | Nudge after a real tool execution failure | No |
+| `PostToolUse` | Detect failure signatures hidden in nominally successful output | No |
+| `SessionEnd` | Capture an interrupted session if Stop did not already do so | No |
+
+Claude Code may also request a proactive checkpoint after a major segment:
+
+```text
+ATLAS checkpoint request: finished implementing the parser
+```
+
+### 3. Uninstall safely
 
 ```powershell
 atlas-claude-uninstall --project-dir C:\path\to\project
 ```
 
-Users upgrading from the old global `atlas-failure-modes` installation can
-remove its global hook registrations during install:
+Upgrading from the old global skill?
 
 ```powershell
 atlas-claude-install ... --migrate-legacy-global
 ```
 
-This migration preserves unrelated Claude settings and does not delete the
-legacy skill directory.
+This removes old ATLAS hook registrations while preserving unrelated Claude
+settings. It does not delete the old skill directory.
 
-Claude Code discovery checks `CLAUDE_CODE_EXECUTABLE`, then `claude` on
-`PATH`, followed by common Windows, macOS, and Linux installation locations.
-Set `CLAUDE_CODE_EXECUTABLE` when using a custom installation. Installation
-still verifies every required hook event and blocking contract against the
-discovered version before registering anything.
+<details>
+<summary><strong>Claude discovery and custom learning endpoints</strong></summary>
 
-For an OpenAI-compatible learning endpoint, pass the endpoint and the name of
-an inherited credential variable:
+ATLAS looks for Claude Code in this order:
+
+1. `CLAUDE_CODE_EXECUTABLE`
+2. `claude` on `PATH`
+3. Common Windows, macOS, and Linux installation locations
+
+For an OpenAI-compatible learning endpoint, persist only the credential
+variable's name:
 
 ```powershell
 $env:ATLAS_LEARNING_KEY = "..."
+
 atlas-claude-install ... `
   --openai-base-url http://127.0.0.1:8742/v1 `
   --openai-api-key-env ATLAS_LEARNING_KEY
 ```
 
-Only `ATLAS_LEARNING_KEY` is stored; its value remains in the process
-environment.
+The value of `ATLAS_LEARNING_KEY` is never written to disk.
 
-Claude installation exposes the engine lifecycle controls:
+</details>
 
-```text
---generation-threshold N
---generation-stops / --no-generation-stops
---taxonomy-check / --no-taxonomy-check
---k-init N
---k N
---refinement-stops / --no-refinement-stops
---advanced-refinement / --no-advanced-refinement
---failure-throttle-calls N
---failure-recency-seconds N
+---
+
+## 🔵 Single-LLM quick start
+
+Use this path when your application owns the model call and there is no agent
+harness.
+
+### Command line
+
+```powershell
+$env:OPENAI_API_KEY = "..."
+
+atlas-single-run `
+  --task "Review this implementation and return the corrected result." `
+  --model gpt-5 `
+  --trace-output C:\path\to\atlas-program
 ```
 
-## Single-model calls without a harness
+Or provide a task file:
 
-Use the callback API when an application already owns model transport:
+```bash
+atlas-single-run \
+  --task-file task.md \
+  --model gpt-5 \
+  --trace-output ./atlas-program
+```
+
+### Python callback API
 
 ```python
 from atlas_integration.single_llm import SingleLLMConfig, run_single_llm
+
+
+def my_message_callback(messages: list[dict[str, str]]) -> str:
+    # Send the full message list to your provider and return assistant text.
+    ...
+
 
 result = run_single_llm(
     "Solve the task.",
@@ -140,414 +250,377 @@ result = run_single_llm(
         atlas_model="gpt-5",
     ),
 )
+
 print(result.answer)
 ```
 
-The callback receives a list of `{role, content}` messages and returns the next
-assistant text. The adapter pauses on explicit major-segment checkpoint
-requests, injects the taxonomy at that boundary, records firing evidence,
-enforces the final gate, captures the conversation trace, and invokes the
-normal generation/refinement lifecycle.
+The adapter pauses when the model requests a major-segment checkpoint, injects
+the active taxonomy, validates the reflection, enforces the final gate, records
+live firing evidence, captures the conversation, and closes the normal learning
+lifecycle.
 
-For OpenAI-compatible or Anthropic-backed direct execution:
+---
+
+## 🧬 Taxonomy inheritance
+
+Taxonomies are selected only by `taxonomy_id`. Repository and domain fields are
+display metadata—not routing keys.
+
+All supported CLIs use the same three forms:
+
+| Invocation | Result |
+|---|---|
+| Omit `--inherit` | Fresh program starts with built-in MAST |
+| `--inherit <taxonomy_id>` | Use that stored taxonomy |
+| `--inherit` | Open the local visual taxonomy picker |
+
+Example:
+
+```bash
+atlas-single-run \
+  --task "Fix the failing test" \
+  --model gpt-5 \
+  --trace-output ./program \
+  --inherit tax-20260619-example
+```
+
+The selected taxonomy is fixed for the current task. A newly generated or
+refined successor becomes visible only to a later task.
+
+---
+
+## 📥 Bring your own traces
+
+Generate and store an inheritable taxonomy whenever you already have traces:
 
 ```powershell
-atlas-single-run `
-  --task "Solve the task" `
-  --model gpt-5 `
-  --trace-output C:\path\to\atlas-program
+atlas-import-traces `
+  --traces C:\path\to\trace-file-or-directory `
+  --atlas-model gpt-5 `
+  --repo my-project
 ```
 
-`atlas-single-run` reads provider credentials from the environment and never
-accepts a credential value as a command-line argument.
+The command:
 
-## Taxonomy model
+1. Normalizes supported traces into the canonical schema.
+2. Runs the vendored upstream ATLAS eight-stage generator.
+3. Runs the support-based taxonomy check by default.
+4. Allocates an ID only after acceptance.
+5. Transactionally stores the taxonomy, traces, and generation artifacts.
+6. Leaves the taxonomy dormant until selected with `--inherit`.
 
-Taxonomies are first-class records identified only by `taxonomy_id`:
+Rejected imports create no taxonomy record or taxonomy trace folder.
+
+### Recommended trace format
+
+Use one object per line in a `.jsonl` file:
 
 ```json
 {
-  "taxonomy_id": "example-id",
-  "repo": "display only",
-  "domain": "display only",
-  "codes": []
-}
-```
-
-`repo` and `domain` route nothing. By default, stored records live at
-`~/.atlas-skill/taxonomies/<taxonomy_id>.json` and learning traces at
-`~/.atlas-skill/traces/<taxonomy_id>/`. Override the shared root with
-`ATLAS_HOME`, or each location with `ATLAS_STORE_DIR` and
-`ATLAS_TRACE_ROOT`. Explicit CLI/API paths always win. MAST is a built-in
-constant, not a store record and not a picker row.
-
-For generated taxonomies, `domain` is copied from the standard ATLAS
-eight-stage pipeline's Step 1 domain analysis
-(`full_layer.domain_info.domain.name`). `repo` is copied from persisted program
-metadata, supplied explicitly or derived from the checkout. Both fields remain
-display-only.
-
-## Live taxonomy dashboard
-
-The runtime now starts a read-only dashboard automatically with the first
-active task in a program. Concurrent tasks reuse the same dashboard URL. It
-stops after the final task once no generation or refinement job is still
-running. The calling agent or framework can surface
-`SessionDelivery.dashboard_url` to users.
-
-The dashboard can still be run manually:
-
-```sh
-python -m atlas_runtime.dashboard \
-  --trace-output <program-specific-directory> \
-  --store-dir taxonomies
-```
-
-It opens at `http://127.0.0.1:8765/` by default and stays live until stopped.
-Use `--port 0` to request any available port, or `--no-browser` to avoid
-opening a tab automatically.
-
-The page polls the program state every 1.5 seconds. It renders MAST before a
-taxonomy is bound, then always resolves and displays the latest successor of
-the program's current taxonomy without a server restart. Users can filter,
-expand, and collapse code definitions. Real taxonomies show per-code firing
-counts and unique task IDs only when that evidence is present.
-
-To preview that future evidence layout with disposable placeholder data:
-
-```sh
-python -m examples.dashboard_demo
-```
-
-The demo shows total firings and unique task IDs with a per-task count for
-five fictional failure modes. Its temporary program and taxonomy store are
-deleted when you stop it with `Ctrl+C`; it does not modify the real store.
-
-## Required program identity
-
-Every runtime invocation must provide:
-
-```sh
---trace-output <program-specific-directory>
---atlas-model <recognized-model-id>
-```
-
-`--trace_output` is accepted as an alias. Repository metadata can be supplied
-with `--repo owner/project` or derived from `--repo-path <checkout>`. Without
-either, ATLAS derives it from the current git checkout. This value is persisted
-once per program and remains display-only.
-
-First use creates:
-
-```text
-<trace-output>/
-├── .atlas-program.json
-└── pending/
-```
-
-The manifest contains a stable `program_id` and display-only `repo`. Reusing the same trace-output
-directory means the same program across tasks and process invocations. A
-different directory creates a different program.
-
-The reusable parser in `atlas_runtime.options` also exposes:
-
-```sh
---generation-stops       # default: false
---no-generation-stops
---refinement-stops       # default: false
---no-refinement-stops
---advanced-refinement    # default: false
---no-advanced-refinement
---taxonomy-check         # default: true
---no-taxonomy-check
-```
-
-`--atlas_model`, `--taxonomy_check`, `--refinement_stops`, and
-`--advanced_refinement` are accepted as underscore aliases. The selected
-ATLAS model is stored on the program and is shared by taxonomy generation,
-the external taxonomy judge, and refinement. Its context limit is resolved
-internally; users do not specify token limits.
-
-## Session selection
-
-At task start:
-
-- An explicitly inherited taxonomy is validated and bound to the program.
-- A program already bound to a taxonomy automatically reuses it.
-- A program with no taxonomy uses built-in MAST.
-- Asking an already-bound program to use a different taxonomy is an error.
-
-The selected taxonomy is immutable for that task. A generated taxonomy never
-replaces the taxonomy of an already-running task.
-
-## Trace format and placement
-
-Every trace is the canonical four-field record accepted by
-`atlas.generate_taxonomy`:
-
-```json
-{
-  "problem_id": "stable task/attempt id",
+  "problem_id": "stable-task-or-attempt-id",
   "task": "task prompt or objective",
   "raw_trajectory": "plain-text execution trajectory",
   "metadata": {}
 }
 ```
 
-At task completion, each trace is atomically written as an independent JSON
-file under `<trace-output>/pending/`.
+Also supported: canonical JSON, tau-bench, Codex sessions, event logs,
+conversation/Forgecode records, KIRA trajectories, and directly supplied
+plain-text trajectory files. Directories are scanned recursively for JSON and
+JSONL files.
 
-For an inherited/approved taxonomy:
+---
+
+## 📊 Live dashboard
+
+ATLAS can launch a local read-only dashboard automatically with the first task.
+It updates as checkpoint evidence arrives and follows taxonomy successors
+without restarting.
+
+Run it manually:
+
+```bash
+atlas-dashboard \
+  --trace-output ./atlas-program \
+  --store-dir ~/.atlas-skill/taxonomies
+```
+
+The dashboard shows:
+
+- the active taxonomy and latest successor;
+- code descriptions and categories;
+- total firings and unique task IDs;
+- firings per task;
+- checkpoint reasoning and evidence;
+- taxonomy-version-scoped counts.
+
+It binds to localhost and opens `http://127.0.0.1:8765/` by default. Use
+`--port 0` for any free port or `--no-browser` to suppress browser launch.
+
+---
+
+## 🧠 Learning lifecycle
+
+ATLAS separates **runtime interaction** from **taxonomy learning**.
+
+### Fresh start: MAST → generated taxonomy
 
 ```text
-pending/
-→ copy into traces/<taxonomy_id>/
-→ verify destination bytes
-→ remove pending source
+Task traces:  1 ── 2 ── 3 ── 4 ── 5
+                                  │
+                                  ▼
+                         Generate candidate
+                                  │
+                                  ▼
+                      Support-based validation
+                           │             │
+                      accepted       rejected
+                           │             │
+                           ▼             ▼
+                    activate later   keep MAST +
+                                     wait for N more
 ```
 
-If integration fails, the pending source remains available for recovery.
+- Default generation threshold: **N = 5** traces.
+- Success and failure traces count equally.
+- Generation input is outcome-blind.
+- Acceptance requires at least **5 ACTIVE codes**, each supported by at least
+  one distinct trace.
+- Activation waits until no task is running.
 
-## Generate an inheritable taxonomy from user traces
+### Refinement
 
-A user can run the upstream ATLAS loader and full eight-stage generation
-pipeline immediately on an existing trace file or directory, without creating
-or binding an ATLAS program:
+| Phase | Default | Meaning |
+|---|---:|---|
+| Initial refinement | `K_init = 10` | First refinement after a program begins using a real taxonomy |
+| Standard refinement | `K = 20` | Later refinements since the program's previous accepted refinement |
 
-```powershell
-python -m atlas_runtime.import_generation `
-  --traces C:\path\to\trace-file-or-directory `
-  --atlas-model gpt-5 `
-  --store-dir C:\path\to\taxonomies `
-  --trace-root C:\path\to\learning-traces `
-  --repo my-project
-```
+Refinement creates a new taxonomy ID and a successor link—it never overwrites
+the previous taxonomy. Other programs follow the successor on their next task
+while preserving their own counters.
 
-The import command auto-detects canonical ATLAS, JSON/JSONL, tau-bench,
-Codex sessions, event logs, conversation/Forgecode records, KIRA trajectories,
-and a directly supplied plain-text trajectory file. Directories are scanned
-recursively for JSON and JSONL files, matching the upstream loader.
+<details>
+<summary><strong>Generation and validation details</strong></summary>
 
-This path bypasses the runtime `N=5` trigger, but otherwise preserves the
-normal acceptance guarantees:
+- The support judge processes at most four trace units per call.
+- Oversized traces are split into context-safe chunks.
+- Chunk findings are merged back to the original trace.
+- One code receives at most one support vote per distinct trace.
+- Unknown codes, duplicate assignments, and mismatched quotes are ignored.
+- Invalid judge JSON receives one bounded repair retry.
+- Failed or omitted units contribute no support and do not crash the pass.
+- A rejected taxonomy receives no ID and does not consume pending traces.
+- After rejection, generation retries after another `N` traces arrive.
 
-1. Normalize every usable input to the canonical four-field trace schema.
-2. Run the upstream eight-stage taxonomy generator.
-3. Run the existing support-based taxonomy check by default.
-4. Allocate a taxonomy ID only after acceptance.
-5. Transactionally register `<store-dir>/<taxonomy_id>.json`.
-6. Store the imported traces under `<trace-root>/<taxonomy_id>/`.
-7. Preserve generation/check artifacts under
-   `<store-dir>/_state/imports/<taxonomy_id>/`.
+</details>
 
-The imported taxonomy is dormant: it is not attached to any program until
-selected with `--inherit <taxonomy_id>`. Rejected or invalid imports create no
-taxonomy record or taxonomy trace folder. `--no-taxonomy-check` is available
-for deliberate structural-only acceptance.
+<details>
+<summary><strong>Basic vs. advanced refinement</strong></summary>
 
-## Initial MAST generation lifecycle
-
-Default threshold: **N = 5** pending traces from the same program. Successful
-and failing task traces count equally; outcome is not part of the stored
-generation input.
+Basic refinement:
 
 ```text
-task finishes with MAST
-→ trace written to the program's pending folder
-→ pending count reaches 5
-→ generate a candidate through atlas.generate_taxonomy
+current taxonomy + frozen trace set
+        ↓
+replacement candidate
+        ↓
+structural validation + diff
+        ↓
+accepted successor
 ```
 
-### Non-blocking generation (default)
+With `--advanced-refinement`, ATLAS adds one support-judge pass. Reported
+issues receive one repair-model call; the repaired candidate is not judged a
+second time.
 
-With `generation_stops=false`, a detached worker performs generation. Tasks may
-continue using MAST while it runs.
+</details>
 
-When generation finishes, activation waits until the program has no running
-tasks. Thus no running task receives a mid-task taxonomy replacement.
+---
 
-### Blocking generation
+## 🎛️ Configuration
 
-With `--generation-stops`, the threshold-crossing task waits at its completion
-boundary until generation succeeds, fails, or is rejected.
+Claude Code exposes the main lifecycle controls directly:
 
-### Acceptance and activation
+| Option | Default | Effect |
+|---|---:|---|
+| `--generation-threshold` | `5` | Traces required before initial generation |
+| `--generation-stops` | off | Block the threshold-crossing task while generation runs |
+| `--taxonomy-check` | on | Require support-based acceptance |
+| `--k-init` | `10` | Traces before a program's first refinement |
+| `--k` | `20` | Traces between later refinements |
+| `--refinement-stops` | off | Block while refinement runs |
+| `--advanced-refinement` | off | Add judge-guided refinement repair |
+| `--max-retries` | `3` | Final-gate repair limit |
+| `--failure-throttle-calls` | `5` | Minimum tool calls between reactive nudges |
+| `--failure-recency-seconds` | `30` | Time-based duplicate-nudge suppression |
+| `--no-dashboard` | off | Let an outer application own dashboard lifecycle |
 
-By default, a generated candidate is checked by an external judge before it
-can receive a taxonomy ID. `--no-taxonomy-check` skips this pass and uses
-structural acceptance only.
+### Storage
 
-The check freezes the current pending trace set as an immutable filename/hash
-snapshot after generation finishes. Traces may continue arriving, but the
-running check ignores anything outside its snapshot. If accepted, activation
-still integrates every pending trace, including those that arrived during the
-check.
+Default writable locations:
 
-Judge batching is adaptive:
+```text
+~/.atlas-skill/
+├── taxonomies/
+└── traces/
+```
 
-- At most 4 trace units per model call.
-- The selected model's context window is resolved internally.
-- Taxonomy/prompt overhead, output reserve, and a safety margin are subtracted.
-- Batches shrink below 4 when necessary.
-- A single oversized trace is split into context-safe chunks.
-- Chunk findings are unioned back to the original trace.
-- A code receives at most one support vote per distinct trace, never per chunk.
+Override them with:
 
-The judge assigns only candidate code IDs. Unknown and duplicate assignments
-are ignored. A supplied quote must occur in the same chunk. Invalid batch
-output receives one repair retry; a failed or omitted unit contributes no
-support and cannot crash the pass.
+| Variable | Purpose |
+|---|---|
+| `ATLAS_HOME` | Change the shared ATLAS data root |
+| `ATLAS_STORE_DIR` | Override only the taxonomy store |
+| `ATLAS_TRACE_ROOT` | Override only the learning-trace store |
+| `ATLAS_DISABLE_DASHBOARD=1` | Disable automatic dashboard launch |
 
-Initial code state:
+Explicit CLI and API paths always take precedence.
 
-- Fired in at least one distinct trace: `ACTIVE`, `firing_rounds=1`,
-  `zero_strikes=0`, advisory gate force.
-- Never fired: `PROVISIONAL`, `firing_rounds=0`, `zero_strikes=1`.
+---
 
-Acceptance requires at least **5 ACTIVE codes**, each observed in at least one
-distinct trace. This taxonomy check currently applies only after initial
-generation, not after refinement.
+## 🔌 Public runtime API
 
-Candidates have **no taxonomy_id**. Only after acceptance:
+Custom harnesses can use the engine directly:
 
-1. Wait for all running tasks in the program to finish.
-2. Allocate a unique taxonomy ID.
-3. Stage and verify copies of all pending traces.
-4. Create `traces/<taxonomy_id>/`.
-5. Register `taxonomies/<taxonomy_id>.json`.
-6. Atomically bind the program manifest to that taxonomy.
-7. Remove verified pending copies.
+```python
+from atlas_runtime import (
+    GenerationTrace,
+    end_session,
+    pre_submission,
+    record_trace,
+    start_session,
+)
 
-Generated records keep the Step 1 discovered domain and copy the program's
-display-only repository metadata:
+session = start_session(
+    trace_output="./program",
+    atlas_model="gpt-5",
+)
+
+# Deliver session.delivery.runtime_protocol and, only at a checkpoint,
+# the relevant session.delivery.taxonomy content.
+
+decision = pre_submission(session, model_gate_text)
+
+record_trace(
+    session,
+    GenerationTrace(
+        problem_id="task-001",
+        task="Fix the parser",
+        raw_trajectory=complete_trace,
+        metadata={"harness": "custom"},
+    ),
+)
+
+result = end_session(session)
+```
+
+The engine owns taxonomy selection, persistence, generation, validation,
+refinement, lineage, and dashboard lifecycle. The harness owns prompt delivery,
+model execution, and trace collection.
+
+---
+
+## 🛡️ What ATLAS enforces—and what it cannot
+
+| Claim | Reality |
+|---|---|
+| Reflection ran | ✅ Shape is machine-checked |
+| At least one code has evidence, or `none apply` is justified | ✅ Machine-checked |
+| Final repair loop respects the retry limit | ✅ Machine-checked |
+| Claude Code completion can be blocked | ✅ Through blocking hooks |
+| Reactive tool-failure nudge is mandatory | ❌ Advisory only |
+| Reflection is genuinely insightful | ❌ Content quality is not mechanically knowable |
+| A fired code proves the task answer is wrong | ❌ It identifies a process pattern, not benchmark correctness |
+
+The static [`SKILL.md`](SKILL.md) contains only standing interaction behavior.
+The active taxonomy is deliberately **not** always loaded into context; it is
+surfaced at runtime checkpoints.
+
+---
+
+## 🗂️ Data model
 
 ```json
 {
-  "repo": "owner/project",
-  "domain": "Software Engineering / Code Repair"
+  "taxonomy_id": "tax-20260619-example",
+  "repo": "display-only/repository",
+  "domain": "Discovered domain",
+  "codes": [
+    {
+      "id": "A.1",
+      "name": "Failure name",
+      "description": "Observable definition",
+      "category": "A"
+    }
+  ]
 }
 ```
 
-If generation fails or the candidate is rejected:
+- `taxonomy_id` is the only selector.
+- `repo` and `domain` are display-only metadata.
+- MAST is a built-in floor, not a stored picker record.
+- Generated and refined taxonomies are immutable records connected by
+  successor links.
 
-- MAST remains active.
-- No taxonomy ID is allocated.
-- No taxonomy JSON or taxonomy trace folder is created.
-- All traces remain in the program pending folder.
-- A blocking task is released with a failure/rejection result.
-- A later completed MAST task may retry generation.
+---
 
-For a rejected candidate or technical judge failure, the frozen check count
-becomes the retry anchor. ATLAS waits for another `N` traces beyond that
-snapshot, then regenerates using **all accumulated pending traces**, including
-previously judged traces. If at least `N` traces arrived while generation or
-checking was running, regeneration begins immediately. Overshooting the
-threshold is allowed.
+## 🧪 Verification
 
-## Refinement lifecycle
-
-Refinement cadence belongs to the program, while taxonomy succession is shared
-globally:
-
-```text
-program counter: local to <trace-output>
-taxonomy link:   old taxonomy_id -> refined taxonomy_id
+```bash
+python -m pytest -q
 ```
 
-Defaults:
+The current release includes **164 passing tests** covering:
 
-- `K_init = 10`: completed traces after a program first begins using a
-  taxonomy, up to that program's first refinement.
-- `K = 20`: completed traces after each successful refinement performed by
-  that program.
+- taxonomy finding and interactive selection;
+- MAST fallback and canonical schema;
+- Claude Code hook contracts and retry guards;
+- zero-tool, sub-task, subagent, failure-nudge, and final-gate paths;
+- live evidence and dashboard updates;
+- trace capture and outcome-blind learning;
+- generation, validation, retry, activation, and lineage;
+- basic and advanced refinement;
+- imported-trace taxonomy generation;
+- install/uninstall behavior and writable storage defaults;
+- direct single-LLM checkpoints and repairs.
 
-For an inherited taxonomy, counting starts at zero. For a taxonomy generated
-from MAST, the five warm-up traces do not count: counting starts with the first
-task that actually receives the generated taxonomy.
+---
 
-Each completed task using a non-MAST taxonomy:
+## 🧹 Uninstall and data
 
-1. Writes its trace to pending.
-2. Integrates it into `traces/<taxonomy_id>/`.
-3. Adds a program-local reference to that exact trace.
-4. Increments `traces_since_refinement`.
-5. Triggers at `K_init` before the first successful program refinement, then
-   at `K` thereafter.
+Remove Claude Code hooks:
 
-Successful refinement creates a new taxonomy record and a global successor
-link:
-
-```text
-T1 -> T2
+```bash
+atlas-claude-uninstall --project-dir /path/to/project
 ```
 
-Every accepted refinement also persists a deterministic structural-diff
-artifact at:
+ATLAS does not automatically delete learned taxonomies or traces. User data
+remains under `~/.atlas-skill/` unless custom paths were supplied.
 
-```text
-taxonomies/_state/refinements/<new-taxonomy-id>.json
-```
+Trace retention is intentionally conservative: data is not expired
+automatically. ATLAS warns when a trace folder exceeds 10,000 records or its
+oldest file is more than 90 days old.
 
-The diff records repo/domain changes plus added, removed, and changed code
-identities.
+---
 
-It never overwrites T1. Programs using T1 follow T2 at their next task start.
-If another program caused the refinement, the following program preserves its
-own `rounds_completed`, trace count, and trace references. Only the program
-that successfully publishes a refinement resets its counter.
+## 📚 Repository map
 
-`--refinement-stops` mirrors generation:
+| Path | Purpose |
+|---|---|
+| [`atlas_runtime/`](atlas_runtime/) | Harness-neutral lifecycle and learning engine |
+| [`atlas_integration/claude_code/`](atlas_integration/claude_code/) | Claude Code runtime skin |
+| [`atlas_integration/single_llm/`](atlas_integration/single_llm/) | Direct model-call adapter |
+| [`finding/`](finding/) | Taxonomy selection, MAST, store, and picker |
+| [`vendor/atlas/`](vendor/atlas/) | Vendored upstream eight-stage ATLAS generator |
+| [`tests/`](tests/) | Unit, integration, lifecycle, and packaging coverage |
+| [`officeqa/`](officeqa/) | Optional Claude Code benchmark runner |
 
-- Default false: start refinement in the background and keep using the current
-  taxonomy until the refinement is accepted and no task is running.
-- True: the threshold-crossing task waits at completion for refinement.
+---
 
-Rejected or failed refinement keeps the current taxonomy and preserves the
-program's full counter and trace set for a later retry. Refined candidates do
-not receive a taxonomy ID until acceptance.
+<div align="center">
 
-Basic refinement is the default:
+### Start general. Observe honestly. Learn the failures that actually recur.
 
-```text
-current taxonomy + frozen program traces
--> refinement model
--> complete replacement candidate
--> structural validation and diff
--> acceptance
-```
+`MAST → runtime evidence → generated taxonomy → refinement`
 
-With `--advanced-refinement`, one support-judge phase is inserted:
-
-```text
-candidate + diff + same frozen traces
--> support judge
--> no issues: accept
--> issues: one repair-model call, recompute diff, accept without re-judging
-```
-
-This deliberately does not restore the old failure-mode lifecycle: no
-ACTIVE/PROVISIONAL mutation, firing rounds, zero strikes, maturity ladder, or
-repeated judge/repair loop. Callers may inject refinement, judge, repair, and
-approval functions for custom execution; otherwise the configured ATLAS model
-is used for the model calls.
-
-## Retention
-
-Trace records never expire automatically. The store reports warnings when:
-
-- a trace folder contains more than 10,000 records; or
-- its oldest trace file is more than 90 days old.
-
-Age uses file modification time because timestamps are not yet part of the
-approved generation trace schema. Archival/deletion remains future policy.
-
-## Tests
-
-```sh
-python -m unittest discover -s tests -t . -v
-```
-
-Tests cover mandatory program identity, inherited and MAST starts,
-pending-first writes, verified integration, N=5 blocking and background
-generation, rejection/failure preservation, no mid-task replacement, taxonomy
-registration, retention warnings, and the pre-submission retry gate.
+</div>
