@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "atlas-skill"
+version = "1.0.0"
+description = "Adaptive failure-mode taxonomy runtime with Claude Code and single-LLM integrations."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "ATLAS authors" }]
+keywords = ["agents", "failure-taxonomy", "claude-code", "llm"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+]
+dependencies = ["openai>=1.40"]
+
+[project.optional-dependencies]
+anthropic = ["anthropic>=0.40"]
+test = ["pytest>=7"]
+
+[project.scripts]
+atlas-find = "finding.cli:main"
+atlas-dashboard = "atlas_runtime.dashboard:main"
+atlas-import-traces = "atlas_runtime.import_generation:main"
+atlas-claude-install = "atlas_integration.claude_code.install:main"
+atlas-claude-uninstall = "atlas_integration.claude_code.uninstall:main"
+atlas-single-run = "atlas_integration.single_llm.cli:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = [
+  "atlas_runtime*",
+  "atlas_integration*",
+  "finding*",
+  "vendor*",
+]
+exclude = ["officeqa*", "examples*", "tests*"]
+
+[tool.setuptools.package-data]
+finding = ["mast.json"]
+vendor = ["atlas/LICENSE", "atlas/VENDORED.md"]
+
+[tool.setuptools.data-files]
+"share/atlas-skill" = ["SKILL.md"]

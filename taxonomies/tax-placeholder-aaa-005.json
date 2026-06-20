@@ -4,14 +4,16 @@
   "domain": "placeholder-domain-a",
   "codes": [
     {
-      "code": 1,
+      "id": "1",
       "name": "Placeholder failure mode A1",
-      "explanation": "Placeholder explanation for the first failure mode in this placeholder taxonomy."
+      "description": "Placeholder explanation for the first failure mode in this placeholder taxonomy.",
+      "category": "Placeholder"
     },
     {
-      "code": 2,
+      "id": "2",
       "name": "Placeholder failure mode A2",
-      "explanation": "Placeholder explanation for the second failure mode.",
+      "description": "Placeholder explanation for the second failure mode.",
+      "category": "Placeholder",
       "example": "some placeholder example snippet"
     }
   ]

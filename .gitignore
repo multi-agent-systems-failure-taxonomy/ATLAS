@@ -1,3 +1,11 @@
 __pycache__/
 *.pyc
 .venv/
+/traces/
+.pytest_cache/
+build/
+dist/
+*.egg-info/
+/officeqa/run/
+/.atlas-release-test/
+/UsersandreDesktopProjectsSkyLabatlas_skillofficeqarunprogram/

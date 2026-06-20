@@ -17,13 +17,24 @@ Two operations are supported:
 from __future__ import annotations
 
 import json
+import os
+import re
 from pathlib import Path
 
-# Default store dir lives next to the package, at the repo root: <root>/taxonomies
-DEFAULT_STORE_DIR = Path(__file__).resolve().parent.parent / "taxonomies"
+DEFAULT_ATLAS_HOME = Path(
+    os.environ.get("ATLAS_HOME", Path.home() / ".atlas-skill")
+).expanduser()
+DEFAULT_STORE_DIR = Path(
+    os.environ.get("ATLAS_STORE_DIR", DEFAULT_ATLAS_HOME / "taxonomies")
+).expanduser()
 
 # The three header fields surfaced by list_all (and the web-view table).
 HEADER_FIELDS = ("taxonomy_id", "repo", "domain")
+
+# The one canonical code shape every stored record must follow. Optional
+# decorations (e.g. severity, applies_to_role, example) are tolerated, but
+# these four must each be present as a non-empty string.
+CANONICAL_CODE_FIELDS = ("id", "name", "description", "category")
 
 
 class TaxonomyNotFound(Exception):
@@ -32,6 +43,17 @@ class TaxonomyNotFound(Exception):
     def __init__(self, taxonomy_id: str):
         self.taxonomy_id = taxonomy_id
         super().__init__(f"no taxonomy with id {taxonomy_id!r} found in store")
+
+
+class TaxonomyAlreadyExists(Exception):
+    """Raised when registration would overwrite a taxonomy without permission."""
+
+
+class InvalidTaxonomy(ValueError):
+    """Raised when a record does not follow the flat taxonomy schema."""
+
+
+_SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 
 def _record_path(taxonomy_id: str, store_dir) -> Path:
@@ -64,3 +86,72 @@ def fetch_by_id(taxonomy_id: str, store_dir=DEFAULT_STORE_DIR) -> dict:
     if not path.is_file():
         raise TaxonomyNotFound(taxonomy_id)
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def register(record: dict, store_dir=DEFAULT_STORE_DIR, *, replace: bool = False) -> Path:
+    """Validate and atomically store one taxonomy by taxonomy_id.
+
+    Existing ids are rejected unless ``replace=True`` is explicit. The built-in
+    ``mast`` constant is reserved and can never become a picker/store record.
+    """
+    _validate_record(record)
+    taxonomy_id = record["taxonomy_id"]
+    if taxonomy_id == "mast":
+        raise InvalidTaxonomy("'mast' is reserved for the built-in MAST constant")
+
+    store_dir = Path(store_dir)
+    store_dir.mkdir(parents=True, exist_ok=True)
+    target = _record_path(taxonomy_id, store_dir)
+    if target.exists() and not replace:
+        raise TaxonomyAlreadyExists(
+            f"taxonomy {taxonomy_id!r} already exists; pass replace=True explicitly"
+        )
+
+    temporary = store_dir / f".{taxonomy_id}.json.tmp"
+    payload = json.dumps(record, indent=2, ensure_ascii=False) + "\n"
+    temporary.write_text(payload, encoding="utf-8")
+    temporary.replace(target)
+    return target
+
+
+def unregister(taxonomy_id: str, store_dir=DEFAULT_STORE_DIR) -> bool:
+    """Remove one store record, used only to roll back an unactivated write."""
+    path = _record_path(taxonomy_id, store_dir)
+    if not path.exists():
+        return False
+    path.unlink()
+    return True
+
+
+def _validate_record(record: dict) -> None:
+    if not isinstance(record, dict):
+        raise InvalidTaxonomy("taxonomy record must be an object")
+    required = {"taxonomy_id", "repo", "domain", "codes"}
+    missing = required - set(record)
+    if missing:
+        raise InvalidTaxonomy(f"missing required field(s): {sorted(missing)}")
+
+    taxonomy_id = record["taxonomy_id"]
+    if not isinstance(taxonomy_id, str) or not _SAFE_ID.fullmatch(taxonomy_id):
+        raise InvalidTaxonomy(
+            "taxonomy_id must be filesystem-safe: letters, numbers, '.', '_' or '-'"
+        )
+    for field in ("repo", "domain"):
+        if not isinstance(record[field], str):
+            raise InvalidTaxonomy(f"{field} must be a string")
+    if not isinstance(record["codes"], list) or not record["codes"]:
+        raise InvalidTaxonomy("codes must be a non-empty list")
+    for index, code in enumerate(record["codes"]):
+        if not isinstance(code, dict):
+            raise InvalidTaxonomy(f"code at index {index} must be an object")
+        label = (
+            code["id"]
+            if isinstance(code.get("id"), str) and code["id"].strip()
+            else f"index {index}"
+        )
+        for cfield in CANONICAL_CODE_FIELDS:
+            value = code.get(cfield)
+            if not isinstance(value, str) or not value.strip():
+                raise InvalidTaxonomy(
+                    f"code {label!r} field {cfield!r} must be a non-empty string"
+                )

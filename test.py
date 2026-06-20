@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Local test-run harness for Taxonomy Finding.
+"""Local runner for Taxonomy Finding.
 
 Just a thin, friendly wrapper around the real Finding resolver so you can
 exercise all three --inherit forms (including the blocking web picker) from

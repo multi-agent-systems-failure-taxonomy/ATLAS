@@ -27,7 +27,7 @@ NONE_SENTINEL = "__none__"  # query value meaning "start from 0"
 
 # Fields rendered with dedicated emphasis in the detail view; any other field
 # on a code is still shown generically ("all fields").
-_CODE_PRIMARY = ("code", "name", "explanation")
+_CODE_PRIMARY = ("id", "name", "description", "category")
 
 _PAGE = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
@@ -88,9 +88,9 @@ def _render_detail(taxonomy_id, store_dir) -> str:
     tid = html.escape(str(record["taxonomy_id"]))
     blocks = []
     for code in record.get("codes", []):
-        num = html.escape(str(code.get("code", "?")))
-        name = html.escape(str(code.get("name", "")))
-        explanation = html.escape(str(code.get("explanation", "")))
+        num = html.escape(str(code["id"]))
+        name = html.escape(str(code["name"]))
+        explanation = html.escape(str(code["description"]))
         extras = "".join(
             '<div class="extra"><b>{k}:</b> {v}</div>'.format(
                 k=html.escape(str(k)), v=html.escape(str(v))

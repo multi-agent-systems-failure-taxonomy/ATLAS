@@ -10,6 +10,8 @@ sentinels produced by the CLI parser:
   * ABSENT  (flag not given)            -> "none"
   * <id>    (flag given with a value)   -> that id, or error if missing
   * NO_ID   (flag given with no value)  -> launch blocking web view
+
+`resolve()` returns the Finding decision: an id, or the literal "none".
 """
 
 from __future__ import annotations

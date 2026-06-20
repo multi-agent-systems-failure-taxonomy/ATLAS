@@ -1,0 +1,5 @@
+include README.md
+include SKILL.md
+include LICENSE
+recursive-include finding *.json
+recursive-include vendor/atlas LICENSE VENDORED.md

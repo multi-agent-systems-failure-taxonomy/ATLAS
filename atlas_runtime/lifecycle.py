@@ -1,0 +1,279 @@
+"""General, agent- and model-agnostic ATLAS program/task lifecycle."""
+
+from __future__ import annotations
+
+import uuid
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Callable
+
+from finding import mast, resolver, store
+
+from .generation import (
+    DEFAULT_GENERATION_THRESHOLD,
+    Approver,
+    GenerationResult,
+    Generator,
+    trigger_generation,
+)
+from .lineage import TaxonomyLineage
+from .program import ProgramWorkspace
+from .protocol import GateDecision, evaluate_pre_submission, render_protocol
+from .traces import (
+    DEFAULT_TRACE_ROOT,
+    GenerationTrace,
+    RetentionReport,
+    TraceStore,
+)
+from .refinement import (
+    DEFAULT_K,
+    DEFAULT_K_INIT,
+    Approver as RefinementApprover,
+    Refiner,
+    RefinementJudge,
+    RefinementRepairer,
+    RefinementResult,
+    trigger_refinement,
+)
+
+
+@dataclass(frozen=True)
+class SessionDelivery:
+    """Content the calling agent or framework delivers to its model.
+
+    ATLAS returns the selected taxonomy and runtime protocol; how they reach the
+    model (system prompt, tool context, instruction file, etc.) is the caller's
+    choice and not ATLAS's concern.
+    """
+
+    taxonomy_id: str
+    taxonomy: dict
+    runtime_protocol: str
+    dashboard_url: str | None = None
+
+
+@dataclass
+class Session:
+    session_id: str
+    program_id: str
+    workspace: ProgramWorkspace
+    delivery: SessionDelivery
+    store_dir: Path
+    trace_root: Path
+    max_retries: int
+    generation_threshold: int
+    generation_stops: bool
+    atlas_model: str | None
+    taxonomy_check: bool
+    k_init: int
+    k: int
+    refinement_stops: bool
+    advanced_refinement: bool
+    _pending_traces: list[GenerationTrace] = field(default_factory=list)
+    _ended: bool = False
+
+
+@dataclass(frozen=True)
+class SessionEndResult:
+    persisted_traces: int
+    integrated_traces: int
+    retention: RetentionReport
+    generation: GenerationResult
+    refinement: RefinementResult
+
+
+def start_session(
+    inherit=resolver.ABSENT,
+    *,
+    trace_output: Path | str,
+    store_dir: Path | str = store.DEFAULT_STORE_DIR,
+    trace_root: Path | str = DEFAULT_TRACE_ROOT,
+    launcher=None,
+    session_id: str | None = None,
+    max_retries: int = 3,
+    generation_threshold: int = DEFAULT_GENERATION_THRESHOLD,
+    generation_stops: bool = False,
+    atlas_model: str | None = None,
+    taxonomy_check: bool = True,
+    k_init: int = DEFAULT_K_INIT,
+    k: int = DEFAULT_K,
+    refinement_stops: bool = False,
+    advanced_refinement: bool = False,
+    repo: str | None = None,
+    repo_path: Path | str | None = None,
+    dashboard: bool = True,
+) -> Session:
+    """Start one task; trace_output is mandatory and identifies its program."""
+    if generation_threshold <= 0:
+        raise ValueError("generation_threshold must be positive")
+    if k_init <= 0 or k <= 0:
+        raise ValueError("K_init and K must be positive")
+    workspace = ProgramWorkspace(
+        trace_output,
+        repo=repo,
+        repo_path=repo_path,
+    )
+    store_dir = Path(store_dir)
+    trace_root = Path(trace_root)
+    sid = session_id or uuid.uuid4().hex
+
+    requested_id: str | None = None
+    if inherit is not resolver.ABSENT:
+        decision = resolver.resolve(
+            inherit,
+            store_dir=store_dir,
+            launcher=launcher,
+        )
+        if decision != resolver.NONE:
+            requested_id = TaxonomyLineage(store_dir).resolve_latest(decision)
+
+    current_id = workspace.load().get("taxonomy_id")
+    if current_id:
+        latest = TaxonomyLineage(store_dir).resolve_latest(str(current_id))
+        if latest != current_id:
+            workspace.follow_taxonomy_successor(latest)
+
+    try:
+        selected_id = workspace.begin_session(sid, requested_id, atlas_model)
+        taxonomy = (
+            mast.MAST
+            if selected_id == mast.MAST_ID
+            else store.fetch_by_id(selected_id, store_dir)
+        )
+    except Exception:
+        workspace.finish_session(sid)
+        raise
+
+    dashboard_url = None
+    if dashboard:
+        try:
+            from .dashboard import ensure_dashboard
+
+            dashboard_url = ensure_dashboard(workspace, store_dir)
+        except Exception:
+            dashboard_url = None
+    delivery = SessionDelivery(
+        taxonomy_id=selected_id,
+        taxonomy=taxonomy,
+        runtime_protocol=render_protocol(max_retries),
+        dashboard_url=dashboard_url,
+    )
+    return Session(
+        session_id=sid,
+        program_id=workspace.program_id,
+        workspace=workspace,
+        delivery=delivery,
+        store_dir=store_dir,
+        trace_root=trace_root,
+        max_retries=max_retries,
+        generation_threshold=generation_threshold,
+        generation_stops=generation_stops,
+        atlas_model=atlas_model or workspace.load().get("atlas_model"),
+        taxonomy_check=taxonomy_check,
+        k_init=k_init,
+        k=k,
+        refinement_stops=refinement_stops,
+        advanced_refinement=advanced_refinement,
+    )
+
+
+def pre_submission(session: Session, gate_text: str) -> GateDecision:
+    _require_active(session)
+    return evaluate_pre_submission(gate_text, max_retries=session.max_retries)
+
+
+def record_trace(session: Session, trace: GenerationTrace) -> int:
+    _require_active(session)
+    session._pending_traces.append(trace)
+    return len(session._pending_traces)
+
+
+def end_session(
+    session: Session,
+    *,
+    generator: Generator | None = None,
+    approver: Approver | None = None,
+    background_launcher: Callable[[], None] | None = None,
+    judge_call=None,
+    refiner: Refiner | None = None,
+    refinement_approver: RefinementApprover | None = None,
+    refinement_judge: RefinementJudge | None = None,
+    refinement_repairer: RefinementRepairer | None = None,
+    refinement_background_launcher: Callable[[], None] | None = None,
+) -> SessionEndResult:
+    """Finish the task, persist traces, and run the applicable transition."""
+    _require_active(session)
+    trace_names = session.workspace.pending.append_many_with_names(
+        session._pending_traces
+    )
+    persisted = len(trace_names)
+    session._pending_traces.clear()
+    session.workspace.finish_session(session.session_id)
+    session._ended = True
+
+    integrated = 0
+    generation = GenerationResult("none", "taxonomy generation not applicable")
+    refinement = RefinementResult("none", "taxonomy refinement not applicable")
+    if session.delivery.taxonomy_id != mast.MAST_ID:
+        destination = TraceStore(
+            session.trace_root / session.delivery.taxonomy_id
+        )
+        integrated = session.workspace.pending.integrate_into(destination)
+        session.workspace.add_refinement_traces(
+            session.delivery.taxonomy_id,
+            trace_names,
+        )
+        refinement = trigger_refinement(
+            session.workspace,
+            store_dir=session.store_dir,
+            trace_root=session.trace_root,
+            k_init=session.k_init,
+            k=session.k,
+            refinement_stops=session.refinement_stops,
+            advanced_refinement=session.advanced_refinement,
+            atlas_model=session.atlas_model,
+            refiner=refiner,
+            approver=refinement_approver,
+            judge=refinement_judge,
+            repairer=refinement_repairer,
+            background_launcher=refinement_background_launcher,
+        )
+    else:
+        generation = trigger_generation(
+            session.workspace,
+            store_dir=session.store_dir,
+            trace_root=session.trace_root,
+            threshold=session.generation_threshold,
+            generation_stops=session.generation_stops,
+            generator=generator,
+            approver=approver,
+            atlas_model=session.atlas_model,
+            taxonomy_check=session.taxonomy_check,
+            judge_call=judge_call,
+            background_launcher=background_launcher,
+        )
+
+    active_id = session.workspace.load().get("taxonomy_id")
+    retained = (
+        TraceStore(session.trace_root / active_id)
+        if active_id
+        else session.workspace.pending
+    )
+    try:
+        from .dashboard import stop_dashboard_if_idle
+
+        stop_dashboard_if_idle(session.workspace)
+    except Exception:
+        pass
+    return SessionEndResult(
+        persisted_traces=persisted,
+        integrated_traces=integrated,
+        retention=retained.retention_report(),
+        generation=generation,
+        refinement=refinement,
+    )
+
+
+def _require_active(session: Session) -> None:
+    if session._ended:
+        raise RuntimeError(f"ATLAS session {session.session_id!r} has already ended")
