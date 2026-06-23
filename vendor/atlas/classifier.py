@@ -73,7 +73,7 @@ class TaxonomyClassifier:
     def classify(self, trace: Dict[str, Any]) -> Optional[Diagnosis]:
         """Classify ``trace`` and return the best-matching diagnosis, or None on failure."""
         taxonomy_desc = self._format_codes_for_prompt()
-        trace_text = format_trace_for_prompt(trace, max_length=6000)
+        trace_text = format_trace_for_prompt(trace, max_length=30000)
 
         prompt = (
             f"Given this failure taxonomy:\n\n{taxonomy_desc}\n\n"

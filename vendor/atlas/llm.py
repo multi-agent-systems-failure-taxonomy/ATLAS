@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from typing import Any, Dict, List, Optional
 
@@ -24,19 +25,25 @@ class LLMClient:
     """Thin wrapper that calls either an OpenAI or Anthropic SDK client.
 
     The wrapped client is created lazily based on the model name. Models
-    starting with ``claude`` go to the Anthropic SDK (when installed),
-    everything else falls through to OpenAI. Users who need a custom
-    endpoint can configure it via ``OPENAI_BASE_URL`` / ``OPENAI_API_KEY``
-    before constructing the client.
+    starting with ``claude`` go to the Anthropic SDK (when installed), unless
+    an explicit ``OPENAI_BASE_URL`` is configured. An explicit
+    OpenAI-compatible endpoint owns transport regardless of a Claude model
+    name, allowing a local subscription proxy to preserve the honest model
+    identity.
     """
 
-    def __init__(self, model: str, timeout: int = 180):
+    def __init__(self, model: str, timeout: int = 900):
         self.model = model
         self.timeout = timeout
         self._anthropic = None
         self._openai = None
 
-        if model.startswith("claude") and _anthropic_module is not None:
+        use_openai_endpoint = bool(os.environ.get("OPENAI_BASE_URL"))
+        if (
+            model.startswith("claude")
+            and _anthropic_module is not None
+            and not use_openai_endpoint
+        ):
             self._anthropic = _anthropic_module.Anthropic()
         else:
             from openai import OpenAI

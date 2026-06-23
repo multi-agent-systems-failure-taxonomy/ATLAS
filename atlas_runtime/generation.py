@@ -72,7 +72,7 @@ def _atlas_generate(
         traces=[outcome_blind_trace(trace) for trace in traces],
         output_dir=output_dir,
         model=atlas_model,
-        save_intermediate=False,
+        save_intermediate=True,
         verbose=False,
     )
 
@@ -454,10 +454,13 @@ def _spawn_worker(trace_output: Path, store_dir: Path, trace_root: Path) -> None
         "--trace-root",
         str(trace_root),
     ]
+    worker_log = Path(trace_output) / "generation_worker.log"
+    worker_log.parent.mkdir(parents=True, exist_ok=True)
+    log_fh = open(worker_log, "a", buffering=1, encoding="utf-8", errors="replace")
     kwargs: dict[str, Any] = {
         "stdin": subprocess.DEVNULL,
-        "stdout": subprocess.DEVNULL,
-        "stderr": subprocess.DEVNULL,
+        "stdout": log_fh,
+        "stderr": subprocess.STDOUT,
         "cwd": str(Path(__file__).resolve().parent.parent),
     }
     if os.name == "nt":

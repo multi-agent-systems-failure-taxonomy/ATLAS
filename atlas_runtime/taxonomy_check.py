@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,7 +20,7 @@ from .models import estimate_tokens, resolve_model_profile
 from .program import ProgramWorkspace
 
 DEFAULT_MAX_TRACES_PER_BATCH = 4
-DEFAULT_MIN_ACTIVE_CODES = 5
+DEFAULT_MIN_ACTIVE_CODES = 3
 DEFAULT_JUDGE_MAX_RETRIES = 1
 JudgeCall = Callable[[str, str], str]
 
@@ -31,6 +32,7 @@ class TraceUnit:
     text: str
     chunk_index: int
     chunk_total: int
+    outcome: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -65,6 +67,7 @@ def check_taxonomy(
         if hashlib.sha256(payload).hexdigest() != entry["sha256"]:
             raise OSError(f"frozen trace changed during taxonomy check: {path}")
         records.append(json.loads(payload.decode("utf-8")))
+    outcomes = _load_outcomes(workspace)
     taxonomy_text = _taxonomy_text(candidate)
     prompt_overhead = estimate_tokens(_prompt(taxonomy_text, []))
     profile = resolve_model_profile(atlas_model)
@@ -76,7 +79,7 @@ def check_taxonomy(
     if usable <= 0:
         raise ValueError("taxonomy/check prompt leaves no model input budget")
 
-    units = _make_units(records, usable)
+    units = _make_units(records, usable, outcomes)
     batches = _pack_units(
         units,
         taxonomy_text,
@@ -203,12 +206,28 @@ def latest_snapshot_count(workspace: ProgramWorkspace) -> int:
     return len(data.get("traces", []))
 
 
-def _make_units(records: list[dict[str, Any]], usable_tokens: int) -> list[TraceUnit]:
+def _make_units(
+    records: list[dict[str, Any]],
+    usable_tokens: int,
+    outcomes: dict[str, dict[str, Any]] | None = None,
+) -> list[TraceUnit]:
+    outcomes = outcomes or {}
+    # ATLAS_JUDGE_CHUNK_CHARS forces uniform chunk size for splitting the
+    # trace into multiple judge units, regardless of the model's full input
+    # budget. Useful with ATLAS_JUDGE_CAP=0 (full traces) to keep each judge
+    # call focused on a smaller window — counters long-context attention
+    # degradation. Unset (or 0) preserves the original behavior (split only
+    # if the trace exceeds usable_tokens).
+    env_chunk_chars = int(os.environ.get("ATLAS_JUDGE_CHUNK_CHARS", "0") or "0")
+    split_budget = (
+        max(1, env_chunk_chars // 4) if env_chunk_chars > 0 else usable_tokens
+    )
     units: list[TraceUnit] = []
     for record in records:
         problem_id = str(record["problem_id"])
+        outcome = outcomes.get(problem_id)
         text = format_support_trace(record)
-        chunks = _split_text(text, usable_tokens)
+        chunks = _split_text(text, split_budget)
         total = len(chunks)
         units.extend(
             TraceUnit(
@@ -217,10 +236,40 @@ def _make_units(records: list[dict[str, Any]], usable_tokens: int) -> list[Trace
                 text=chunk,
                 chunk_index=index + 1,
                 chunk_total=total,
+                outcome=outcome,
             )
             for index, chunk in enumerate(chunks)
         )
     return units
+
+
+def _load_outcomes(workspace: ProgramWorkspace) -> dict[str, dict[str, Any]]:
+    """Load optional per-trace outcome labels written by the runtime driver.
+
+    The driver (e.g. run_officeqa_atlas.py) writes ``{session_id: {label,
+    correct, gold, actual}}`` to ``.atlas-task-labels.json`` under the
+    workspace root. When present, the judge uses it to focus on incorrect
+    answers; when absent, the judge runs outcome-blind (original behavior).
+    """
+    path = workspace.root / ".atlas-task-labels.json"
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    aliased: dict[str, dict[str, Any]] = {}
+    for key, value in data.items():
+        if not isinstance(value, dict):
+            continue
+        aliased[key] = value
+        if key.startswith("claude-code:"):
+            aliased[key.removeprefix("claude-code:")] = value
+        else:
+            aliased[f"claude-code:{key}"] = value
+    return aliased
 
 
 def _split_text(text: str, max_tokens: int) -> list[str]:
@@ -296,14 +345,39 @@ def _taxonomy_text(candidate: dict[str, Any]) -> str:
 
 
 def _prompt(taxonomy_text: str, units: Iterable[TraceUnit]) -> str:
-    traces = "\n\n".join(
-        f"### UNIT {unit.unit_id} (trace={unit.problem_id}, "
-        f"chunk={unit.chunk_index}/{unit.chunk_total})\n{unit.text}"
-        for unit in units
-    )
-    return f"""Assign failure-mode codes to each trace unit independently.
-A code fires only with concrete evidence in that same unit. Be strict and
-sparse. Never invent a code. If giving a quote, copy it verbatim from the unit.
+    blocks = []
+    for unit in units:
+        header = (
+            f"### UNIT {unit.unit_id} (trace={unit.problem_id}, "
+            f"chunk={unit.chunk_index}/{unit.chunk_total})"
+        )
+        outcome_line = ""
+        if unit.outcome:
+            label = unit.outcome.get("label", "?")
+            gold = unit.outcome.get("gold", "")
+            actual = unit.outcome.get("actual", "")
+            correct = unit.outcome.get("correct")
+            if correct is False:
+                outcome_line = (
+                    f"\n[OUTCOME] task={label} | gold={gold!r} | "
+                    f"agent_answer={actual!r} | verdict=INCORRECT"
+                )
+            elif correct is True:
+                outcome_line = (
+                    f"\n[OUTCOME] task={label} | verdict=CORRECT"
+                )
+        blocks.append(f"{header}{outcome_line}\n{unit.text}")
+    traces = "\n\n".join(blocks)
+    return f"""Assign failure-mode codes to each trace unit based on the
+evidence in that unit. A trace can earn any number of codes; the same
+underlying failure can match more than one code when its evidence touches
+multiple categories (for example, a wrong-column extraction is evidence
+both for a data-source code and for a value-inconsistency code). A code
+fires only with concrete evidence quoted verbatim from the same unit.
+Never invent a code. When an OUTCOME line marks a trace INCORRECT, the
+agent's final answer was wrong; the steps where that can occur include
+data extraction, source selection, formula choice, arithmetic, rounding,
+and output format.
 
 TAXONOMY
 {taxonomy_text}
@@ -330,7 +404,7 @@ def _valid_firings(
         quote = str(item.get("quote", ""))
         if code not in valid_ids or code in seen:
             continue
-        if quote and quote not in unit.text:
+        if quote and not _quote_in_unit(quote, unit.text):
             continue
         seen.add(code)
         fired.append(
@@ -342,6 +416,19 @@ def _valid_firings(
             }
         )
     return fired
+
+
+def _quote_in_unit(quote: str, text: str) -> bool:
+    """Match either decoded text or its representation inside JSONL.
+
+    Claude Code traces are stored as raw JSONL, so a genuinely verbatim path
+    such as a Windows user path appears with escaped backslashes. Keep quote
+    validation strict while accepting that serialization boundary.
+    """
+    if quote in text:
+        return True
+    encoded = json.dumps(quote, ensure_ascii=False)[1:-1]
+    return encoded in text
 
 
 def _call_json(

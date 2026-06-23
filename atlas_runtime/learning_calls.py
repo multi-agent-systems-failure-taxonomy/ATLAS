@@ -17,7 +17,14 @@ logger = logging.getLogger(__name__)
 ANTHROPIC_OPENAI_MAX_TOKENS = 8192
 GEMINI_MAX_OUTPUT_TOKENS = 16384
 DEFAULT_MAX_RETRIES = 1
-DEFAULT_EXCERPT_CAP = 12000
+DEFAULT_EXCERPT_CAP = 25000
+SUPPORT_TRACE_MARKERS = (
+    ("TOOL FAILURE", "PostToolUseFailure", False),
+    ("AGENT REFLECTION", "ATLAS reflection:", True),
+    ("FINAL GATE", "Final ATLAS status:", True),
+    ("FINAL ANSWER", "<FINAL_ANSWER>", True),
+    ("ARITHMETIC", "\"name\":\"Bash\"", True),
+)
 
 ModelCall = Callable[[str, str], str | None]
 
@@ -85,11 +92,53 @@ def outcome_blind_trace(record: dict[str, Any]) -> dict[str, Any]:
 
 def format_support_trace(
     record: dict[str, Any],
-    cap: int = DEFAULT_EXCERPT_CAP,
+    cap: int | None = None,
 ) -> str:
-    """Outcome-blind support excerpt from the canonical trace body."""
+    """Outcome-blind support sample from across the trace.
+
+    The cap is taken from ``ATLAS_JUDGE_CAP`` (chars) when set, else from the
+    explicit ``cap`` argument, else from ``DEFAULT_EXCERPT_CAP``. Setting
+    ``ATLAS_JUDGE_CAP=0`` or any value larger than the trace returns the
+    entire trajectory — useful for diagnostic full-trace judging on a small
+    fixture set.
+    """
     text = str(record.get("raw_trajectory") or "")
-    return text[:cap] if text else "(no trace text)"
+    if not text:
+        return "(no trace text)"
+    env_cap = os.environ.get("ATLAS_JUDGE_CAP")
+    if env_cap is not None:
+        try:
+            cap = int(env_cap)
+        except ValueError:
+            cap = DEFAULT_EXCERPT_CAP
+    elif cap is None:
+        cap = DEFAULT_EXCERPT_CAP
+    if cap <= 0 or len(text) <= cap:
+        return text
+
+    segments: list[tuple[str, int, int]] = []
+    head_size = min(2000, cap // 5)
+    tail_size = min(3000, cap // 4)
+    segments.append(("TRACE START", 0, head_size))
+
+    marker_budget = max(0, cap - head_size - tail_size - 600)
+    marker_size = max(600, marker_budget // len(SUPPORT_TRACE_MARKERS))
+    for label, marker, use_last in SUPPORT_TRACE_MARKERS:
+        position = text.rfind(marker) if use_last else text.find(marker)
+        if position < 0:
+            continue
+        start = max(0, position - marker_size // 3)
+        segments.append((label, start, min(len(text), start + marker_size)))
+
+    segments.append(("TRACE END", max(0, len(text) - tail_size), len(text)))
+    rendered: list[str] = []
+    seen_ranges: list[tuple[int, int]] = []
+    for label, start, end in segments:
+        if any(start >= old_start and end <= old_end for old_start, old_end in seen_ranges):
+            continue
+        seen_ranges.append((start, end))
+        rendered.append(f"\n--- {label} [{start}:{end}] ---\n{text[start:end]}")
+    return "".join(rendered)[:cap]
 
 
 def format_refinement_traces(
@@ -152,7 +201,11 @@ def parse_json_object(text: Any) -> dict[str, Any] | None:
 
 def support_model_call(prompt: str, model: str) -> str | None:
     """Corrected support-judge transport with explicit output caps."""
-    if model.startswith("claude") or model.startswith("anthropic"):
+    use_openai_endpoint = bool(os.environ.get("OPENAI_BASE_URL"))
+    if (
+        model.startswith(("claude", "anthropic"))
+        and not use_openai_endpoint
+    ):
         try:
             from anthropic import Anthropic
         except ImportError:
@@ -257,7 +310,11 @@ def judge_json(
 
 def refinement_model_call(prompt: str, model: str) -> str | None:
     """Corrected refiner transport with explicit output caps."""
-    if model.startswith("claude") or model.startswith("anthropic"):
+    use_openai_endpoint = bool(os.environ.get("OPENAI_BASE_URL"))
+    if (
+        model.startswith(("claude", "anthropic"))
+        and not use_openai_endpoint
+    ):
         try:
             from anthropic import Anthropic
         except ImportError:
