@@ -111,9 +111,40 @@ The installation provides:
 | `atlas-claude-install` | Register project-local Claude Code hooks |
 | `atlas-claude-uninstall` | Remove ATLAS hooks without disturbing unrelated settings |
 | `atlas-single-run` | Run one no-harness model task through ATLAS |
-| `atlas-import-traces` | Generate a stored taxonomy from existing traces |
-| `atlas-find` | Resolve or interactively choose a taxonomy |
+| `atlas-import-traces` | **Generate** a stored taxonomy from existing traces (runs the full 8-step ATLAS pipeline) |
+| `atlas-register-taxonomy` | **Register** a pre-generated taxonomy.json file as-is (no judging, no generation) |
+| `atlas-find` | List, resolve, or interactively choose a taxonomy |
 | `atlas-dashboard` | Open the live taxonomy dashboard |
+
+### Bringing your own taxonomy
+
+If you already have a `taxonomy.json` from somewhere — a custom pipeline,
+a sibling project, a hand-edited file, an export from GEPA — you do NOT
+need to re-run generation or re-judge traces to make it inheritable.
+`atlas-register-taxonomy` ingests it as-is:
+
+```bash
+# One file
+atlas-register-taxonomy --file path/to/taxonomy.json
+
+# Batch: a directory of *.json
+atlas-register-taxonomy --file path/to/folder-of-taxonomies/
+
+# Pin a memorable id (default is auto-allocated tax-<stamp>-<digest>-<uuid>)
+atlas-register-taxonomy --file my_tax.json --id my-curated-tax-v1
+
+# Overwrite an existing id
+atlas-register-taxonomy --file updated.json --id my-curated-tax-v1 --replace
+```
+
+Accepts both atlas_skill's flat schema (`{repo, domain, codes: [...]}`)
+and the ATLAS pipeline output (`{annotation_layer, full_layer, ...}`).
+After registration the id shows up in `atlas-find --list` and can be
+passed to `--inherit` on any install or single-run command.
+
+If you DO want the Reflection Judge + refiner to clean up your imported
+taxonomy against a trace pool, add `--traces` and `--atlas-model` — but
+those are optional. The default path is "register the file, that's it."
 
 > 🔐 **Credentials are never written into ATLAS configuration.** OpenAI-compatible
 > calls use `OPENAI_API_KEY`; Anthropic uses its SDK environment credentials;

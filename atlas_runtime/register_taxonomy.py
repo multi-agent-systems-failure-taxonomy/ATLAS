@@ -128,6 +128,7 @@ def register_taxonomy_file(
     repo_path: Path | str | None = None,
     domain: str | None = None,
     taxonomy_id: str | None = None,
+    replace: bool = False,
     traces: Path | str | Iterable[Any] | None = None,
     atlas_model: str | None = None,
     judge_call: Callable[..., Any] | None = None,
@@ -141,6 +142,11 @@ def register_taxonomy_file(
     Judge + refiner runs against the trace pool and the refined candidate is
     registered. Otherwise the candidate is registered as-is after structural
     validation.
+
+    Set ``replace=True`` to overwrite an existing record at the same
+    ``taxonomy_id`` (only meaningful with an explicit ``taxonomy_id``;
+    auto-allocated ids are always unique). Without ``replace=True``, a
+    pre-existing id raises ``TaxonomyAlreadyExists``.
     """
     taxonomy_path = Path(taxonomy_path).expanduser().resolve()
     if not taxonomy_path.is_file():
@@ -192,16 +198,19 @@ def register_taxonomy_file(
     try:
         if canonical:
             trace_destination = trace_root / final_id
-            if trace_destination.exists():
+            if trace_destination.exists() and not replace:
                 raise FileExistsError(
                     f"taxonomy trace folder already exists: {trace_destination}"
                 )
+            if trace_destination.exists() and replace:
+                import shutil
+                shutil.rmtree(trace_destination, ignore_errors=True)
             staging = trace_root / f".staging-{final_id}-{uuid.uuid4().hex}"
             TraceStore(staging).append_many(canonical)
             trace_root.mkdir(parents=True, exist_ok=True)
             staging.replace(trace_destination)
             trace_committed = True
-        taxonomy_store_path = store.register(record, store_dir)
+        taxonomy_store_path = store.register(record, store_dir, replace=replace)
     except Exception:
         if taxonomy_store_path is not None:
             store.unregister(final_id, store_dir)
@@ -216,6 +225,61 @@ def register_taxonomy_file(
         trace_count=len(canonical),
         refinement=refinement_block,
     )
+
+
+def register_taxonomy_files(
+    taxonomy_paths: Iterable[Path | str],
+    *,
+    store_dir: Path | str = store.DEFAULT_STORE_DIR,
+    repo: str | None = None,
+    repo_path: Path | str | None = None,
+    domain: str | None = None,
+    replace: bool = False,
+    continue_on_error: bool = True,
+) -> list[RegisteredTaxonomyResult | dict[str, Any]]:
+    """Batch-register many taxonomy files without re-judging.
+
+    Each input is registered as-is (no traces, no judge). Returns a list
+    aligned with the input order: ``RegisteredTaxonomyResult`` on success,
+    or ``{"file": <path>, "error": <message>}`` on failure when
+    ``continue_on_error=True``.
+
+    Useful for re-hydrating a store from a directory of saved taxonomies
+    or pulling a sibling project's curated set into the local skill.
+    """
+    results: list[RegisteredTaxonomyResult | dict[str, Any]] = []
+    for path in taxonomy_paths:
+        try:
+            results.append(register_taxonomy_file(
+                path,
+                store_dir=store_dir,
+                repo=repo,
+                repo_path=repo_path,
+                domain=domain,
+                replace=replace,
+            ))
+        except Exception as exc:
+            if not continue_on_error:
+                raise
+            results.append({"file": str(path), "error": f"{type(exc).__name__}: {exc}"})
+    return results
+
+
+def _expand_paths(paths: Iterable[str | Path]) -> list[Path]:
+    """Expand a mix of files and directories into a sorted list of
+    ``*.json`` files. Directories are scanned non-recursively (one level)
+    so users opting in to batch register don't accidentally pick up
+    nested non-taxonomy JSON."""
+    out: list[Path] = []
+    for raw in paths:
+        p = Path(raw).expanduser()
+        if p.is_dir():
+            out.extend(sorted(p.glob("*.json")))
+        elif p.is_file():
+            out.append(p)
+        else:
+            raise FileNotFoundError(f"not a file or directory: {p}")
+    return out
 
 
 def _summary_to_block(summary: RefinementSummary) -> dict[str, Any]:
@@ -268,12 +332,21 @@ def _new_taxonomy_id(candidate: dict[str, Any]) -> str:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
-        description="Register a pre-generated taxonomy.json under a new id.",
+        description=(
+            "Register one or more pre-generated taxonomy.json files into the "
+            "atlas-skill store, with no re-judging required. Pass --file "
+            "<path> for a single taxonomy, or pass multiple paths (files or "
+            "directories of *.json) for batch registration."
+        ),
     )
     parser.add_argument(
         "--file",
+        action="append",
         required=True,
-        help="path to the taxonomy.json to register (flat or ATLAS pipeline shape)",
+        help="path to a taxonomy.json OR a directory of *.json files. "
+             "Repeat the flag to register multiple sources in one call. "
+             "Accepts both atlas_skill flat ({repo, domain, codes}) and "
+             "ATLAS pipeline ({annotation_layer, full_layer}) shapes.",
     )
     parser.add_argument(
         "--store-dir",
@@ -292,36 +365,87 @@ def main(argv=None) -> int:
         "--id",
         dest="taxonomy_id",
         help="explicit taxonomy_id (filesystem-safe); default is an auto-allocated "
-             "tax-<stamp>-<digest>-<uuid>",
+             "tax-<stamp>-<digest>-<uuid>. Only honored with a single --file input.",
+    )
+    parser.add_argument(
+        "--replace",
+        action="store_true",
+        help="overwrite an existing record at the same taxonomy_id "
+             "(otherwise a duplicate id errors)",
     )
     parser.add_argument(
         "--traces",
         help="optional JSONL of supporting traces; when set, the Reflection Judge "
-             "+ refiner runs and the refined taxonomy is registered",
+             "+ refiner runs and the refined taxonomy is registered. Only honored "
+             "with a single --file input.",
     )
     parser.add_argument(
         "--atlas-model",
         help="model id used by the Reflection Judge + refiner; required iff --traces is set",
     )
+    parser.add_argument(
+        "--stop-on-error",
+        action="store_true",
+        help="batch mode only: abort after the first failure instead of "
+             "continuing through the remaining files",
+    )
     args = parser.parse_args(argv)
 
-    try:
-        result = register_taxonomy_file(
-            args.file,
-            store_dir=args.store_dir,
-            trace_root=args.trace_root,
-            repo=args.repo,
-            repo_path=args.repo_path,
-            domain=args.domain,
-            taxonomy_id=args.taxonomy_id,
-            traces=args.traces,
-            atlas_model=args.atlas_model,
+    paths = _expand_paths(args.file)
+    if not paths:
+        print("ERROR: no taxonomy files found in the supplied --file inputs",
+              file=sys.stderr)
+        return 1
+
+    is_batch = len(paths) > 1
+    if is_batch and (args.taxonomy_id or args.traces):
+        print(
+            "ERROR: --id and --traces are only valid for a single --file input; "
+            f"got {len(paths)} files",
+            file=sys.stderr,
         )
+        return 1
+
+    try:
+        if is_batch:
+            results = register_taxonomy_files(
+                paths,
+                store_dir=args.store_dir,
+                repo=args.repo,
+                repo_path=args.repo_path,
+                domain=args.domain,
+                replace=args.replace,
+                continue_on_error=not args.stop_on_error,
+            )
+            payload = [
+                r.to_dict() if isinstance(r, RegisteredTaxonomyResult) else r
+                for r in results
+            ]
+            errors = sum(1 for r in results if not isinstance(r, RegisteredTaxonomyResult))
+            print(json.dumps({
+                "registered": len(results) - errors,
+                "errors": errors,
+                "results": payload,
+            }, indent=2))
+            return 0 if errors == 0 else 2
+        else:
+            result = register_taxonomy_file(
+                paths[0],
+                store_dir=args.store_dir,
+                trace_root=args.trace_root,
+                repo=args.repo,
+                repo_path=args.repo_path,
+                domain=args.domain,
+                taxonomy_id=args.taxonomy_id,
+                replace=args.replace,
+                traces=args.traces,
+                atlas_model=args.atlas_model,
+            )
+            print(json.dumps(result.to_dict(), indent=2))
+            return 0
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
-    print(json.dumps(result.to_dict(), indent=2))
-    return 0
 
 
 if __name__ == "__main__":
