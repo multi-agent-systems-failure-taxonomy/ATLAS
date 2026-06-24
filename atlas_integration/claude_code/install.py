@@ -14,7 +14,7 @@ from pathlib import Path
 
 from finding import resolver, store, webview
 
-from .config import ClaudeCodeConfig
+from .config import ClaudeCodeConfig, CustomHookSpec
 from .uninstall import remove_atlas_hooks
 
 REQUIRED_EVENTS = (
@@ -210,6 +210,29 @@ def install(
             for entry in entries
         ):
             entries.append(registration)
+    for spec in config.custom_hooks:
+        custom_command = _custom_command(
+            Path(python), config_path, spec.name,
+        )
+        entries = hooks.setdefault(spec.event, [])
+        registration = {
+            **({"matcher": spec.matcher} if spec.matcher else {}),
+            "hooks": [
+                {
+                    "type": "command",
+                    "command": custom_command,
+                    "timeout": 15,
+                }
+            ],
+        }
+        if not any(
+            any(
+                hook.get("command") == custom_command
+                for hook in entry.get("hooks", [])
+            )
+            for entry in entries
+        ):
+            entries.append(registration)
     _write_json_atomic(settings_path, settings)
     migrated = None
     if migrate_legacy_global:
@@ -234,6 +257,19 @@ def _module_command(python: Path, config: Path) -> str:
         _hook_shell_path(dispatcher),
         "--config",
         _hook_shell_path(config),
+    ]
+    return shlex.join(parts)
+
+
+def _custom_command(python: Path, config: Path, spec_name: str) -> str:
+    dispatcher = Path(__file__).resolve().with_name("dispatcher.py")
+    parts = [
+        _hook_shell_path(python),
+        _hook_shell_path(dispatcher),
+        "--config",
+        _hook_shell_path(config),
+        "--custom",
+        spec_name,
     ]
     return shlex.join(parts)
 

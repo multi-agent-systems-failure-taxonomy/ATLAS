@@ -110,6 +110,7 @@ The installation provides:
 |---|---|
 | `atlas-claude-install` | Register project-local Claude Code hooks |
 | `atlas-claude-uninstall` | Remove ATLAS hooks without disturbing unrelated settings |
+| `atlas-claude-add-hook` / `remove-hook` / `list-hooks` | Bind the reflection<->refinement loop to **any** Claude Code event (e.g. `PreToolUse`) without writing Python — see [custom hooks](atlas_integration/claude_code/README.md#custom-hooks) |
 | `atlas-single-run` | Run one no-harness model task through ATLAS |
 | `atlas-import-traces` | **Generate** a stored taxonomy from existing traces (runs the full 8-step ATLAS pipeline) |
 | `atlas-register-taxonomy` | **Register** a pre-generated taxonomy.json file as-is (no judging, no generation) |

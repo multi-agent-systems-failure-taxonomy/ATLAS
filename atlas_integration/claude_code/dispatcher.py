@@ -11,6 +11,10 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from atlas_integration.claude_code.config import ClaudeCodeConfig
+    from atlas_integration.claude_code.custom import (
+        custom_advisory,
+        custom_blocking_checkpoint,
+    )
     from atlas_integration.claude_code.hooks import (
         post_tool_use,
         post_tool_use_failure,
@@ -22,6 +26,7 @@ if __package__ in (None, ""):
     )
 else:
     from .config import ClaudeCodeConfig
+    from .custom import custom_advisory, custom_blocking_checkpoint
     from .hooks import (
         post_tool_use,
         post_tool_use_failure,
@@ -46,12 +51,18 @@ HANDLERS = {
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
+    parser.add_argument(
+        "--custom",
+        default=None,
+        help=(
+            "name of a CustomHookSpec; when provided this dispatcher routes "
+            "the incoming event through the user-declared hook instead of the "
+            "built-in HANDLERS table"
+        ),
+    )
     args = parser.parse_args(argv)
     try:
         event = json.load(sys.stdin)
-        event_name = event.get("hook_event_name")
-        if event_name not in HANDLERS:
-            raise ValueError(f"unsupported Claude Code hook event {event_name!r}")
         config = ClaudeCodeConfig.load(args.config)
         if config.openai_base_url:
             os.environ["OPENAI_BASE_URL"] = config.openai_base_url
@@ -63,7 +74,27 @@ def main(argv=None) -> int:
                     f"{config.openai_api_key_env!r} is not set"
                 )
             os.environ["OPENAI_API_KEY"] = value
-        code, output = HANDLERS[event_name](event, config)
+        if args.custom:
+            spec = config.find_custom_hook(args.custom)
+            if spec is None:
+                raise ValueError(
+                    f"no CustomHookSpec named {args.custom!r} in "
+                    f"{args.config}; rerun atlas-claude-add-hook or "
+                    "atlas-claude-install to refresh"
+                )
+            if spec.mode == "blocking":
+                code, output = custom_blocking_checkpoint(
+                    event, config, spec=spec,
+                )
+            else:
+                code, output = 0, custom_advisory(event, config, spec=spec)
+        else:
+            event_name = event.get("hook_event_name")
+            if event_name not in HANDLERS:
+                raise ValueError(
+                    f"unsupported Claude Code hook event {event_name!r}"
+                )
+            code, output = HANDLERS[event_name](event, config)
         if output:
             rendered = (
                 json.dumps(output, ensure_ascii=False)

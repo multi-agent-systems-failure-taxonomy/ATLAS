@@ -4,11 +4,73 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from finding import store
 from atlas_runtime.traces import DEFAULT_TRACE_ROOT
+
+CUSTOM_HOOK_MODES = ("blocking", "advisory")
+CUSTOM_HOOK_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+CLAUDE_CODE_EVENTS = (
+    "SessionStart", "SessionEnd", "Stop", "TaskCompleted", "SubagentStop",
+    "PreToolUse", "PostToolUse", "PostToolUseFailure",
+    "PreCompact", "Notification", "UserPromptSubmit",
+)
+
+
+@dataclass(frozen=True)
+class CustomHookSpec:
+    """A user-declared hook bound to the reflection-or-nudge runtime.
+
+    Custom hooks let a project register a Claude Code event (PreToolUse,
+    UserPromptSubmit, etc.) and have the same reflection<->refinement loop
+    fire on it without writing any new Python. The dispatcher routes
+    matching events here based on ``name``; the installer registers
+    ``settings.local.json`` entries that point at this skin.
+    """
+
+    name: str
+    event: str
+    mode: str = "blocking"
+    matcher: str | None = None
+
+    def __post_init__(self) -> None:
+        if not CUSTOM_HOOK_NAME_RE.match(self.name):
+            raise ValueError(
+                f"custom hook name {self.name!r} must match "
+                f"{CUSTOM_HOOK_NAME_RE.pattern}"
+            )
+        if self.event not in CLAUDE_CODE_EVENTS:
+            raise ValueError(
+                f"custom hook event {self.event!r} is not a Claude Code "
+                f"hook event; expected one of {CLAUDE_CODE_EVENTS}"
+            )
+        if self.mode not in CUSTOM_HOOK_MODES:
+            raise ValueError(
+                f"custom hook mode {self.mode!r} must be one of "
+                f"{CUSTOM_HOOK_MODES}"
+            )
+        if self.matcher is not None and not str(self.matcher).strip():
+            raise ValueError("custom hook matcher cannot be empty string")
+
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "event": self.event,
+            "mode": self.mode,
+            "matcher": self.matcher,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "CustomHookSpec":
+        matcher = data.get("matcher")
+        return cls(
+            name=str(data["name"]),
+            event=str(data["event"]),
+            mode=str(data.get("mode", "blocking")),
+            matcher=str(matcher) if matcher else None,
+        )
 
 
 @dataclass(frozen=True)
@@ -31,6 +93,7 @@ class ClaudeCodeConfig:
     advanced_refinement: bool = False
     failure_throttle_calls: int = 5
     failure_recency_seconds: int = 30
+    custom_hooks: tuple[CustomHookSpec, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
         if not str(self.atlas_model).strip():
@@ -52,6 +115,24 @@ class ClaudeCodeConfig:
             self.openai_api_key_env,
         ):
             raise ValueError("openai_api_key_env must be an environment name")
+        seen_names: set[str] = set()
+        for spec in self.custom_hooks:
+            if not isinstance(spec, CustomHookSpec):
+                raise TypeError(
+                    "custom_hooks entries must be CustomHookSpec instances"
+                )
+            if spec.name in seen_names:
+                raise ValueError(
+                    f"duplicate custom_hook name {spec.name!r}; names must "
+                    "be unique within a config"
+                )
+            seen_names.add(spec.name)
+
+    def find_custom_hook(self, name: str) -> CustomHookSpec | None:
+        for spec in self.custom_hooks:
+            if spec.name == name:
+                return spec
+        return None
 
     @classmethod
     def load(cls, path: Path | str) -> "ClaudeCodeConfig":
@@ -70,6 +151,12 @@ class ClaudeCodeConfig:
         inherit = data.get("inherit")
         if inherit in ("", "none"):
             inherit = None
+        raw_hooks = data.get("custom_hooks") or ()
+        if not isinstance(raw_hooks, list | tuple):
+            raise ValueError("custom_hooks must be a list")
+        custom_hooks = tuple(
+            CustomHookSpec.from_dict(entry) for entry in raw_hooks
+        )
         return cls(
             trace_output=Path(trace_output).expanduser().resolve(),
             atlas_model=atlas_model,
@@ -109,6 +196,7 @@ class ClaudeCodeConfig:
             failure_recency_seconds=max(
                 0, int(data.get("failure_recency_seconds", 30))
             ),
+            custom_hooks=custom_hooks,
         )
 
     def to_dict(self) -> dict:
@@ -132,4 +220,5 @@ class ClaudeCodeConfig:
             "advanced_refinement": self.advanced_refinement,
             "failure_throttle_calls": self.failure_throttle_calls,
             "failure_recency_seconds": self.failure_recency_seconds,
+            "custom_hooks": [spec.to_dict() for spec in self.custom_hooks],
         }

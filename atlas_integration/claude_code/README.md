@@ -82,14 +82,76 @@ bypasses the end-of-generation Reflection Judge + refiner step). Run
 persistently suppresses integration-managed dashboards when an outer harness
 owns the dashboard.
 
+## Custom hooks
+
+Beyond the seven built-in events, you can bind the same reflection<->refinement
+loop to **any** Claude Code event without writing Python. Use the
+`atlas-claude-add-hook` CLI after `atlas-claude-install` has placed a
+config:
+
+```powershell
+# Block before any Bash call; require an ATLAS reflection before it runs.
+atlas-claude-add-hook `
+  --project-dir C:\path\to\project `
+  --name pre-bash-gate `
+  --event PreToolUse `
+  --matcher Bash `
+  --mode blocking
+
+# Emit a non-blocking nudge whenever the user submits a new prompt.
+atlas-claude-add-hook `
+  --project-dir C:\path\to\project `
+  --name on-user-prompt `
+  --event UserPromptSubmit `
+  --mode advisory
+```
+
+The CLI rewrites `.claude/atlas-skill.json` and refreshes
+`.claude/settings.local.json` so Claude Code picks up the new registration on
+its next session. Inspect or remove:
+
+```powershell
+atlas-claude-list-hooks --project-dir C:\path\to\project
+atlas-claude-remove-hook --project-dir C:\path\to\project --name pre-bash-gate
+```
+
+What each `--mode` does:
+
+- **`blocking`** — On the first fire, exit 2 with a reflection prompt scoped
+  to the activity around this event. On subsequent fires, parse the
+  transcript for a valid `ATLAS reflection:` block matching the checkpoint
+  ID; release with exit 0 when valid. Retries are bounded by `--max-retries`
+  (same hook-owned retry guard the built-in gates use); after the limit, the
+  hook releases and logs the reason. The submission-only
+  `READY_TO_SUBMIT`/`REPAIR_REQUIRED` language is intentionally omitted.
+- **`advisory`** — Each fire emits an `additionalContext` nudge with a
+  reflection prompt; Claude is never blocked. Any reflection block the
+  assistant writes is harvested by the next blocking gate.
+
+You can also declare custom hooks directly in `.claude/atlas-skill.json`
+under the top-level `"custom_hooks"` array; each entry is
+`{name, event, mode, matcher?}`. The installer treats two custom hooks on the
+same event with different matchers as separate `settings.local.json` entries
+(so e.g. one Bash gate + one Edit nudge co-exist cleanly), and
+`atlas-claude-uninstall` removes every custom registration alongside the
+built-ins.
+
+Available events: `SessionStart`, `SessionEnd`, `Stop`, `TaskCompleted`,
+`SubagentStop`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`,
+`PreCompact`, `Notification`, `UserPromptSubmit`. Built-in events keep
+their built-in handler regardless; a custom hook on a built-in event
+*adds* a second registration that runs alongside it.
+
 ## Programs
 
 | File | Purpose |
 |---|---|
 | [`__init__.py`](__init__.py) | Public exports |
-| [`config.py`](config.py) | `ClaudeCodeConfig` dataclass — serialized to `.claude/atlas-skill.json`, loaded by every hook |
-| [`dispatcher.py`](dispatcher.py) | Single command entry point registered for every Claude Code hook; routes the event to the right `hooks/<event>.py::handle` |
-| [`install.py`](install.py) | `atlas-claude-install` CLI: write project-local `.claude/settings.local.json` + `atlas-skill.json`, verify Claude Code binary contract |
+| [`config.py`](config.py) | `ClaudeCodeConfig` dataclass + `CustomHookSpec` — serialized to `.claude/atlas-skill.json`, loaded by every hook |
+| [`custom.py`](custom.py) | Reflection runtime for `CustomHookSpec` entries: `custom_blocking_checkpoint` + `custom_advisory` reuse the same reflection-shape validator as the built-in gates |
+| [`dispatcher.py`](dispatcher.py) | Single command entry point. Built-in events route by `hook_event_name`; custom hooks route via `--custom <spec_name>` |
+| [`install.py`](install.py) | `atlas-claude-install` CLI: write project-local `.claude/settings.local.json` + `atlas-skill.json`, register built-in events + every `custom_hooks` entry, verify Claude Code binary contract |
+| [`manage_hooks.py`](manage_hooks.py) | `atlas-claude-add-hook` / `remove-hook` / `list-hooks` CLIs to mutate `custom_hooks` and refresh `settings.local.json` in one command |
 | [`prompts.py`](prompts.py) | Standing instruction + gate-specific reflection prompts |
 | [`reflection.py`](reflection.py) | Reflection-shape validation (Observe/Map/Correlate/Decide block parser) — pure regex, no LLM call |
 | [`runtime.py`](runtime.py) | Shared hook behavior: `session_start`, `blocking_checkpoint`, `post_tool`, transcript capture, lifecycle wiring |

@@ -40,6 +40,9 @@ atlas-import-traces = "atlas_runtime.import_generation:main"
 atlas-register-taxonomy = "atlas_runtime.register_taxonomy:main"
 atlas-claude-install = "atlas_integration.claude_code.install:main"
 atlas-claude-uninstall = "atlas_integration.claude_code.uninstall:main"
+atlas-claude-add-hook = "atlas_integration.claude_code.manage_hooks:add_main"
+atlas-claude-remove-hook = "atlas_integration.claude_code.manage_hooks:remove_main"
+atlas-claude-list-hooks = "atlas_integration.claude_code.manage_hooks:list_main"
 atlas-single-run = "atlas_integration.single_llm.cli:main"
 
 [tool.setuptools]
