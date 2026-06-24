@@ -7,7 +7,7 @@ from pathlib import Path
 
 from finding import cli
 
-STORE_DIR = str(Path(__file__).resolve().parent.parent / "taxonomies")
+STORE_DIR = str(Path(__file__).resolve().parent / "fixtures" / "taxonomies")
 
 
 def run(argv):

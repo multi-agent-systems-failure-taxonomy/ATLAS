@@ -5,7 +5,7 @@ from pathlib import Path
 
 from finding import mast, store
 
-STORE_DIR = Path(__file__).resolve().parent.parent / "taxonomies"
+STORE_DIR = Path(__file__).resolve().parent / "fixtures" / "taxonomies"
 
 # Expected 14 modes: id -> (name, category). From Cemri et al. (2025).
 EXPECTED = {

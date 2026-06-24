@@ -10,7 +10,7 @@ from atlas_runtime.lineage import TaxonomyLineage
 from atlas_runtime.traces import GenerationTrace
 
 ROOT = Path(__file__).resolve().parent.parent
-BASE_STORE = ROOT / "taxonomies"
+BASE_STORE = ROOT / "tests" / "fixtures" / "taxonomies"
 TRACE_FIXTURE = Path(__file__).parent / "fixtures" / "atlas_generation_trace.json"
 BASE_ID = "tax-django-orm-001"
 

@@ -21,7 +21,7 @@ from atlas_runtime.lineage import TaxonomyLineage
 from atlas_runtime.program import ProgramWorkspace
 
 ROOT = Path(__file__).resolve().parent.parent
-BASE_STORE = ROOT / "taxonomies"
+BASE_STORE = ROOT / "tests" / "fixtures" / "taxonomies"
 BASE_ID = "tax-django-orm-001"
 NEXT_ID = "tax-django-orm-live-002"
 

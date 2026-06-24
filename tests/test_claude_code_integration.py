@@ -34,7 +34,7 @@ from atlas_runtime.program import ProgramWorkspace
 from atlas_runtime.traces import TRACE_FIELDS
 
 ROOT = Path(__file__).resolve().parent.parent
-STORE_DIR = ROOT / "taxonomies"
+STORE_DIR = ROOT / "tests" / "fixtures" / "taxonomies"
 
 
 def append_text(path: Path, text: str) -> None:

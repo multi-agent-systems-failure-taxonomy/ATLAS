@@ -17,7 +17,7 @@ from finding import resolver
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent.parent
-STORE_DIR = ROOT / "taxonomies"
+STORE_DIR = ROOT / "tests" / "fixtures" / "taxonomies"
 TRACE_FIXTURE = Path(__file__).parent / "fixtures" / "atlas_generation_trace.json"
 
 

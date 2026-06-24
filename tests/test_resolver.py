@@ -5,7 +5,7 @@ from pathlib import Path
 
 from finding import resolver, store
 
-STORE_DIR = Path(__file__).resolve().parent.parent / "taxonomies"
+STORE_DIR = Path(__file__).resolve().parent / "fixtures" / "taxonomies"
 
 
 class ResolveTests(unittest.TestCase):

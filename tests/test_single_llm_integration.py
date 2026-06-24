@@ -13,7 +13,7 @@ from atlas_integration.claude_code.state import EVIDENCE_FILE
 from atlas_runtime.program import ProgramWorkspace
 
 ROOT = Path(__file__).resolve().parent.parent
-STORE_DIR = ROOT / "taxonomies"
+STORE_DIR = ROOT / "tests" / "fixtures" / "taxonomies"
 
 
 def checkpoint_id(messages) -> str:

@@ -7,7 +7,7 @@ from urllib.request import urlopen
 
 from finding import webview
 
-STORE_DIR = Path(__file__).resolve().parent.parent / "taxonomies"
+STORE_DIR = Path(__file__).resolve().parent / "fixtures" / "taxonomies"
 
 
 class WebViewTests(unittest.TestCase):

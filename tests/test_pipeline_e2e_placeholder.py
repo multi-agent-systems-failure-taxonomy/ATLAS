@@ -55,7 +55,7 @@ from atlas_runtime.taxonomy_check import check_taxonomy  # noqa: E402
 from atlas_runtime.traces import GenerationTrace  # noqa: E402
 from tests.test_learning_calls import FakeVendoredModel  # noqa: E402
 
-TAXONOMIES = _ROOT / "taxonomies"
+TAXONOMIES = _ROOT / "tests" / "fixtures" / "taxonomies"
 BASE_ID = "tax-django-orm-001"
 CANONICAL = {"id", "name", "description", "category"}
 # A recognized model family id. NO real call is ever made — every transport is

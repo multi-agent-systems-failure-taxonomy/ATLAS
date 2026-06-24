@@ -17,7 +17,7 @@ from atlas_runtime.traces import GenerationTrace, TraceStore
 from finding import resolver, store
 
 ROOT = Path(__file__).resolve().parent.parent
-BASE_STORE = ROOT / "taxonomies"
+BASE_STORE = ROOT / "tests" / "fixtures" / "taxonomies"
 TRACE_FIXTURE = Path(__file__).parent / "fixtures" / "atlas_generation_trace.json"
 ATLAS_OUTPUT = Path(__file__).parent / "fixtures" / "real_atlas_generation_output.json"
 
