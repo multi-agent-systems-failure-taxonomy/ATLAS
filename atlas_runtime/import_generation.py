@@ -30,9 +30,8 @@ from vendor.atlas import load_traces
 
 from .generation import candidate_from_atlas
 from .learning_calls import outcome_blind_trace
-from .program import ProgramWorkspace
+from .reflection_refinement import RefinementSummary, refine_with_reflection_judge
 from .repository import discover_repo
-from .taxonomy_check import JudgeCall, TaxonomyCheckResult, check_taxonomy
 from .traces import DEFAULT_TRACE_ROOT, GenerationTrace, TraceStore
 
 Generator = Callable[[list[dict[str, Any]]], dict[str, Any]]
@@ -64,18 +63,22 @@ def generate_imported_taxonomy(
     repo: str | None = None,
     repo_path: Path | str | None = None,
     max_codes: int = 0,
-    taxonomy_check: bool = True,
     skip_judge: bool = False,
     save_intermediate: bool = True,
     verbose: bool = True,
     generator: Generator | None = None,
-    judge_call: JudgeCall | None = None,
+    judge_call: Callable[..., Any] | None = None,
+    refiner_call: Callable[..., Any] | None = None,
 ) -> ImportedTaxonomyResult:
-    """Generate, validate, and register a dormant taxonomy for later inheritance.
+    """Generate and register a dormant taxonomy for later inheritance.
 
-    ``skip_judge=True`` bypasses the post-generation Selection Judge check
-    regardless of ``taxonomy_check``. Reserved for the future end-of-generation
-    reflection-judge refinement path too.
+    When ``skip_judge=False`` (default), the generated candidate is refined
+    via the Reflection Judge before registration: failure-point analysis +
+    mapping + refiner mutations (add / edit / split / retire). The refined
+    candidate always succeeds — there is no rejection path.
+
+    When ``skip_judge=True``, the candidate is accepted on structural
+    validity alone (no judge call, no refinement).
     """
     if not str(atlas_model).strip():
         raise ValueError("atlas_model is required")
@@ -112,22 +115,30 @@ def generate_imported_taxonomy(
             )
         )
         candidate = candidate_from_atlas(raw, repo=display_repo)
-        check = _check_candidate(
-            staging,
-            canonical,
-            candidate,
-            atlas_model=atlas_model,
-            enabled=taxonomy_check and not skip_judge,
-            judge_call=judge_call,
-        )
-        if not check.accepted:
+
+        summary: RefinementSummary | None = None
+        if not skip_judge:
+            summary = refine_with_reflection_judge(
+                candidate,
+                generation_traces,
+                atlas_model=atlas_model,
+                judge_call=judge_call,
+                refiner_call=refiner_call,
+            )
+            candidate = summary.candidate
+
+        if not (isinstance(candidate, dict)
+                and isinstance(candidate.get("codes"), list)
+                and candidate["codes"]):
             raise ValueError(
-                "generated taxonomy was rejected: "
-                f"{check.reason}; no taxonomy was stored"
+                "generated taxonomy is structurally invalid (empty or "
+                "missing codes); no taxonomy was stored"
             )
 
-        taxonomy_id = _new_taxonomy_id(check.candidate)
-        record = {"taxonomy_id": taxonomy_id, **check.candidate}
+        active_codes = tuple(str(code.get("id", "")) for code in candidate["codes"])
+
+        taxonomy_id = _new_taxonomy_id(candidate)
+        record = {"taxonomy_id": taxonomy_id, **candidate}
         taxonomy_path, trace_path = _commit(
             record,
             canonical,
@@ -142,7 +153,8 @@ def generate_imported_taxonomy(
                 source=traces,
                 atlas_model=atlas_model,
                 trace_count=len(canonical),
-                check=check,
+                summary=summary,
+                active_codes=active_codes,
             )
         except Exception:
             store.unregister(taxonomy_id, store_dir)
@@ -151,7 +163,7 @@ def generate_imported_taxonomy(
         return ImportedTaxonomyResult(
             taxonomy_id=taxonomy_id,
             trace_count=len(canonical),
-            active_codes=tuple(check.active_codes),
+            active_codes=active_codes,
             taxonomy_path=taxonomy_path,
             trace_path=trace_path,
             artifacts_path=artifacts_path,
@@ -193,36 +205,6 @@ def _load_canonical_traces(
     return canonical
 
 
-def _check_candidate(
-    staging: Path,
-    traces: list[GenerationTrace],
-    candidate: dict[str, Any],
-    *,
-    atlas_model: str,
-    enabled: bool,
-    judge_call: JudgeCall | None,
-) -> TaxonomyCheckResult:
-    workspace = ProgramWorkspace(staging / "validation-program", repo="import")
-    workspace.pending.append_many(traces)
-    if enabled:
-        return check_taxonomy(
-            workspace,
-            candidate,
-            atlas_model=atlas_model,
-            judge_call=judge_call,
-        )
-    active = sorted(str(code["id"]) for code in candidate["codes"])
-    return TaxonomyCheckResult(
-        accepted=True,
-        candidate=candidate,
-        snapshot_count=len(traces),
-        active_codes=active,
-        annotations=[],
-        failed_units=0,
-        reason="taxonomy check disabled by caller",
-    )
-
-
 def _commit(
     record: dict[str, Any],
     traces: list[GenerationTrace],
@@ -262,18 +244,30 @@ def _persist_artifacts(
     source: Any,
     atlas_model: str,
     trace_count: int,
-    check: TaxonomyCheckResult,
+    summary: RefinementSummary | None,
+    active_codes: tuple[str, ...],
 ) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.parent / f".{destination.name}-{uuid.uuid4().hex}.tmp"
     temporary.mkdir()
     try:
         generation = staging / "generation"
-        validation = staging / "validation-program" / "checks"
         if generation.exists():
             shutil.copytree(generation, temporary / "generation")
-        if validation.exists():
-            shutil.copytree(validation, temporary / "checks")
+        refinement_block: dict[str, Any] = {"applied": False}
+        if summary is not None:
+            refinement_block = {
+                "applied": True,
+                "n_traces_judged": summary.n_traces_judged,
+                "retired": summary.retired,
+                "added": summary.added,
+                "edited": summary.edited,
+                "split": summary.split,
+                "n_proposed_names_distinct": summary.n_proposed_names_distinct,
+                "n_weak_mapping_codes": summary.n_weak_mapping_codes,
+                "n_unused_codes_in_sample": summary.n_unused_codes_in_sample,
+                "judge_warnings": summary.judge_warnings,
+            }
         (temporary / "import.json").write_text(
             json.dumps(
                 {
@@ -284,12 +278,8 @@ def _persist_artifacts(
                     ),
                     "atlas_model": atlas_model,
                     "trace_count": trace_count,
-                    "taxonomy_check": {
-                        "accepted": check.accepted,
-                        "active_codes": list(check.active_codes),
-                        "failed_units": check.failed_units,
-                        "reason": check.reason,
-                    },
+                    "active_codes": list(active_codes),
+                    "refinement": refinement_block,
                 },
                 indent=2,
                 ensure_ascii=False,
@@ -327,18 +317,13 @@ def main(argv=None) -> int:
     parser.add_argument("--repo-path")
     parser.add_argument("--max-codes", type=int, default=0)
     parser.add_argument(
-        "--taxonomy-check",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-    )
-    parser.add_argument(
         "--skip-judge",
         action="store_true",
         default=False,
         help=(
-            "skip the judge + refinement step at the end of generation. "
-            "Overrides --taxonomy-check and also bypasses reflection-judge "
-            "refinement when that path is wired in"
+            "skip the Reflection Judge + refiner step at the end of "
+            "generation. Generated taxonomies are then accepted on "
+            "structural validity alone"
         ),
     )
     parser.add_argument("--no-intermediate", action="store_true")
@@ -353,7 +338,6 @@ def main(argv=None) -> int:
             repo=args.repo,
             repo_path=args.repo_path,
             max_codes=args.max_codes,
-            taxonomy_check=args.taxonomy_check,
             skip_judge=args.skip_judge,
             save_intermediate=not args.no_intermediate,
             verbose=not args.quiet,

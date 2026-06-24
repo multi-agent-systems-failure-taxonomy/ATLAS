@@ -30,14 +30,17 @@ class RegistryTests(unittest.TestCase):
         self.assertEqual(len(judge_types.ALL), 7)
 
     def test_real_judges_are_named_as_expected(self) -> None:
-        self.assertIn("selection_judge", judge_types.REAL)
         self.assertIn("reflection_judge", judge_types.REAL)
         self.assertIn("selection_summary_judge", judge_types.REAL)
+        # Selection Judge moved to placeholder after taxonomy_check removal.
+        self.assertIn("selection_judge", judge_types.PLACEHOLDER)
 
 
 class PlaceholderTests(unittest.TestCase):
     def test_each_placeholder_raises_not_implemented(self) -> None:
-        for mod in (mapping_judge, coverage_judge, quality_judge, calibration_judge):
+        from judge_types import selection_judge
+        for mod in (selection_judge, mapping_judge, coverage_judge,
+                    quality_judge, calibration_judge):
             with self.assertRaises(NotImplementedError, msg=mod.__name__):
                 mod.run({})
 

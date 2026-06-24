@@ -17,7 +17,7 @@ class RuntimeOptionTests(unittest.TestCase):
         self.assertFalse(options.generation_stops)
         self.assertFalse(options.refinement_stops)
         self.assertFalse(options.advanced_refinement)
-        self.assertTrue(options.taxonomy_check)
+        self.assertFalse(options.skip_judge)
 
     def test_generation_stops_can_be_enabled(self):
         options = parse_runtime_args(
@@ -44,12 +44,12 @@ class RuntimeOptionTests(unittest.TestCase):
         self.assertTrue(dashed.refinement_stops)
         self.assertTrue(underscored.refinement_stops)
 
-    def test_taxonomy_check_can_be_disabled(self):
+    def test_skip_judge_can_be_enabled(self):
         options = parse_runtime_args(
             ["--trace-output", "./program", "--atlas-model", "claude-sonnet-4-6",
-             "--no-taxonomy-check"]
+             "--skip-judge"]
         )
-        self.assertFalse(options.taxonomy_check)
+        self.assertTrue(options.skip_judge)
         self.assertEqual(options.atlas_model, "claude-sonnet-4-6")
 
     def test_advanced_refinement_and_underscore_alias(self):

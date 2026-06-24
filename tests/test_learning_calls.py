@@ -482,7 +482,7 @@ class LearningCallTests(unittest.TestCase):
                     store_dir=root / "taxonomies",
                     trace_root=root / "traces",
                     atlas_model="test-model",
-                    taxonomy_check=False,
+                    skip_judge=True,
                 )
 
             self.assertEqual(result.action, "activated")
@@ -541,7 +541,7 @@ class GenerationOutputDirTests(unittest.TestCase):
                     store_dir=root / "taxonomies",
                     trace_root=root / "traces",
                     atlas_model="test-model",
-                    taxonomy_check=False,
+                    skip_judge=True,
                 )
 
             self.assertEqual(result.action, "activated")
@@ -570,7 +570,7 @@ class GenerationOutputDirTests(unittest.TestCase):
                         store_dir=root / "taxonomies",
                         trace_root=root / "traces",
                         atlas_model="test-model",
-                        taxonomy_check=False,
+                        skip_judge=True,
                     )
             finally:
                 os.chdir(previous_cwd)

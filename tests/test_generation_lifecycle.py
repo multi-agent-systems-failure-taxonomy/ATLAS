@@ -71,7 +71,7 @@ class GenerationLifecycleTests(unittest.TestCase):
                 trace_root=trace_root,
                 generation_stops=True,
                 atlas_model="claude-sonnet-4-6",
-                taxonomy_check=False,
+                skip_judge=True,
             )
             record_trace(fifth, trace(5))
             result = end_session(
@@ -139,7 +139,7 @@ class GenerationLifecycleTests(unittest.TestCase):
                 trace_root=trace_root,
                 generation_stops=True,
                 atlas_model="claude-sonnet-4-6",
-                taxonomy_check=False,
+                skip_judge=True,
             )
             record_trace(fifth, trace(5))
             result = end_session(
@@ -171,7 +171,7 @@ class GenerationLifecycleTests(unittest.TestCase):
                 trace_root=trace_root,
                 generation_stops=True,
                 atlas_model="claude-sonnet-4-6",
-                taxonomy_check=False,
+                skip_judge=True,
             )
             record_trace(fifth, trace(5))
 
@@ -197,7 +197,7 @@ class GenerationLifecycleTests(unittest.TestCase):
                 store_dir=store_dir,
                 trace_root=trace_root,
                 atlas_model="claude-sonnet-4-6",
-                taxonomy_check=False,
+                skip_judge=True,
             )
             record_trace(fifth, trace(5))
             result = end_session(
@@ -225,7 +225,7 @@ class GenerationLifecycleTests(unittest.TestCase):
                     trace_root=trace_root,
                     generator=lambda _traces: real_generation_output(),
                     atlas_model="claude-sonnet-4-6",
-                    taxonomy_check=False,
+                    skip_judge=True,
                     activation_poll_seconds=0.01,
                     activation_timeout_seconds=2,
                 )

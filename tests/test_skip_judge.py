@@ -2,11 +2,10 @@
 
 Confirms the flag flows through:
   * options.RuntimeOptions / parse_runtime_args
-  * generation.run_generation_job (overrides taxonomy_check)
+  * generation.run_generation_job (bypasses reflection refinement)
   * lifecycle.Session (round-trip)
 """
 
-import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -47,17 +46,17 @@ class ParseRuntimeArgsTests(unittest.TestCase):
 
 
 class GenerationSkipJudgeTests(unittest.TestCase):
-    """skip_judge=True must bypass the taxonomy_check pass even when enabled."""
+    """skip_judge=True must bypass the reflection-judge refinement entirely."""
 
-    def test_skip_judge_overrides_taxonomy_check_true(self) -> None:
-        # If skip_judge=True is honored, check_taxonomy MUST NOT be called.
+    def test_skip_judge_bypasses_refinement(self) -> None:
         captured = {"called": False}
 
-        def fake_check(*_, **__):
+        def fake_refine(*_, **__):
             captured["called"] = True
-            raise AssertionError("check_taxonomy should not run when skip_judge=True")
+            raise AssertionError(
+                "refine_with_reflection_judge should not run when skip_judge=True"
+            )
 
-        # Use a stub generator so we don't call the real ATLAS pipeline.
         def stub_generator(_traces):
             return _structural_taxonomy()
 
@@ -73,27 +72,78 @@ class GenerationSkipJudgeTests(unittest.TestCase):
                     GenerationTrace(problem_id=f"p{i}", task="t",
                                     raw_trajectory="r", metadata={})
                 ])
-            # Mark generation in 'running' state so run_generation_job proceeds.
             ws.try_begin_generation()
 
-            with patch.object(generation, "check_taxonomy", fake_check):
+            with patch.object(generation, "refine_with_reflection_judge", fake_refine):
                 result = generation.run_generation_job(
                     ws,
                     store_dir=store_dir,
                     trace_root=trace_root,
                     generator=stub_generator,
                     atlas_model="stub-model",
-                    taxonomy_check=True,
-                    skip_judge=True,  # the flag under test
+                    skip_judge=True,
                     generation_threshold=5,
                     activation_poll_seconds=0.001,
                     activation_timeout_seconds=2.0,
                 )
 
-            self.assertFalse(captured["called"],
-                             "check_taxonomy must NOT be called when skip_judge=True")
+            self.assertFalse(
+                captured["called"],
+                "refine_with_reflection_judge must NOT be called when skip_judge=True",
+            )
             self.assertEqual(result.action, "activated")
             self.assertIsNotNone(result.taxonomy_id)
+
+    def test_default_runs_refinement_and_records_judge_metadata(self) -> None:
+        """skip_judge=False (default) routes through reflection refinement."""
+        from atlas_runtime.reflection_refinement import RefinementSummary
+
+        def stub_generator(_traces):
+            return _structural_taxonomy()
+
+        captured = {"called": False, "candidate": None}
+
+        def fake_refine(candidate, _traces, **_kw):
+            captured["called"] = True
+            captured["candidate"] = candidate
+            # Echo back the candidate unchanged; pretend refinement was a no-op.
+            return RefinementSummary(
+                candidate=candidate,
+                n_traces_judged=5,
+                n_proposed_names_distinct=0,
+                n_weak_mapping_codes=0,
+                n_unused_codes_in_sample=0,
+            )
+
+        with tempfile.TemporaryDirectory() as td:
+            ws_dir = Path(td) / "ws"
+            store_dir = Path(td) / "store"
+            trace_root = Path(td) / "traces"
+            from atlas_runtime.program import ProgramWorkspace
+            from atlas_runtime.traces import GenerationTrace
+            ws = ProgramWorkspace(ws_dir)
+            for i in range(5):
+                ws.pending.append_many([
+                    GenerationTrace(problem_id=f"p{i}", task="t",
+                                    raw_trajectory="r", metadata={})
+                ])
+            ws.try_begin_generation()
+
+            with patch.object(generation, "refine_with_reflection_judge", fake_refine):
+                result = generation.run_generation_job(
+                    ws,
+                    store_dir=store_dir,
+                    trace_root=trace_root,
+                    generator=stub_generator,
+                    atlas_model="stub-model",
+                    skip_judge=False,
+                    generation_threshold=5,
+                    activation_poll_seconds=0.001,
+                    activation_timeout_seconds=2.0,
+                )
+
+            self.assertTrue(captured["called"])
+            self.assertEqual(result.action, "activated")
 
 
 class SessionSkipJudgeRoundTripTests(unittest.TestCase):

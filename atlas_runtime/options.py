@@ -17,7 +17,6 @@ class RuntimeOptions:
     generation_stops: bool = False
     refinement_stops: bool = False
     advanced_refinement: bool = False
-    taxonomy_check: bool = True
     skip_judge: bool = False
 
 
@@ -49,23 +48,15 @@ def add_runtime_arguments(parser: argparse.ArgumentParser) -> None:
         help="path used to derive display-only repository metadata",
     )
     parser.add_argument(
-        "--taxonomy-check",
-        "--taxonomy_check",
-        dest="taxonomy_check",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="judge generated taxonomies before acceptance (default: true)",
-    )
-    parser.add_argument(
         "--skip-judge",
         "--skip_judge",
         dest="skip_judge",
         action="store_true",
         default=False,
         help=(
-            "skip the judge + refinement step at the end of generation. "
-            "Overrides --taxonomy-check and also bypasses reflection-judge "
-            "refinement when that path is wired in"
+            "skip the Reflection Judge + refiner step at the end of "
+            "generation. Generated taxonomies are then accepted on structural "
+            "validity alone"
         ),
     )
     parser.add_argument(
@@ -110,6 +101,5 @@ def parse_runtime_args(args: Sequence[str]) -> RuntimeOptions:
         generation_stops=parsed.generation_stops,
         refinement_stops=parsed.refinement_stops,
         advanced_refinement=parsed.advanced_refinement,
-        taxonomy_check=parsed.taxonomy_check,
         skip_judge=parsed.skip_judge,
     )

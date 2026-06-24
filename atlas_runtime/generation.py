@@ -25,13 +25,14 @@ from finding import store
 
 from .program import ProgramWorkspace
 from .learning_calls import outcome_blind_trace
-from .taxonomy_check import JudgeCall, check_taxonomy, latest_snapshot_count
+from .reflection_refinement import RefinementSummary, refine_with_reflection_judge
 from .traces import DEFAULT_TRACE_ROOT, GenerationTrace, TraceStore
 
 DEFAULT_GENERATION_THRESHOLD = 5
 DEFAULT_CATEGORIES: tuple[str, ...] = ("A", "B", "C")
 Generator = Callable[[list[dict[str, Any]]], dict[str, Any]]
 Approver = Callable[[dict[str, Any]], bool]
+JudgeCall = Callable[..., Any]
 ProjectFn = Callable[[dict[str, Any]], dict[str, Any]]
 
 
@@ -216,18 +217,25 @@ def trigger_generation(
     generator: Generator | None = None,
     approver: Approver | None = None,
     atlas_model: str | None = None,
-    taxonomy_check: bool = True,
     skip_judge: bool = False,
     judge_call: JudgeCall | None = None,
+    refiner_call: Callable[..., Any] | None = None,
     background_launcher: Callable[[], None] | None = None,
 ) -> GenerationResult:
     """Start generation when the MAST warm-up threshold is crossed.
 
-    ``skip_judge`` is a higher-level flag than ``taxonomy_check``: when True it
-    suppresses BOTH the post-generation Selection Judge (taxonomy_check) AND
-    any future end-of-generation reflection-judge refinement step.
-    ``--no-taxonomy-check`` continues to skip just the Selection Judge for
-    backward compatibility.
+    When ``skip_judge=False`` (default), generated candidates pass through the
+    Reflection-Judge refinement: the judge runs on the same traces the
+    taxonomy was induced from, and the refiner applies add / edit / split /
+    retire mutations. The post-refinement candidate is then registered and
+    activated.
+
+    When ``skip_judge=True``, the candidate skips refinement and is accepted
+    on structural validity alone.
+
+    ``judge_call`` / ``refiner_call`` are LLM-transport injection points for
+    tests (matching ``AtlasReflectionJudge``'s LLMCall signature and
+    ``learning_calls.refine_json``'s call kwarg, respectively).
     """
     count = workspace.pending.count()
     retry_after = workspace.generation_retry_after(threshold)
@@ -247,9 +255,9 @@ def trigger_generation(
             generator=generator,
             approver=approver,
             atlas_model=atlas_model,
-            taxonomy_check=taxonomy_check,
             skip_judge=skip_judge,
             judge_call=judge_call,
+            refiner_call=refiner_call,
             generation_threshold=threshold,
         )
 
@@ -275,41 +283,37 @@ def run_generation_job(
     generator: Generator | None = None,
     approver: Approver | None = None,
     atlas_model: str | None = None,
-    taxonomy_check: bool = True,
     skip_judge: bool = False,
     judge_call: JudgeCall | None = None,
+    refiner_call: Callable[..., Any] | None = None,
     generation_threshold: int = DEFAULT_GENERATION_THRESHOLD,
     activation_poll_seconds: float = 0.05,
     activation_timeout_seconds: float = 86_400,
 ) -> GenerationResult:
-    """Generate, accept/reject, then transactionally register and activate.
+    """Generate, refine via Reflection Judge, then transactionally register.
 
-    When ``skip_judge=True``, the post-generation Selection Judge check is
-    bypassed regardless of ``taxonomy_check``. Reserved to also bypass the
-    end-of-generation reflection-judge refinement once that path lands.
+    When ``skip_judge=True`` refinement is bypassed and the candidate is
+    accepted on structural validity alone.
     """
     model = atlas_model or workspace.load().get("atlas_model")
     if not model:
         workspace.mark_generation("failed", "atlas_model is required")
         return GenerationResult("failed", "atlas_model is required")
-    effective_taxonomy_check = taxonomy_check and not skip_judge
     try:
-        while True:
-            result = _generate_and_check_once(
-                workspace,
-                store_dir=Path(store_dir),
-                trace_root=Path(trace_root),
-                model=str(model),
-                generator=generator,
-                approver=approver,
-                taxonomy_check=effective_taxonomy_check,
-                judge_call=judge_call,
-                generation_threshold=generation_threshold,
-                activation_poll_seconds=activation_poll_seconds,
-                activation_timeout_seconds=activation_timeout_seconds,
-            )
-            if result.action != "retry_now":
-                return result
+        return _generate_and_refine_once(
+            workspace,
+            store_dir=Path(store_dir),
+            trace_root=Path(trace_root),
+            model=str(model),
+            generator=generator,
+            approver=approver,
+            skip_judge=skip_judge,
+            judge_call=judge_call,
+            refiner_call=refiner_call,
+            generation_threshold=generation_threshold,
+            activation_poll_seconds=activation_poll_seconds,
+            activation_timeout_seconds=activation_timeout_seconds,
+        )
     except Exception as exc:
         workspace.mark_generation("failed", str(exc))
         return GenerationResult(
@@ -325,7 +329,7 @@ def run_generation_job(
             pass
 
 
-def _generate_and_check_once(
+def _generate_and_refine_once(
     workspace: ProgramWorkspace,
     *,
     store_dir: Path,
@@ -333,95 +337,93 @@ def _generate_and_check_once(
     model: str,
     generator: Generator | None,
     approver: Approver | None,
-    taxonomy_check: bool,
+    skip_judge: bool,
     judge_call: JudgeCall | None,
+    refiner_call: Callable[..., Any] | None,
     generation_threshold: int,
     activation_poll_seconds: float,
     activation_timeout_seconds: float,
 ) -> GenerationResult:
-    try:
-        traces = [trace.to_dict() for trace in workspace.pending.iter_traces()]
-        if not traces:
-            raise ValueError("no pending traces available for generation")
-        raw = (
-            generator(traces)
-            if generator is not None
-            else _atlas_generate(traces, model, _generation_output_dir(workspace))
-        )
-        candidate = candidate_from_atlas(raw, repo=workspace.repo)
-        if taxonomy_check:
-            try:
-                check = check_taxonomy(
-                    workspace,
-                    candidate,
-                    atlas_model=model,
-                    judge_call=judge_call,
-                )
-            except Exception as exc:
-                snapshot_count = latest_snapshot_count(workspace)
-                workspace.mark_generation_rejected(
-                    snapshot_count,
-                    generation_threshold,
-                    f"taxonomy check failed: {exc}",
-                )
-                if workspace.pending.count() >= snapshot_count + generation_threshold:
-                    workspace.mark_generation("running")
-                    return GenerationResult(
-                        "retry_now",
-                        "taxonomy check failed but enough new traces already "
-                        "exist; regenerating immediately",
-                    )
-                return GenerationResult(
-                    "rejected",
-                    "taxonomy check failed; MAST remains active and retry "
-                    f"requires {generation_threshold} new traces: {exc}",
-                )
-            candidate = check.candidate
-            accepted = check.accepted
-            snapshot_count = check.snapshot_count
-            rejection_reason = check.reason
-        else:
-            accepted = structurally_accept(candidate)
-            snapshot_count = workspace.pending.count()
-            rejection_reason = "candidate failed structural acceptance"
+    """Generate a candidate, refine via the Reflection Judge, then commit.
 
-        if accepted and approver is not None:
-            accepted = approver(candidate)
-            if not accepted:
-                rejection_reason = "candidate rejected by approval callback"
-        if not accepted:
-            workspace.mark_generation_rejected(
-                snapshot_count,
-                generation_threshold,
-                rejection_reason,
-            )
-            if workspace.pending.count() >= snapshot_count + generation_threshold:
-                workspace.mark_generation("running")
-                return GenerationResult(
-                    "retry_now",
-                    "candidate rejected but enough new traces already exist; "
-                    "regenerating immediately",
-                )
-            return GenerationResult(
-                "rejected",
-                f"generated candidate was rejected ({rejection_reason}); "
-                "pending traces were preserved",
-            )
-        taxonomy_id = _wait_and_commit(
-            workspace,
+    Replaces the legacy ``_generate_and_check_once`` (Selection Judge
+    accept/reject gate). The Reflection Judge + refiner always produce a
+    candidate — there is no rejection path — so the retry-on-rejection
+    machinery the old gate needed is gone. ``approver`` is still honored as
+    a final escape hatch (e.g. a human-in-the-loop callback).
+    """
+    traces = [trace.to_dict() for trace in workspace.pending.iter_traces()]
+    if not traces:
+        raise ValueError("no pending traces available for generation")
+    raw = (
+        generator(traces)
+        if generator is not None
+        else _atlas_generate(traces, model, _generation_output_dir(workspace))
+    )
+    candidate = candidate_from_atlas(raw, repo=workspace.repo)
+
+    if not skip_judge:
+        summary = refine_with_reflection_judge(
             candidate,
-            store_dir=Path(store_dir),
-            trace_root=Path(trace_root),
-            poll_seconds=activation_poll_seconds,
-            timeout_seconds=activation_timeout_seconds,
+            traces,
+            atlas_model=model,
+            judge_call=judge_call,
+            refiner_call=refiner_call,
+        )
+        candidate = summary.candidate
+        candidate.setdefault("judge_metadata", {}).update({
+            "n_traces_judged": summary.n_traces_judged,
+            "retired": summary.retired,
+            "added": summary.added,
+            "edited": summary.edited,
+            "split": summary.split,
+            "n_proposed_names_distinct": summary.n_proposed_names_distinct,
+            "n_weak_mapping_codes": summary.n_weak_mapping_codes,
+            "n_unused_codes_in_sample": summary.n_unused_codes_in_sample,
+            "judge_warnings": summary.judge_warnings,
+        })
+
+    if not structurally_accept(candidate):
+        snapshot_count = workspace.pending.count()
+        workspace.mark_generation_rejected(
+            snapshot_count,
+            generation_threshold,
+            "candidate failed structural acceptance",
         )
         return GenerationResult(
-            "activated",
-            "generated taxonomy approved and activated",
-            taxonomy_id,
+            "rejected",
+            "generated candidate failed structural acceptance; "
+            "pending traces were preserved",
         )
-    except Exception:
-        raise
+
+    if approver is not None and not approver(candidate):
+        snapshot_count = workspace.pending.count()
+        workspace.mark_generation_rejected(
+            snapshot_count,
+            generation_threshold,
+            "candidate rejected by approval callback",
+        )
+        return GenerationResult(
+            "rejected",
+            "generated candidate was rejected by approval callback; "
+            "pending traces were preserved",
+        )
+
+    taxonomy_id = _wait_and_commit(
+        workspace,
+        candidate,
+        store_dir=Path(store_dir),
+        trace_root=Path(trace_root),
+        poll_seconds=activation_poll_seconds,
+        timeout_seconds=activation_timeout_seconds,
+    )
+    return GenerationResult(
+        "activated",
+        "generated taxonomy refined and activated"
+        if not skip_judge
+        else "generated taxonomy activated (judge skipped)",
+        taxonomy_id,
+    )
 
 
 def _wait_and_commit(

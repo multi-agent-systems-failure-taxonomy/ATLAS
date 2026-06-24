@@ -1,73 +1,58 @@
-"""Selection Judge — trace + taxonomy -> flat failure-mode labels.
+"""Selection Judge — trace + taxonomy -> flat failure-mode labels. [PLACEHOLDER]
 
-Wraps the existing post-generation acceptance check in
-``atlas_runtime.taxonomy_check``. That check is the canonical Selection Judge:
-it walks a frozen batch of traces, asks the model which codes fire per trace,
-and returns the active-code set + per-trace annotations.
+Shallow, batchable, scalable judge meant for downstream selection /
+comparison / statistics — distinct from the Reflection Judge, which builds
+a deep causal graph. The Selection Judge identifies which taxonomy codes
+appear in a trace and returns a flat list of labels with evidence.
 
-Used for:
-  - candidate selection / comparison;
-  - failure-mode statistics;
-  - validation-set analysis.
+Status: placeholder. atlas_skill previously had a single implementation
+(``atlas_runtime/taxonomy_check.py``) that doubled as the post-generation
+acceptance gate. That gate has been removed in favor of the Reflection
+Judge + refiner (see ``atlas_runtime/reflection_refinement.py``); the
+shallow per-trace classification primitive itself was not preserved.
 
-Output (per call):
+A future implementation should be a standalone, workspace-agnostic
+function: ``(trace_text, taxonomy_catalog, model) -> SelectionResult``.
+GEPA's ``ATLAS_Taxonomy/judge.py::TaxonomyJudge.classify_trace`` is the
+closest reference port-target.
+
+Input::
+
+    {
+      "trace": "...",
+      "taxonomy": [...]            # list of code dicts or prompt_block string
+    }
+
+Output::
+
     {
       "failure_modes": [
         {"code": "A.3", "name": "Premature termination",
-         "evidence": "...", "confidence": "high", "severity": "major"},
-        ...
+         "evidence": "...", "confidence": "high", "severity": "major"}
       ],
-      "none_apply": bool,
+      "none_apply": false
     }
-
-This module's primary entry point ``run`` is a thin shim that converts
-``taxonomy_check.check_taxonomy``'s per-batch ``annotations`` into the
-Selection-Judge result shape. Callers that already use
-``check_taxonomy`` directly can keep doing so.
 """
 
 from __future__ import annotations
 
-from typing import Any, Callable, Mapping, Optional
-
-from atlas_runtime import taxonomy_check
-from atlas_runtime.program import ProgramWorkspace
+from typing import Any, Mapping
 
 
-def run(
-    workspace: ProgramWorkspace,
-    candidate: Mapping[str, Any],
-    *,
-    atlas_model: str,
-    judge_call: Optional[Callable[[str, str], str]] = None,
-) -> dict:
-    """Run the Selection Judge over the workspace's pending traces.
+def run(payload: Mapping[str, Any]) -> dict:
+    """Classify which taxonomy codes fire in a single trace.
 
-    Parameters
-    ----------
-    workspace, candidate, atlas_model, judge_call
-        Passed straight to ``taxonomy_check.check_taxonomy``.
-
-    Returns
-    -------
-    dict with keys ``accepted`` (bool), ``active_codes`` (list[str]),
-    ``annotations`` (per-trace code firings), ``snapshot_count`` (int),
-    ``reason`` (str), and ``candidate`` (the support-augmented candidate).
+    Currently raises NotImplementedError. The legacy implementation was tied
+    to a workspace + frozen-snapshot acceptance gate; a standalone Selection
+    Judge needs its own thin entry point (see module docstring).
     """
-    result = taxonomy_check.check_taxonomy(
-        workspace,
-        dict(candidate),
-        atlas_model=atlas_model,
-        judge_call=judge_call,
+    raise NotImplementedError(
+        "SelectionJudge is a placeholder. The legacy taxonomy_check that "
+        "doubled as the generation gate has been removed; a standalone "
+        "shallow classifier has not yet been ported. See "
+        "GEPA/ATLAS_Taxonomy/judge.py::TaxonomyJudge.classify_trace for the "
+        "closest reference target."
     )
-    return {
-        "accepted": result.accepted,
-        "active_codes": list(result.active_codes),
-        "annotations": list(result.annotations),
-        "snapshot_count": result.snapshot_count,
-        "reason": result.reason,
-        "candidate": result.candidate,
-    }
 
 
 __all__ = ["run"]

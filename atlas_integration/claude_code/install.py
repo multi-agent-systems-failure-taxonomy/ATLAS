@@ -299,18 +299,13 @@ def main(argv=None) -> int:
         default=False,
     )
     parser.add_argument(
-        "--taxonomy-check",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-    )
-    parser.add_argument(
         "--skip-judge",
         action="store_true",
         default=False,
         help=(
-            "skip the judge + refinement step at the end of generation. "
-            "Overrides --taxonomy-check and also bypasses reflection-judge "
-            "refinement when that path is wired in"
+            "skip the Reflection Judge + refiner step at the end of "
+            "generation. Generated taxonomies are then accepted on "
+            "structural validity alone"
         ),
     )
     parser.add_argument("--k-init", type=int, default=10)
@@ -364,7 +359,6 @@ def main(argv=None) -> int:
         "max_retries": args.max_retries,
         "generation_threshold": args.generation_threshold,
         "generation_stops": args.generation_stops,
-        "taxonomy_check": args.taxonomy_check,
         "skip_judge": args.skip_judge,
         "k_init": args.k_init,
         "k": args.k,

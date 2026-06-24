@@ -445,7 +445,7 @@ Claude Code exposes the main lifecycle controls directly:
 |---|---:|---|
 | `--generation-threshold` | `5` | Traces required before initial generation |
 | `--generation-stops` | off | Block the threshold-crossing task while generation runs |
-| `--taxonomy-check` | on | Require support-based acceptance |
+| `--skip-judge` | off | Skip Reflection Judge + refiner at end of generation (default: refine before accept) |
 | `--k-init` | `10` | Traces before a program's first refinement |
 | `--k` | `20` | Traces between later refinements |
 | `--refinement-stops` | off | Block while refinement runs |

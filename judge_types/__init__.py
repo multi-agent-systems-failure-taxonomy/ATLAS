@@ -37,8 +37,14 @@ currently have working implementations vs. stubs raising NotImplementedError.
 
 from __future__ import annotations
 
-REAL = ("selection_judge", "reflection_judge", "selection_summary_judge")
-PLACEHOLDER = ("mapping_judge", "coverage_judge", "quality_judge", "calibration_judge")
+REAL = ("reflection_judge", "selection_summary_judge")
+PLACEHOLDER = (
+    "selection_judge",
+    "mapping_judge",
+    "coverage_judge",
+    "quality_judge",
+    "calibration_judge",
+)
 ALL = REAL + PLACEHOLDER
 
 __all__ = ["REAL", "PLACEHOLDER", "ALL"]

@@ -113,7 +113,10 @@ class ImportedTaxonomyTests(unittest.TestCase):
             self.assertEqual(session.delivery.taxonomy_id, result.taxonomy_id)
             end_session(session)
 
-    def test_rejected_import_leaves_no_taxonomy_or_trace_folder(self):
+    def test_structurally_invalid_generator_output_leaves_no_taxonomy(self):
+        """The Reflection Judge + refiner never rejects; the only remaining
+        gate is the structural-validity check on the candidate dict. An empty
+        codes list must surface as a ValueError with no leftover state."""
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             source = root / "trace.json"
@@ -130,16 +133,24 @@ class ImportedTaxonomyTests(unittest.TestCase):
             )
             store_dir = root / "taxonomies"
             trace_root = root / "traces"
-            with self.assertRaisesRegex(ValueError, "rejected"):
+            # Generator returns an ATLAS-shaped output with ZERO codes -> the
+            # candidate is structurally invalid, generate_imported_taxonomy
+            # must raise ValueError before writing anything.
+            empty_output = {
+                "annotation_layer": {"category_a": [], "category_b": [], "category_c": []},
+                "full_layer": {
+                    "category_a": {}, "category_b": {}, "category_c": {},
+                    "domain_info": {"domain": {"name": "test"}},
+                },
+            }
+            with self.assertRaises(ValueError):
                 generate_imported_taxonomy(
                     source,
                     atlas_model="gpt-5",
                     store_dir=store_dir,
                     trace_root=trace_root,
-                    generator=lambda _traces: upstream_output(code_count=2),
-                    judge_call=lambda _prompt, _model: json.dumps(
-                        {"per_unit": []}
-                    ),
+                    skip_judge=True,
+                    generator=lambda _traces: empty_output,
                     verbose=False,
                 )
             self.assertEqual(list(store_dir.glob("tax-*.json")), [])
@@ -165,7 +176,7 @@ class ImportedTaxonomyTests(unittest.TestCase):
                 )
             self.assertEqual(called, [])
 
-    def test_taxonomy_check_can_be_explicitly_disabled(self):
+    def test_skip_judge_bypasses_refinement(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             result = generate_imported_taxonomy(
@@ -180,7 +191,7 @@ class ImportedTaxonomyTests(unittest.TestCase):
                 atlas_model="gpt-5",
                 store_dir=root / "store",
                 trace_root=root / "traces",
-                taxonomy_check=False,
+                skip_judge=True,
                 generator=lambda _traces: upstream_output(code_count=2),
                 verbose=False,
             )
@@ -199,7 +210,7 @@ class ImportedTaxonomyTests(unittest.TestCase):
                 atlas_model="gpt-5",
                 store_dir=root / "store",
                 trace_root=root / "traces",
-                taxonomy_check=False,
+                skip_judge=True,
                 generator=lambda traces: (
                     self.assertEqual(len(traces), 1)
                     or upstream_output(code_count=2)
@@ -230,7 +241,7 @@ class ImportedTaxonomyTests(unittest.TestCase):
                         atlas_model="gpt-5",
                         store_dir=store_dir,
                         trace_root=trace_root,
-                        taxonomy_check=False,
+                        skip_judge=True,
                         generator=lambda _traces: upstream_output(code_count=2),
                         verbose=False,
                     )

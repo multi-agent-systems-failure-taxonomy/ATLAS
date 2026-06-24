@@ -627,7 +627,7 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
                 openai_api_key_env="ATLAS_PROXY_KEY",
                 generation_threshold=7,
                 generation_stops=True,
-                taxonomy_check=False,
+                skip_judge=True,
                 k_init=11,
                 k=21,
                 refinement_stops=True,
@@ -644,7 +644,7 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
             self.assertEqual(loaded.openai_api_key_env, "ATLAS_PROXY_KEY")
             self.assertEqual(loaded.generation_threshold, 7)
             self.assertTrue(loaded.generation_stops)
-            self.assertFalse(loaded.taxonomy_check)
+            self.assertTrue(loaded.skip_judge)
             self.assertEqual(loaded.k_init, 11)
             self.assertEqual(loaded.k, 21)
             self.assertTrue(loaded.refinement_stops)
@@ -714,7 +714,7 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
                 dashboard=False,
                 generation_threshold=7,
                 generation_stops=True,
-                taxonomy_check=False,
+                skip_judge=True,
                 k_init=11,
                 k=21,
                 refinement_stops=True,
@@ -733,7 +733,7 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
             state = load_state(root / "program", "configured")
             self.assertEqual(state["lifecycle"]["generation_threshold"], 7)
             self.assertTrue(state["lifecycle"]["generation_stops"])
-            self.assertFalse(state["lifecycle"]["taxonomy_check"])
+            self.assertTrue(state["lifecycle"]["skip_judge"])
             self.assertEqual(state["lifecycle"]["k_init"], 11)
             self.assertEqual(state["lifecycle"]["k"], 21)
             self.assertTrue(state["lifecycle"]["refinement_stops"])
