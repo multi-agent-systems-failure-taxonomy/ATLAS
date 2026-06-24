@@ -44,6 +44,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
+from . import ProjectFn
 from .learning_calls import outcome_blind_trace, refine_json
 from .taxonomy_data import Code, CostMeter, Taxonomy
 
@@ -92,7 +93,7 @@ def refine_with_reflection_judge(
     seed: int = 0,
     judge_call: JudgeCallable | None = None,
     refiner_call: RefinerCallable | None = None,
-    project_fn: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
+    project_fn: ProjectFn | None = None,
 ) -> RefinementSummary:
     """Validate + refine ``candidate`` against ``traces`` via the Reflection Judge.
 
@@ -113,7 +114,10 @@ def refine_with_reflection_judge(
         (``(prompt, model) -> raw_text | None``).
     project_fn
         Optional per-trace projection (oracle-blind). Defaults to
-        ``outcome_blind_trace`` for backward compatibility.
+        ``outcome_blind_trace``. Must take a trace dict and return a dict —
+        see ``atlas_runtime.ProjectFn``. String-shape callables are
+        explicitly disallowed; rewrite ``raw_trajectory`` inside the dict
+        and return the dict.
 
     Returns
     -------
@@ -130,6 +134,16 @@ def refine_with_reflection_judge(
     rng = random.Random(seed)
     project = project_fn or outcome_blind_trace
 
+    def _project_safe(trace: Mapping[str, Any]) -> Mapping[str, Any]:
+        out = project(trace)
+        if not isinstance(out, Mapping):
+            raise TypeError(
+                f"project_fn returned {type(out).__name__}; must return a "
+                f"dict (see atlas_runtime.ProjectFn). String-shape callables "
+                f"are explicitly disallowed."
+            )
+        return out
+
     taxonomy = Taxonomy.from_flat(candidate)
     if not taxonomy.codes:
         # Nothing to refine; return the candidate verbatim.
@@ -141,7 +155,7 @@ def refine_with_reflection_judge(
             n_unused_codes_in_sample=0,
         )
 
-    pool = [_judge_input(project(t)) for t in traces if t]
+    pool = [_judge_input(_project_safe(t)) for t in traces if t]
     pool = [ji for ji in pool if ji.get("trace")]
     if not pool:
         return RefinementSummary(

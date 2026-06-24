@@ -1,10 +1,20 @@
 # vendor/atlas/traces/
 
 Trace loading + normalization + behavioral signal extraction for the
-ATLAS pipeline. Accepts multiple input formats (tau-bench, KIRA, Codex
-sessions, event logs, conversation/Forgecode, plain text, and the already-
-unified ATLAS shape) and converts everything to the canonical
-`UnifiedTrace` schema before generation or classification.
+ATLAS pipeline. Accepts multiple input formats and converts everything to
+the canonical `UnifiedTrace` schema before generation or classification.
+
+Auto-detected formats:
+
+- Already-unified ATLAS records (the canonical shape)
+- tau-bench (`{traj, task_id, reward}`)
+- Codex CLI sessions (`{type: session_meta | response_item | turn_context | event_msg}`)
+- **Claude Code stream-json** (`claude --output-format stream-json` output;
+  detected by lines with `type` in `{system, assistant, user, result}`)
+- Event logs (`{event: ...}` lines)
+- Conversation / Forgecode (`{messages: [{role, content}, ...]}`)
+- KIRA trajectories (step dicts with `step_id` and `tool_calls`/`observation`)
+- Plain text fallback (treated as one raw trajectory string)
 
 ## Programs
 

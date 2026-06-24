@@ -339,9 +339,48 @@ def main(argv=None) -> int:
             "~/.claude/settings.json"
         ),
     )
+    parser.add_argument(
+        "--traces",
+        help=(
+            "OPTIONAL convenience: pass a trace file/dir to atlas-import-traces "
+            "first, then install the resulting taxonomy as --inherit in one "
+            "command. Mutually exclusive with --inherit; --skip-judge is honored "
+            "for the import step too"
+        ),
+    )
     args = parser.parse_args(argv)
+    if args.traces and args.inherit is not None:
+        parser.error("--traces and --inherit are mutually exclusive")
     inherit = args.inherit
-    if inherit == resolver.NO_ID:
+    if args.traces:
+        # Compose: import traces -> get a taxonomy_id -> use as --inherit.
+        from atlas_runtime.import_generation import generate_imported_taxonomy
+
+        resolved_store_dir = (
+            Path(args.store_dir).resolve()
+            if args.store_dir
+            else store.DEFAULT_STORE_DIR
+        )
+        resolved_trace_root = (
+            Path(args.trace_root).resolve()
+            if args.trace_root
+            else None
+        )
+        import_kwargs: dict[str, Any] = {
+            "atlas_model": args.atlas_model,
+            "store_dir": resolved_store_dir,
+            "skip_judge": args.skip_judge,
+            "verbose": True,
+        }
+        if resolved_trace_root is not None:
+            import_kwargs["trace_root"] = resolved_trace_root
+        imported = generate_imported_taxonomy(args.traces, **import_kwargs)
+        inherit = imported.taxonomy_id
+        print(
+            f"[atlas-claude-install] imported traces -> taxonomy {inherit}",
+            file=sys.stderr,
+        )
+    elif inherit == resolver.NO_ID:
         selected = resolver.resolve(
             resolver.NO_ID,
             store_dir=(
@@ -378,6 +417,14 @@ def main(argv=None) -> int:
         args.project_dir,
         ClaudeCodeConfig(**fields),
         migrate_legacy_global=args.migrate_legacy_global,
+    )
+    # Make the learning cadence honest at install time so single-run users
+    # don't expect taxonomy improvement that will never fire from one trace.
+    print(
+        f"Learning thresholds: generation at {args.generation_threshold} traces, "
+        f"refinement at K_init={args.k_init} / K={args.k}. With fewer traces, "
+        f"the active taxonomy stays static.",
+        file=sys.stderr,
     )
     print(json.dumps(result, indent=2))
     return 0

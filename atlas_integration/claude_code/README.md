@@ -12,7 +12,7 @@ atlas-claude-install `
   --project-dir C:\path\to\project `
   --trace-output C:\path\to\program-traces `
   --trace-root C:\path\to\learning-traces `
-  --atlas-model gpt-5.4
+  --atlas-model claude-sonnet-4-6
 ```
 
 Registrations invoke the installed module rather than a source-checkout file.

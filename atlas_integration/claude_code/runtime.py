@@ -5,8 +5,10 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import sys
 import time
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -584,6 +586,11 @@ def _release_retry_guard(
     transcript_path: str | None,
     detail: str,
 ) -> tuple[int, str]:
+    pending = state.get("pending", {}).get(key, {}) or {}
+    guard_failures = int(pending.get("guard_failures", 0))
+    repairs_completed = int(pending.get("repairs_completed", 0))
+    limit = int(state.get("max_retries", 3))
+
     state["pending"].pop(key, None)
     if gate == "stop":
         _finish_runtime_session(
@@ -593,6 +600,35 @@ def _release_retry_guard(
             reason="stop_retry_guard",
         )
     save_state(config.trace_output, state["session_id"], state)
+
+    # Make the release visible to the operator — both in stderr (so it shows
+    # up in Claude Code's hook output) and as an appended line in
+    # ``<trace_output>/decisions.log`` so post-hoc audits don't depend on
+    # remembering that a hook fired in some scrollback.
+    summary = (
+        f"[atlas] {gate} gate released after retry guard hit "
+        f"(guard_failures={guard_failures}, repairs_completed={repairs_completed}, "
+        f"limit={limit}). detail={detail!r}"
+    )
+    print(summary, file=sys.stderr)
+    try:
+        decisions_log = Path(config.trace_output) / "decisions.log"
+        decisions_log.parent.mkdir(parents=True, exist_ok=True)
+        with decisions_log.open("a", encoding="utf-8") as fh:
+            ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            fh.write(json.dumps({
+                "ts": ts,
+                "event": "retry_guard_release",
+                "gate": gate,
+                "session_id": state.get("session_id"),
+                "guard_failures": guard_failures,
+                "repairs_completed": repairs_completed,
+                "limit": limit,
+                "detail": detail,
+            }) + "\n")
+    except OSError:
+        pass
+
     return (
         0,
         "ATLAS released this boundary after its hook-owned retry limit to "

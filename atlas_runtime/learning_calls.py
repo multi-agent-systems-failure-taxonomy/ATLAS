@@ -199,20 +199,56 @@ def parse_json_object(text: Any) -> dict[str, Any] | None:
     return None
 
 
-def support_model_call(prompt: str, model: str) -> str | None:
-    """Corrected support-judge transport with explicit output caps."""
-    use_openai_endpoint = bool(os.environ.get("OPENAI_BASE_URL"))
-    if (
-        model.startswith(("claude", "anthropic"))
-        and not use_openai_endpoint
-    ):
+def _anthropic_client(model: str):
+    """Return the right Anthropic SDK client for the model id.
+
+    AWS Bedrock inference profiles (``us.anthropic.claude-...``,
+    ``eu.anthropic.claude-...``, ``anthropic.claude-...``, ``bedrock/...``)
+    go through ``AnthropicBedrock`` which reads ``AWS_BEARER_TOKEN_BEDROCK``
+    or standard AWS credentials. Everything else goes through the vanilla
+    ``Anthropic()`` client which reads ``ANTHROPIC_API_KEY``.
+
+    Returns ``None`` if the ``anthropic`` package is not installed.
+    """
+    from .models import is_bedrock_model
+
+    if is_bedrock_model(model):
         try:
-            from anthropic import Anthropic
+            from anthropic import AnthropicBedrock
         except ImportError:
-            logger.error("anthropic package not installed")
+            logger.error(
+                "anthropic package not installed (AnthropicBedrock required "
+                "for Bedrock model id %r). Install with: pip install "
+                "'atlas-skill[anthropic]'",
+                model,
+            )
+            return None
+        return AnthropicBedrock()
+    try:
+        from anthropic import Anthropic
+    except ImportError:
+        logger.error("anthropic package not installed")
+        return None
+    return Anthropic()
+
+
+def support_model_call(prompt: str, model: str) -> str | None:
+    """Corrected support-judge transport with explicit output caps.
+
+    Routes Claude / Anthropic / Bedrock model ids through the Anthropic
+    SDK (vanilla or Bedrock client), Gemini ids through the Google REST
+    API, everything else through the OpenAI client (which honors
+    ``OPENAI_BASE_URL`` for OpenAI-compatible local endpoints).
+    """
+    from .models import is_anthropic_model
+
+    use_openai_endpoint = bool(os.environ.get("OPENAI_BASE_URL"))
+    if is_anthropic_model(model) and not use_openai_endpoint:
+        client = _anthropic_client(model)
+        if client is None:
             return None
         try:
-            msg = Anthropic().messages.create(
+            msg = client.messages.create(
                 model=model,
                 max_tokens=ANTHROPIC_OPENAI_MAX_TOKENS,
                 messages=[{"role": "user", "content": prompt}],
@@ -309,19 +345,21 @@ def judge_json(
 
 
 def refinement_model_call(prompt: str, model: str) -> str | None:
-    """Corrected refiner transport with explicit output caps."""
+    """Corrected refiner transport with explicit output caps.
+
+    Routes Claude / Anthropic / Bedrock model ids through the Anthropic
+    SDK (vanilla or Bedrock client). See ``_anthropic_client`` for the
+    Bedrock detection rules.
+    """
+    from .models import is_anthropic_model
+
     use_openai_endpoint = bool(os.environ.get("OPENAI_BASE_URL"))
-    if (
-        model.startswith(("claude", "anthropic"))
-        and not use_openai_endpoint
-    ):
-        try:
-            from anthropic import Anthropic
-        except ImportError:
-            logger.error("anthropic package not installed")
+    if is_anthropic_model(model) and not use_openai_endpoint:
+        client = _anthropic_client(model)
+        if client is None:
             return None
         try:
-            message = Anthropic().messages.create(
+            message = client.messages.create(
                 model=model,
                 max_tokens=ANTHROPIC_OPENAI_MAX_TOKENS,
                 messages=[{"role": "user", "content": prompt}],

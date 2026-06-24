@@ -89,6 +89,30 @@ def _is_codex_entry(item: Dict[str, Any]) -> bool:
     )
 
 
+# Claude Code's ``claude --output-format stream-json`` emits one JSON object
+# per line with a ``type`` from this set. Detection is type-driven so we don't
+# accidentally claim non-Claude JSONL streams.
+_CLAUDE_STREAM_TYPES = {"system", "assistant", "user", "result"}
+
+
+def _is_claude_stream_entry(item: Dict[str, Any]) -> bool:
+    if not isinstance(item, dict):
+        return False
+    t = item.get("type")
+    if t not in _CLAUDE_STREAM_TYPES:
+        return False
+    # ``system`` init lines carry session_id + subtype="init".
+    # ``assistant``/``user`` lines carry a ``message`` object.
+    # ``result`` is the trailing summary.
+    if t == "system":
+        return item.get("subtype") == "init" or "session_id" in item
+    if t in ("assistant", "user"):
+        return isinstance(item.get("message"), dict)
+    if t == "result":
+        return True
+    return False
+
+
 def _is_event_log_entry(item: Dict[str, Any]) -> bool:
     return isinstance(item, dict) and "event" in item
 
@@ -188,6 +212,137 @@ def _convert_tau_bench(item: Dict[str, Any], file_stem: str, index: int) -> Unif
             "task_id": task_id,
             "_format": "tau_bench",
         },
+    )
+
+
+def _convert_claude_stream_session(
+    entries: List[Dict[str, Any]],
+    file_path: Path,
+) -> Optional[UnifiedTrace]:
+    """Aggregate one ``claude --output-format stream-json`` session into a UnifiedTrace.
+
+    The stream emits JSON-per-line with these shapes:
+
+    - ``{"type": "system", "subtype": "init", "session_id": ..., "cwd": ..., "model": ...}``
+      one per session.
+    - ``{"type": "assistant", "message": {"content": [{"type": "text"|"tool_use", ...}]}}``
+    - ``{"type": "user", "message": {"content": [{"type": "tool_result", "content": ...}]}}``
+    - ``{"type": "result", "subtype": "success"|"error_max_turns"|...,
+        "is_error": bool, "result": str, "num_turns": int, "session_id": ...}``
+
+    We flatten the assistant/tool-use/tool-result sequence into a single
+    readable trace text, mark the result line as the outcome, and stash
+    session metadata (model, cwd, num_turns, is_error) for downstream
+    outcome-blind projection to optionally strip.
+    """
+    session_id = ""
+    model_name = "unknown"
+    cwd = ""
+    first_user_text = ""
+    parts: List[str] = []
+    result_block: Optional[Dict[str, Any]] = None
+
+    for entry in entries:
+        t = entry.get("type")
+        if t == "system" and entry.get("subtype") == "init":
+            session_id = str(entry.get("session_id") or session_id)
+            model_name = str(entry.get("model") or model_name)
+            cwd = str(entry.get("cwd") or cwd)
+            continue
+        if t == "assistant":
+            msg = entry.get("message") or {}
+            for block in (msg.get("content") or []):
+                if not isinstance(block, dict):
+                    continue
+                btype = block.get("type")
+                if btype == "text":
+                    text = str(block.get("text") or "").strip()
+                    if text:
+                        parts.append(f"[ASSISTANT]\n{text}")
+                elif btype == "tool_use":
+                    name = block.get("name", "unknown")
+                    raw_input = block.get("input")
+                    try:
+                        input_text = json.dumps(raw_input, ensure_ascii=False)
+                    except (TypeError, ValueError):
+                        input_text = str(raw_input)
+                    if len(input_text) > 800:
+                        input_text = input_text[:797] + "..."
+                    parts.append(f"[TOOL USE: {name}]\n{input_text}")
+            continue
+        if t == "user":
+            msg = entry.get("message") or {}
+            content = msg.get("content")
+            if isinstance(content, str):
+                if not first_user_text:
+                    first_user_text = content
+                parts.append(f"[USER]\n{content}")
+            elif isinstance(content, list):
+                for block in content:
+                    if not isinstance(block, dict):
+                        continue
+                    btype = block.get("type")
+                    if btype == "tool_result":
+                        out = block.get("content")
+                        if isinstance(out, list):
+                            out_text = "\n".join(
+                                str(b.get("text", "")) for b in out
+                                if isinstance(b, dict)
+                            )
+                        else:
+                            out_text = str(out or "")
+                        if len(out_text) > 1500:
+                            out_text = out_text[:1497] + "..."
+                        parts.append(f"[TOOL RESULT]\n{out_text}")
+                    elif btype == "text":
+                        text = str(block.get("text") or "")
+                        if not first_user_text:
+                            first_user_text = text
+                        parts.append(f"[USER]\n{text}")
+            continue
+        if t == "result":
+            result_block = entry
+            continue
+
+    if result_block is not None:
+        verdict = "SUCCESS"
+        if result_block.get("is_error"):
+            verdict = f"ERROR ({result_block.get('subtype', 'unknown')})"
+        elif result_block.get("subtype") and result_block.get("subtype") != "success":
+            verdict = result_block.get("subtype", "unknown").upper()
+        summary = str(result_block.get("result") or "").strip()
+        if summary:
+            parts.append(f"\n=== RESULT: {verdict} ===\n{summary}")
+        else:
+            parts.append(f"\n=== RESULT: {verdict} ===")
+
+    if not parts:
+        return None
+
+    task_line = first_user_text.strip().splitlines()[0] if first_user_text else ""
+    metadata: Dict[str, Any] = {
+        "mas_name": "claude_code",
+        "llm_name": model_name,
+        "_format": "claude_stream_json",
+    }
+    if session_id:
+        metadata["trace_id"] = session_id
+        metadata["session_id"] = session_id
+    if cwd:
+        metadata["cwd"] = cwd
+    if result_block is not None:
+        if "num_turns" in result_block:
+            metadata["num_turns"] = result_block["num_turns"]
+        if "is_error" in result_block:
+            metadata["outcome"] = "error" if result_block["is_error"] else "success"
+        if "subtype" in result_block:
+            metadata["result_subtype"] = result_block["subtype"]
+
+    return UnifiedTrace(
+        problem_id=(session_id or file_path.stem),
+        task=(task_line[:500] if task_line else file_path.stem),
+        raw_trajectory="\n\n".join(parts),
+        metadata=metadata,
     )
 
 
@@ -593,9 +748,11 @@ def normalize_traces(items: Iterable[Any]) -> List[UnifiedTrace]:
 __all_internal__ = {
     "_convert_tau_bench": _convert_tau_bench,
     "_convert_codex_session": _convert_codex_session,
+    "_convert_claude_stream_session": _convert_claude_stream_session,
     "_reconstruct_from_events": _reconstruct_from_events,
     "_convert_generic_trace": _convert_generic_trace,
     "_is_tau_bench": _is_tau_bench,
     "_is_codex_entry": _is_codex_entry,
+    "_is_claude_stream_entry": _is_claude_stream_entry,
     "_is_event_log_entry": _is_event_log_entry,
 }

@@ -33,7 +33,13 @@ DEFAULT_CATEGORIES: tuple[str, ...] = ("A", "B", "C")
 Generator = Callable[[list[dict[str, Any]]], dict[str, Any]]
 Approver = Callable[[dict[str, Any]], bool]
 JudgeCall = Callable[..., Any]
-ProjectFn = Callable[[dict[str, Any]], dict[str, Any]]
+
+# Single source of truth for the per-trace projection contract — see
+# ``atlas_runtime/__init__.py``. Re-exported here for code that imports
+# from the generation module directly. Convention: dict in, dict out.
+# String-only variants are explicitly disallowed; if you need to rewrite
+# only the raw_trajectory text, do it inside the dict and return the dict.
+from . import ProjectFn  # noqa: E402
 
 
 @dataclass(frozen=True)
@@ -91,7 +97,17 @@ def _atlas_generate(
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     project = project_fn or outcome_blind_trace
-    projected = [project(trace) for trace in traces]
+    projected: list[dict[str, Any]] = []
+    for trace in traces:
+        out = project(trace)
+        if not isinstance(out, dict):
+            raise TypeError(
+                f"project_fn returned {type(out).__name__} for trace "
+                f"{trace.get('problem_id')!r}; must return a dict. "
+                f"(string-shape project_fn is explicitly disallowed — "
+                f"rewrite raw_trajectory inside the dict and return the dict)"
+            )
+        projected.append(out)
 
     # Build a PipelineConfig only when caller actually supplied advanced fields
     # — the vendored PipelineConfig may not accept ``categories`` / ``seed_roles``

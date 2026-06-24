@@ -123,85 +123,29 @@ The installation provides:
 
 ## 🟠 Claude Code quick start
 
-ATLAS uses Claude Code's installed hook system and verifies the required events
-against the installed version **before writing any configuration**.
-
-### 1. Install ATLAS into a project
+Install ATLAS into one project:
 
 ```powershell
 atlas-claude-install `
   --project-dir C:\path\to\project `
   --trace-output C:\path\to\atlas-program `
-  --atlas-model gpt-5
+  --atlas-model claude-sonnet-4-6
 ```
-
-On macOS or Linux:
 
 ```bash
 atlas-claude-install \
   --project-dir /path/to/project \
   --trace-output /path/to/atlas-program \
-  --atlas-model gpt-5
+  --atlas-model claude-sonnet-4-6
 ```
 
-### 2. Use Claude Code normally
+That's enough to get started. For the **full hook event list, repair-loop
+semantics, Claude binary discovery, OpenAI-compatible learning endpoints,
+Bedrock learning model setup, uninstall + legacy-migration flags, and the
+`--skip-judge` behavior** — see the integration README, which is the
+single source of truth for install options:
 
-ATLAS registers seven project-local events:
-
-| Event | Behavior | Can block? |
-|---|---|:---:|
-| `SessionStart` | Hold the active taxonomy and inject only standing checkpoint instructions | No |
-| `TaskCompleted` | Reflect on the completed sub-task | **Yes** |
-| `SubagentStop` | Reflect on that subagent's trajectory | **Yes** |
-| `Stop` | Run the full final submission gate | **Yes** |
-| `PostToolUseFailure` | Nudge after a real tool execution failure | No |
-| `PostToolUse` | Detect failure signatures hidden in nominally successful output | No |
-| `SessionEnd` | Capture an interrupted session if Stop did not already do so | No |
-
-Claude Code may also request a proactive checkpoint after a major segment:
-
-```text
-ATLAS checkpoint request: finished implementing the parser
-```
-
-### 3. Uninstall safely
-
-```powershell
-atlas-claude-uninstall --project-dir C:\path\to\project
-```
-
-Upgrading from the old global skill?
-
-```powershell
-atlas-claude-install ... --migrate-legacy-global
-```
-
-This removes old ATLAS hook registrations while preserving unrelated Claude
-settings. It does not delete the old skill directory.
-
-<details>
-<summary><strong>Claude discovery and custom learning endpoints</strong></summary>
-
-ATLAS looks for Claude Code in this order:
-
-1. `CLAUDE_CODE_EXECUTABLE`
-2. `claude` on `PATH`
-3. Common Windows, macOS, and Linux installation locations
-
-For an OpenAI-compatible learning endpoint, persist only the credential
-variable's name:
-
-```powershell
-$env:ATLAS_LEARNING_KEY = "..."
-
-atlas-claude-install ... `
-  --openai-base-url http://127.0.0.1:8742/v1 `
-  --openai-api-key-env ATLAS_LEARNING_KEY
-```
-
-The value of `ATLAS_LEARNING_KEY` is never written to disk.
-
-</details>
+➡ **[`atlas_integration/claude_code/README.md`](atlas_integration/claude_code/README.md)**
 
 ---
 

@@ -15,9 +15,11 @@ from typing import Any, Dict, Iterable, List, Optional, Union
 
 from vendor.atlas.traces.normalizer import (
     UnifiedTrace,
+    _convert_claude_stream_session,
     _convert_codex_session,
     _convert_generic_trace,
     _convert_tau_bench,
+    _is_claude_stream_entry,
     _is_codex_entry,
     _is_event_log_entry,
     _is_tau_bench,
@@ -150,8 +152,10 @@ class TraceLoader:
         lines = content.replace("\r\n", "\n").strip().split("\n")
         events: List[Dict[str, Any]] = []
         codex_entries: List[Dict[str, Any]] = []
+        claude_entries: List[Dict[str, Any]] = []
         is_event_log = False
         is_codex = False
+        is_claude = False
 
         for line in lines:
             line = line.strip()
@@ -168,6 +172,9 @@ class TraceLoader:
             if _is_codex_entry(obj):
                 is_codex = True
                 codex_entries.append(obj)
+            elif _is_claude_stream_entry(obj):
+                is_claude = True
+                claude_entries.append(obj)
             elif _is_event_log_entry(obj):
                 is_event_log = True
                 events.append(obj)
@@ -180,6 +187,10 @@ class TraceLoader:
 
         if is_codex and codex_entries:
             trace = _convert_codex_session(codex_entries, file_path)
+            if trace is not None:
+                self._add(trace)
+        elif is_claude and claude_entries:
+            trace = _convert_claude_stream_session(claude_entries, file_path)
             if trace is not None:
                 self._add(trace)
         elif is_event_log and events:

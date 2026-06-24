@@ -1,5 +1,11 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+# setuptools>=77 + a modern pip is required to read PEP 621 metadata. Old
+# Ubuntu pip (22.0.2 on Ubuntu 22.04) sometimes ignores the [project] table
+# entirely and silently builds a wheel named UNKNOWN-0.0.0; the floor here
+# is intentionally higher than strictly needed so build-isolation envs end
+# up fetching a setuptools recent enough to behave. See README installation
+# troubleshooting if you still hit the UNKNOWN-wheel symptom.
+requires = ["setuptools>=77", "wheel>=0.42"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -31,6 +37,7 @@ test = ["pytest>=7"]
 atlas-find = "finding.cli:main"
 atlas-dashboard = "atlas_runtime.dashboard:main"
 atlas-import-traces = "atlas_runtime.import_generation:main"
+atlas-register-taxonomy = "atlas_runtime.register_taxonomy:main"
 atlas-claude-install = "atlas_integration.claude_code.install:main"
 atlas-claude-uninstall = "atlas_integration.claude_code.uninstall:main"
 atlas-single-run = "atlas_integration.single_llm.cli:main"

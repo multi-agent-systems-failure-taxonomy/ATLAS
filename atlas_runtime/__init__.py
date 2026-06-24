@@ -1,5 +1,23 @@
 """General, agent- and model-agnostic ATLAS runtime framework."""
 
+from __future__ import annotations
+
+from typing import Any, Callable, Mapping
+
+
+# ── Shared callable type contracts ──────────────────────────────────────
+#
+# Every entry point that exposes a ``project_fn`` (oracle-blind trace
+# projection) MUST use this type, so callers can write a single function
+# usable across generation, refinement, and registration without hitting
+# silent shape mismatches between modules. The convention: a project_fn
+# takes a trace dict (the canonical ATLAS trace record) and returns a
+# dict (possibly the same one, possibly a rewritten copy). String-only
+# variants are explicitly disallowed; if you need to rewrite only the
+# raw_trajectory text, do it inside the dict and return the mutated dict.
+ProjectFn = Callable[[Mapping[str, Any]], Mapping[str, Any]]
+
+
 from .lifecycle import (
     Session,
     SessionDelivery,
@@ -35,6 +53,7 @@ __all__ = [
     "GenerationTrace",
     "ProgramConflict",
     "ProgramWorkspace",
+    "ProjectFn",
     "RuntimeOptions",
     "RetentionPolicy",
     "RetentionReport",

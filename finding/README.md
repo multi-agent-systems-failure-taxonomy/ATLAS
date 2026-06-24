@@ -23,3 +23,28 @@ under `$ATLAS_HOME/taxonomies/`.
 ## Bundled data
 
 - `mast.json` — the MAST floor taxonomy data file shipped alongside `mast.py`.
+
+## `taxonomy_id` format
+
+A `taxonomy_id` is a filesystem-safe string (letters, digits, `.`, `_`, `-`)
+used as the basename of the on-disk record (`<store-dir>/<taxonomy_id>.json`)
+and as the directory name under the trace root. Reserved: the literal
+string `mast` is the built-in MAST floor and cannot be used as a stored id.
+
+When auto-allocated (by `atlas-import-traces`, `atlas-register-taxonomy`,
+or end-of-generation activation), ids take the shape:
+
+```
+tax-<UTC-stamp>-<digest>-<uuid>
+   e.g. tax-20260624T203104Z-7cf91f62-56ac5e
+```
+
+- `<UTC-stamp>` — `YYYYMMDD'T'HHMMSS'Z'`, the moment the id was minted.
+- `<digest>` — first 8 hex chars of `sha256(record_json_sorted)`; lets
+  you spot two identical taxonomies coming out of independent runs.
+- `<uuid>` — first 6 hex chars of a uuid4; collision-breaker.
+
+The `tax-` prefix is a convention, not a requirement — when registering
+with `atlas-register-taxonomy --id <id>` you can pass any
+filesystem-safe string (except `mast`). Auto-allocators always use the
+`tax-…` shape so downstream tooling can filter on it cheaply.
