@@ -75,8 +75,32 @@ Use `--openai-api-key-env NAME` to persist only the name of an inherited
 environment variable; credential values are never written to disk.
 
 Lifecycle controls exposed by the installer include generation threshold and
-blocking, taxonomy checking, initial/standard refinement thresholds,
-refinement blocking, advanced refinement, and failure-nudge throttling. Run
+blocking, initial/standard refinement thresholds, refinement blocking,
+advanced refinement, failure-nudge throttling, and `--skip-judge` (which
+bypasses the end-of-generation Reflection Judge + refiner step). Run
 `atlas-claude-install --help` for the exact options. `--no-dashboard`
 persistently suppresses integration-managed dashboards when an outer harness
 owns the dashboard.
+
+## Programs
+
+| File | Purpose |
+|---|---|
+| [`__init__.py`](__init__.py) | Public exports |
+| [`config.py`](config.py) | `ClaudeCodeConfig` dataclass — serialized to `.claude/atlas-skill.json`, loaded by every hook |
+| [`dispatcher.py`](dispatcher.py) | Single command entry point registered for every Claude Code hook; routes the event to the right `hooks/<event>.py::handle` |
+| [`install.py`](install.py) | `atlas-claude-install` CLI: write project-local `.claude/settings.local.json` + `atlas-skill.json`, verify Claude Code binary contract |
+| [`prompts.py`](prompts.py) | Standing instruction + gate-specific reflection prompts |
+| [`reflection.py`](reflection.py) | Reflection-shape validation (Observe/Map/Correlate/Decide block parser) — pure regex, no LLM call |
+| [`runtime.py`](runtime.py) | Shared hook behavior: `session_start`, `blocking_checkpoint`, `post_tool`, transcript capture, lifecycle wiring |
+| [`state.py`](state.py) | Per-session hook state (mode, pending checkpoints) and live runtime evidence file |
+| [`transcript.py`](transcript.py) | Claude Code JSONL transcript readers/writers |
+| [`uninstall.py`](uninstall.py) | `atlas-claude-uninstall` CLI: remove the hook registrations, preserve unrelated settings |
+
+## Sub-folders
+
+- [`hooks/`](hooks/) — One file per Claude Code hook event
+  (`SessionStart`, `SessionEnd`, `TaskCompleted`, `SubagentStop`, `Stop`,
+  `PostToolUse`, `PostToolUseFailure`). Each file exports a thin `handle`
+  function that the dispatcher routes to; all real behavior lives in
+  [`runtime.py`](runtime.py).

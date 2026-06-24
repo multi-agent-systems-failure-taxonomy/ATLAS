@@ -605,14 +605,25 @@ oldest file is more than 90 days old.
 
 ## 📚 Repository map
 
+Every folder below has its own `README.md` that lists what each file in
+it does and what each sub-folder is for.
+
 | Path | Purpose |
 |---|---|
-| [`atlas_runtime/`](atlas_runtime/) | Harness-neutral lifecycle and learning engine |
-| [`atlas_integration/claude_code/`](atlas_integration/claude_code/) | Claude Code runtime skin |
-| [`atlas_integration/single_llm/`](atlas_integration/single_llm/) | Direct model-call adapter |
-| [`finding/`](finding/) | Taxonomy selection, MAST, store, and picker |
-| [`vendor/atlas/`](vendor/atlas/) | Vendored upstream eight-stage ATLAS generator |
-| [`tests/`](tests/) | Unit, integration, lifecycle, and packaging coverage |
+| [`atlas_runtime/`](atlas_runtime/README.md) | Harness-neutral lifecycle, generation, refinement, LLM transports, dashboard |
+| [`atlas_integration/`](atlas_integration/README.md) | Harness-specific skins (Claude Code, single-LLM) on top of the runtime |
+| [`atlas_integration/claude_code/`](atlas_integration/claude_code/README.md) | Claude Code runtime skin (dispatcher + hooks + transcript + state) |
+| [`atlas_integration/claude_code/hooks/`](atlas_integration/claude_code/hooks/README.md) | One file per Claude Code hook event |
+| [`atlas_integration/single_llm/`](atlas_integration/single_llm/README.md) | No-harness single-LLM adapter |
+| [`finding/`](finding/README.md) | Taxonomy store, MAST loader, `--inherit` resolver, web picker |
+| [`judge_types/`](judge_types/README.md) | The 7 taxonomy-aware judge types (Selection, Reflection, Mapping, Coverage, Quality, Calibration, Selection-Summary) |
+| [`judge_types/reflection_judge/`](judge_types/reflection_judge/README.md) | The deep multi-stage Reflection Judge (ported from GEPA) |
+| [`examples/`](examples/README.md) | Runnable demonstration scripts |
+| [`vendor/`](vendor/README.md) | Third-party code vendored into the package |
+| [`vendor/atlas/`](vendor/atlas/README.md) | Vendored upstream ATLAS taxonomy-induction library |
+| [`vendor/atlas/pipeline/`](vendor/atlas/pipeline/README.md) | The 8-step ATLAS generation pipeline |
+| [`vendor/atlas/traces/`](vendor/atlas/traces/README.md) | Trace loading, normalization, signal extraction |
+| [`tests/`](tests/README.md) | Unit + integration test suite |
 
 ---
 
