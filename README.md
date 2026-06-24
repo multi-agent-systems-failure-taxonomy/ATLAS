@@ -125,7 +125,7 @@ arguments override config-file values.
 ### Bringing your own taxonomy
 
 If you already have a `taxonomy.json` from somewhere — a custom pipeline,
-a sibling project, a hand-edited file, an export from GEPA — you do NOT
+a sibling project, a hand-edited file, an export from a different taxonomy generator — you do NOT
 need to re-run generation or re-judge traces to make it inheritable.
 `atlas-register-taxonomy` ingests it as-is:
 
