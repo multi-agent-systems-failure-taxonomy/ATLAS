@@ -44,6 +44,7 @@ include = [
   "atlas_runtime*",
   "atlas_integration*",
   "finding*",
+  "judge_types*",
   "vendor*",
 ]
 exclude = ["examples*", "tests*"]
