@@ -46,7 +46,7 @@ include = [
   "finding*",
   "vendor*",
 ]
-exclude = ["officeqa*", "examples*", "tests*"]
+exclude = ["examples*", "tests*"]
 
 [tool.setuptools.package-data]
 finding = ["mast.json"]

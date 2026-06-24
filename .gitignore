@@ -6,6 +6,3 @@ __pycache__/
 build/
 dist/
 *.egg-info/
-/officeqa/run/
-/.atlas-release-test/
-/UsersandreDesktopProjectsSkyLabatlas_skillofficeqarunprogram/

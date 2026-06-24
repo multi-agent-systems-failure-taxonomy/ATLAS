@@ -28,6 +28,7 @@ def reflection_prompt(
     gate_label: str,
     recent_activity: str,
     full: bool,
+    repair_attempts_used: int = 0,
 ) -> str:
     codes = "\n".join(
         f"- {code['id']} — {code['name']}: {code['description']}"
@@ -37,7 +38,7 @@ def reflection_prompt(
         "only the recent activity since the previous ATLAS checkpoint"
     )
     gate_tail = (
-        """
+        f"""
 
 Your earlier task answer is PROVISIONAL. It has not been released or scored.
 This Stop hook exists so you can still repair the work before submission.
@@ -59,8 +60,11 @@ After the reflection, emit exactly these five plain-text fields:
 - `Final ATLAS status:` READY_TO_SUBMIT or REPAIR_REQUIRED
 - `Codes checked:` <codes or none>
 - `Evidence:` <concrete evidence>
-- `Repair attempts used:` <integer>
+- `Repair attempts used:` {repair_attempts_used}
 - `Final decision:` submit or repair
+
+The hook owns this counter. Emit exactly
+`Repair attempts used: {repair_attempts_used}` for this checkpoint.
 """
         if full else ""
     )

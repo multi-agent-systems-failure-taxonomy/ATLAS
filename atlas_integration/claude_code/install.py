@@ -228,14 +228,19 @@ def install(
 
 
 def _module_command(python: Path, config: Path) -> str:
+    dispatcher = Path(__file__).resolve().with_name("dispatcher.py")
     parts = [
-        str(python.resolve()),
-        "-m",
-        "atlas_integration.claude_code.dispatcher",
+        _hook_shell_path(python),
+        _hook_shell_path(dispatcher),
         "--config",
-        str(config.resolve()),
+        _hook_shell_path(config),
     ]
-    return subprocess.list2cmdline(parts) if os.name == "nt" else shlex.join(parts)
+    return shlex.join(parts)
+
+
+def _hook_shell_path(path: Path) -> str:
+    resolved = str(path.resolve())
+    return resolved.replace("\\", "/") if os.name == "nt" else resolved
 
 
 def _write_json_atomic(path: Path, data: dict) -> None:

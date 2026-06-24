@@ -185,6 +185,60 @@ class TaxonomyCheckTests(unittest.TestCase):
             self.assertFalse(result.accepted)
             self.assertGreater(result.failed_units, 0)
 
+    def test_verbatim_quote_survives_jsonl_backslash_escaping(self):
+        with tempfile.TemporaryDirectory() as td:
+            workspace = ProgramWorkspace(td)
+            raw = (
+                '{"toolUseResult":"Error: File does not exist. '
+                'cwd C:\\\\Users\\\\andre\\\\work"}'
+            )
+            workspace.pending.append_many(
+                [
+                    GenerationTrace(
+                        problem_id="escaped",
+                        task="read a file",
+                        raw_trajectory=raw,
+                        metadata={},
+                    )
+                ]
+            )
+
+            def judge(prompt, _model):
+                unit_id = next(
+                    line.split("### UNIT ", 1)[1].split(" ", 1)[0]
+                    for line in prompt.splitlines()
+                    if line.startswith("### UNIT ")
+                )
+                return json.dumps(
+                    {
+                        "per_unit": [
+                            {
+                                "unit_id": unit_id,
+                                "codes_fired": [
+                                    {
+                                        "code": "C.1",
+                                        "quote": (
+                                            "Error: File does not exist. "
+                                            "cwd C:\\Users\\andre\\work"
+                                        ),
+                                        "evidence": "the read path failed",
+                                    }
+                                ],
+                            }
+                        ]
+                    }
+                )
+
+            result = check_taxonomy(
+                workspace,
+                candidate(),
+                atlas_model="claude-sonnet-4-6",
+                judge_call=judge,
+                min_active_codes=1,
+            )
+            self.assertTrue(result.accepted)
+            self.assertEqual(result.active_codes, ["C.1"])
+
 
 if __name__ == "__main__":
     unittest.main()

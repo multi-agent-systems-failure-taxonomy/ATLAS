@@ -263,7 +263,7 @@ class ClaudeCodeIntegrationTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("hook-owned retry limit", message)
 
-    def test_repair_required_path_uses_hook_owned_bound(self):
+    def test_three_completed_repairs_each_receive_fresh_re_evaluation(self):
         event = {
             **self.base,
             "hook_event_name": "Stop",
@@ -278,11 +278,70 @@ class ClaudeCodeIntegrationTests(unittest.TestCase):
             + "Repair attempts used: 0\n",
         )
         active = {**event, "stop_hook_active": True}
-        self.assertEqual(stop.handle(active, self.config)[0], 2)
-        self.assertEqual(stop.handle(active, self.config)[0], 2)
         code, message = stop.handle(active, self.config)
+        self.assertEqual(code, 2)
+        self.assertIn("repair attempt 1 of 3", message)
+
+        for completed in range(1, 4):
+            append_text(
+                self.transcript,
+                f"Repair {completed} completed and verified.",
+            )
+            code, recheck_prompt = stop.handle(active, self.config)
+            self.assertEqual(code, 2)
+            self.assertIn("post-repair submission re-evaluation", recheck_prompt)
+            self.assertIn(
+                f"Repair {completed} completed and verified.",
+                recheck_prompt,
+            )
+            self.assertIn(
+                f"`Repair attempts used: {completed}`",
+                recheck_prompt,
+            )
+            append_text(
+                self.transcript,
+                fired_reflection(checkpoint_id(recheck_prompt))
+                + "\nFinal ATLAS status: REPAIR_REQUIRED\n"
+                + f"Repair attempts used: {completed}\n",
+            )
+            code, message = stop.handle(active, self.config)
+            if completed < 3:
+                self.assertEqual(code, 2)
+                self.assertIn(
+                    f"repair attempt {completed + 1} of 3",
+                    message,
+                )
+
         self.assertEqual(code, 0)
         self.assertIn("hook-owned retry limit", message)
+        evidence = json.loads(
+            (self.trace_output / EVIDENCE_FILE).read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            evidence["taxonomies"]["mast"]["codes"]["MAST-12"]["fire_count"],
+            4,
+        )
+
+    def test_reported_repair_count_must_match_hook_counter(self):
+        event = {
+            **self.base,
+            "hook_event_name": "Stop",
+            "stop_hook_active": False,
+            "last_assistant_message": "Finished.",
+        }
+        _, prompt = stop.handle(event, self.config)
+        append_text(
+            self.transcript,
+            none_reflection(checkpoint_id(prompt))
+            + "\nFinal ATLAS status: READY_TO_SUBMIT\n"
+            + "Repair attempts used: 1\n",
+        )
+        code, message = stop.handle(
+            {**event, "stop_hook_active": True},
+            self.config,
+        )
+        self.assertEqual(code, 2)
+        self.assertIn("hook-owned counter (0), not 1", message)
 
     def test_change_decision_cannot_claim_ready_to_submit(self):
         event = {
@@ -382,13 +441,16 @@ class ClaudeCodeIntegrationTests(unittest.TestCase):
             self.transcript,
             fired_reflection(cid)
             + "\nFinal ATLAS status: REPAIR_REQUIRED\n"
-            + "Repair attempts used: 1\n",
+            + "Repair attempts used: 0\n",
         )
         active = {**event, "stop_hook_active": True}
         self.assertEqual(stop.handle(active, self.config)[0], 2)
+        append_text(self.transcript, "Repair 1 completed and verified.")
+        code, recheck_prompt = stop.handle(active, self.config)
+        self.assertEqual(code, 2)
         append_text(
             self.transcript,
-            none_reflection(cid)
+            none_reflection(checkpoint_id(recheck_prompt))
             + "\nFinal ATLAS status: READY_TO_SUBMIT\n"
             + "Repair attempts used: 1\n",
         )
@@ -699,9 +761,11 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
                 self.assertEqual(len(settings["hooks"][event]), 1)
                 command = settings["hooks"][event][0]["hooks"][0]["command"]
                 self.assertIn(
-                    "-m atlas_integration.claude_code.dispatcher",
+                    "atlas_integration/claude_code/dispatcher.py",
                     command,
                 )
+                if os.name == "nt":
+                    self.assertNotIn("\\", command)
 
     def test_installer_refuses_invalid_existing_settings(self):
         with tempfile.TemporaryDirectory() as td:

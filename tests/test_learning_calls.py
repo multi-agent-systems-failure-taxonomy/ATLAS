@@ -15,6 +15,7 @@ from atlas_runtime.learning_calls import (
     GEMINI_MAX_OUTPUT_TOKENS,
     build_refinement_prompt,
     format_refinement_traces,
+    format_support_trace,
     refine_json,
     refinement_model_call,
     support_model_call,
@@ -155,6 +156,36 @@ class FakeVendoredModel:
 
 
 class LearningCallTests(unittest.TestCase):
+    def test_support_trace_samples_late_failure_and_final_evidence_within_cap(self):
+        text = (
+            "START " + "a" * 15000
+            + " PostToolUseFailure concrete tool failure "
+            + "b" * 15000
+            + " ATLAS reflection: instruction template "
+            + "b" * 5000
+            + " ATLAS reflection: mapped C.2 with evidence "
+            + "c" * 15000
+            + " Final ATLAS status: instruction template "
+            + "c" * 5000
+            + " Final ATLAS status: READY_TO_SUBMIT "
+            + "d" * 15000
+            + " TRACE FINISH"
+        )
+        excerpt = format_support_trace({"raw_trajectory": text}, cap=12000)
+        self.assertLessEqual(len(excerpt), 12000)
+        self.assertIn("START", excerpt)
+        self.assertIn("PostToolUseFailure concrete tool failure", excerpt)
+        self.assertIn("ATLAS reflection: mapped C.2 with evidence", excerpt)
+        self.assertIn("Final ATLAS status: READY_TO_SUBMIT", excerpt)
+        self.assertNotIn("ATLAS reflection: instruction template", excerpt)
+        self.assertIn("TRACE FINISH", excerpt)
+
+    def test_support_trace_preserves_short_trace(self):
+        self.assertEqual(
+            format_support_trace({"raw_trajectory": "short trace"}, cap=12000),
+            "short trace",
+        )
+
     def test_no_external_atlas_or_old_tree_imports(self):
         root = Path(__file__).resolve().parent.parent
         offenders = []
@@ -211,8 +242,9 @@ class LearningCallTests(unittest.TestCase):
         anthropic_client = SimpleNamespace(
             messages=SimpleNamespace(create=anthropic_create)
         )
-        with patch("anthropic.Anthropic", return_value=anthropic_client):
-            support_model_call("prompt", "claude-sonnet-4-6")
+        with patch.dict(os.environ, {"OPENAI_BASE_URL": ""}, clear=False):
+            with patch("anthropic.Anthropic", return_value=anthropic_client):
+                support_model_call("prompt", "claude-sonnet-4-6")
         self.assertEqual(
             anthropic_create.call_args.kwargs["max_tokens"],
             ANTHROPIC_OPENAI_MAX_TOKENS,
@@ -271,8 +303,9 @@ class LearningCallTests(unittest.TestCase):
         anthropic_client = SimpleNamespace(
             messages=SimpleNamespace(create=anthropic_create)
         )
-        with patch("anthropic.Anthropic", return_value=anthropic_client):
-            refinement_model_call("prompt", "claude-sonnet-4-6")
+        with patch.dict(os.environ, {"OPENAI_BASE_URL": ""}, clear=False):
+            with patch("anthropic.Anthropic", return_value=anthropic_client):
+                refinement_model_call("prompt", "claude-sonnet-4-6")
         self.assertEqual(
             anthropic_create.call_args.kwargs["max_tokens"],
             ANTHROPIC_OPENAI_MAX_TOKENS,
@@ -318,6 +351,53 @@ class LearningCallTests(unittest.TestCase):
             captured["body"]["generationConfig"]["maxOutputTokens"],
             GEMINI_MAX_OUTPUT_TOKENS,
         )
+
+    def test_explicit_openai_endpoint_routes_claude_learning_calls_to_proxy(self):
+        create = unittest.mock.Mock(
+            return_value=SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content="{}"))]
+            )
+        )
+        client = SimpleNamespace(
+            chat=SimpleNamespace(completions=SimpleNamespace(create=create))
+        )
+        with patch.dict(
+            os.environ,
+            {"OPENAI_BASE_URL": "http://127.0.0.1:8742/v1"},
+            clear=False,
+        ):
+            with patch("openai.OpenAI", return_value=client) as openai:
+                support_model_call("support", "claude-sonnet-4-5")
+                refinement_model_call("refine", "claude-sonnet-4-5")
+
+        self.assertEqual(openai.call_count, 2)
+        self.assertEqual(create.call_count, 2)
+        self.assertEqual(
+            [call.kwargs["model"] for call in create.call_args_list],
+            ["claude-sonnet-4-5", "claude-sonnet-4-5"],
+        )
+
+    def test_vendored_client_preserves_claude_id_through_proxy(self):
+        from vendor.atlas.llm import LLMClient
+
+        create = unittest.mock.Mock(
+            return_value=SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content="{}"))]
+            )
+        )
+        client = SimpleNamespace(
+            chat=SimpleNamespace(completions=SimpleNamespace(create=create))
+        )
+        with patch.dict(
+            os.environ,
+            {"OPENAI_BASE_URL": "http://127.0.0.1:8742/v1"},
+            clear=False,
+        ):
+            with patch("openai.OpenAI", return_value=client):
+                result = LLMClient("claude-sonnet-4-5").chat("prompt")
+
+        self.assertEqual(result, "{}")
+        self.assertEqual(create.call_args.kwargs["model"], "claude-sonnet-4-5")
 
     def test_refiner_retries_once_after_invalid_json(self):
         replies = iter(["not json", '{"repo":"","domain":"d","codes":[]}'])

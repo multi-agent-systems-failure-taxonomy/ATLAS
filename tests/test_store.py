@@ -1,4 +1,4 @@
-"""Store tests, run against the REAL fixture records in taxonomies/."""
+"""Store tests, run against the REAL fixture records in tests/fixtures/taxonomies/."""
 
 import json
 import os
@@ -10,7 +10,7 @@ from pathlib import Path
 
 from finding import store
 
-STORE_DIR = Path(__file__).resolve().parent.parent / "taxonomies"
+STORE_DIR = Path(__file__).resolve().parent / "fixtures" / "taxonomies"
 
 
 class DefaultPathTests(unittest.TestCase):

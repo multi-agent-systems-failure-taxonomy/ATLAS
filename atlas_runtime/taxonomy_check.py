@@ -20,7 +20,7 @@ from .models import estimate_tokens, resolve_model_profile
 from .program import ProgramWorkspace
 
 DEFAULT_MAX_TRACES_PER_BATCH = 4
-DEFAULT_MIN_ACTIVE_CODES = 3
+DEFAULT_MIN_ACTIVE_CODES = 2
 DEFAULT_JUDGE_MAX_RETRIES = 1
 JudgeCall = Callable[[str, str], str]
 

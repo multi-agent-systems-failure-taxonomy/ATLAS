@@ -128,6 +128,34 @@ def blocking_checkpoint(
     key = _checkpoint_key(event, gate)
     pending = state.setdefault("pending", {}).get(key)
     if pending:
+        if gate == "stop" and pending.get("awaiting_repair"):
+            completed = int(pending.get("repairs_completed", 0)) + 1
+            pending.update(
+                {
+                    "awaiting_repair": False,
+                    "repairs_completed": completed,
+                    "checkpoint_id": _checkpoint_id(gate),
+                    "guard_failures": 0,
+                    "recorded": False,
+                }
+            )
+            recent = read_transcript(
+                transcript_path,
+                after=int(pending.get("repair_offset", pending["offset"])),
+            )
+            prompt = reflection_prompt(
+                state,
+                checkpoint_id=pending["checkpoint_id"],
+                gate_label="post-repair submission re-evaluation",
+                recent_activity=recent,
+                full=True,
+                repair_attempts_used=completed,
+            )
+            pending["offset"] = transcript_size(transcript_path)
+            pending["prompt"] = prompt
+            save_state(config.trace_output, state["session_id"], state)
+            return 2, prompt
+
         recent = read_transcript(transcript_path, after=int(pending["offset"]))
         if event.get("last_assistant_message"):
             recent += "\n" + str(event["last_assistant_message"])
@@ -169,6 +197,27 @@ def blocking_checkpoint(
             decision = evaluate_pre_submission(
                 recent, max_retries=int(state["max_retries"])
             )
+            repairs_completed = int(pending.get("repairs_completed", 0))
+            if decision.repair_attempts_used != repairs_completed:
+                pending["guard_failures"] = int(
+                    pending.get("guard_failures", 0)
+                ) + 1
+                reason = (
+                    "`Repair attempts used:` must match the hook-owned "
+                    f"counter ({repairs_completed}), not "
+                    f"{decision.repair_attempts_used}"
+                )
+                if _retry_limit_reached(pending, state):
+                    return _release_retry_guard(
+                        config,
+                        state,
+                        key=key,
+                        gate=gate,
+                        transcript_path=transcript_path,
+                        detail=reason,
+                    )
+                save_state(config.trace_output, state["session_id"], state)
+                return 2, _repair_feedback(reason, pending["prompt"])
             reflection_requires_change = bool(
                 re.search(r"\bchange\s*:", reflection.decide, re.I)
             )
@@ -195,9 +244,6 @@ def blocking_checkpoint(
                 save_state(config.trace_output, state["session_id"], state)
                 return 2, _repair_feedback(reason, pending["prompt"])
             if decision.status == "REPAIR_REQUIRED":
-                pending["repair_blocks"] = int(
-                    pending.get("repair_blocks", 0)
-                ) + 1
                 if _repair_limit_reached(pending, state):
                     return _release_retry_guard(
                         config,
@@ -210,8 +256,15 @@ def blocking_checkpoint(
                             "REPAIR_REQUIRED."
                         ),
                     )
+                next_attempt = repairs_completed + 1
+                pending["awaiting_repair"] = True
+                pending["repair_offset"] = transcript_size(transcript_path)
                 save_state(config.trace_output, state["session_id"], state)
-                return 2, _repair_feedback(decision.reason, pending["prompt"])
+                return 2, _repair_action_feedback(
+                    decision.reason,
+                    next_attempt=next_attempt,
+                    limit=int(state["max_retries"]),
+                )
             if not decision.allow:
                 pending["guard_failures"] = int(
                     pending.get("guard_failures", 0)
@@ -273,7 +326,8 @@ def blocking_checkpoint(
         "prompt": prompt,
         "full": full,
         "guard_failures": 0,
-        "repair_blocks": 0,
+        "repairs_completed": 0,
+        "awaiting_repair": False,
         "recorded": False,
     }
     save_state(config.trace_output, state["session_id"], state)
@@ -501,8 +555,24 @@ def _repair_feedback(reason: str, prompt: str) -> str:
 def _repair_limit_reached(
     pending: dict[str, Any], state: dict[str, Any]
 ) -> bool:
-    limit = max(1, int(state.get("max_retries", 3)))
-    return int(pending.get("repair_blocks", 0)) >= limit
+    limit = max(0, int(state.get("max_retries", 3)))
+    return int(pending.get("repairs_completed", 0)) >= limit
+
+
+def _repair_action_feedback(
+    reason: str,
+    *,
+    next_attempt: int,
+    limit: int,
+) -> str:
+    return (
+        f"{reason}\n\n"
+        f"Perform repair attempt {next_attempt} of {limit} now. Address the "
+        "highest-impact unresolved issue and verify the changed result. The "
+        "answer remains provisional. When you next try to finish, ATLAS will "
+        "issue a fresh checkpoint over the repair trajectory; do not reuse "
+        "the previous reflection."
+    )
 
 
 def _release_retry_guard(

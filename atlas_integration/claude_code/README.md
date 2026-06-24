@@ -57,6 +57,15 @@ capture the session. This lets the existing engine trigger generation or
 refinement at its configured thresholds without duplicating learning logic in
 the harness.
 
+When the final Stop reflection returns `REPAIR_REQUIRED`, the hook blocks and
+grants one repair opportunity. The next completion attempt is blocked again
+for a fresh reflection scoped to the repair trajectory. `Repair attempts used`
+is checked against the hook-owned completed-repair counter. With the default
+limit of three, Claude receives three repair-and-re-evaluate opportunities;
+only a clean `READY_TO_SUBMIT` releases early, while a third still-unresolved
+re-evaluation releases as an honest unresolved report to prevent an infinite
+loop.
+
 Claude discovery checks `CLAUDE_CODE_EXECUTABLE`, `claude` on `PATH`, and
 common Windows, macOS, and Linux locations. The discovered installation must
 contain every required event and blocking/additional-context contract.

@@ -450,7 +450,7 @@ Claude Code exposes the main lifecycle controls directly:
 | `--k` | `20` | Traces between later refinements |
 | `--refinement-stops` | off | Block while refinement runs |
 | `--advanced-refinement` | off | Add judge-guided refinement repair |
-| `--max-retries` | `3` | Final-gate repair limit |
+| `--max-retries` | `3` | Completed final-gate repair opportunities before honest unresolved release |
 | `--failure-throttle-calls` | `5` | Minimum tool calls between reactive nudges |
 | `--failure-recency-seconds` | `30` | Time-based duplicate-nudge suppression |
 | `--no-dashboard` | off | Let an outer application own dashboard lifecycle |
@@ -526,7 +526,7 @@ model execution, and trace collection.
 |---|---|
 | Reflection ran | ✅ Shape is machine-checked |
 | At least one code has evidence, or `none apply` is justified | ✅ Machine-checked |
-| Final repair loop respects the retry limit | ✅ Machine-checked |
+| Each repair receives a fresh reflection and the completed-repair limit is respected | ✅ Machine-checked |
 | Claude Code completion can be blocked | ✅ Through blocking hooks |
 | Reactive tool-failure nudge is mandatory | ❌ Advisory only |
 | Reflection is genuinely insightful | ❌ Content quality is not mechanically knowable |
@@ -613,7 +613,6 @@ oldest file is more than 90 days old.
 | [`finding/`](finding/) | Taxonomy selection, MAST, store, and picker |
 | [`vendor/atlas/`](vendor/atlas/) | Vendored upstream eight-stage ATLAS generator |
 | [`tests/`](tests/) | Unit, integration, lifecycle, and packaging coverage |
-| [`officeqa/`](officeqa/) | Optional Claude Code benchmark runner |
 
 ---
 
