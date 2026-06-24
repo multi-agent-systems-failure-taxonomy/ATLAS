@@ -28,6 +28,13 @@ from finding import store
 from vendor.atlas import generate_taxonomy as upstream_generate_taxonomy
 from vendor.atlas import load_traces
 
+from .config import (
+    add_config_argument,
+    bool_config_value,
+    config_value,
+    load_atlas_config,
+    require_config_value,
+)
 from .generation import candidate_from_atlas
 from .learning_calls import outcome_blind_trace
 from .reflection_refinement import RefinementSummary, refine_with_reflection_judge
@@ -309,17 +316,18 @@ def main(argv=None) -> int:
             "Generate and store an inheritable ATLAS taxonomy from user traces."
         )
     )
+    add_config_argument(parser)
     parser.add_argument("--traces", required=True)
-    parser.add_argument("--atlas-model", required=True)
-    parser.add_argument("--store-dir", default=store.DEFAULT_STORE_DIR)
-    parser.add_argument("--trace-root", default=DEFAULT_TRACE_ROOT)
+    parser.add_argument("--atlas-model")
+    parser.add_argument("--store-dir")
+    parser.add_argument("--trace-root")
     parser.add_argument("--repo")
     parser.add_argument("--repo-path")
     parser.add_argument("--max-codes", type=int, default=0)
     parser.add_argument(
         "--skip-judge",
-        action="store_true",
-        default=False,
+        action=argparse.BooleanOptionalAction,
+        default=None,
         help=(
             "skip the Reflection Judge + refiner step at the end of "
             "generation. Generated taxonomies are then accepted on "
@@ -330,15 +338,18 @@ def main(argv=None) -> int:
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args(argv)
     try:
+        config = load_atlas_config(args.config)
         result = generate_imported_taxonomy(
             args.traces,
-            atlas_model=args.atlas_model,
-            store_dir=args.store_dir,
-            trace_root=args.trace_root,
-            repo=args.repo,
-            repo_path=args.repo_path,
+            atlas_model=require_config_value(
+                args, config, "atlas_model", "--atlas-model"
+            ),
+            store_dir=config_value(args, config, "store_dir", store.DEFAULT_STORE_DIR),
+            trace_root=config_value(args, config, "trace_root", DEFAULT_TRACE_ROOT),
+            repo=config_value(args, config, "repo"),
+            repo_path=config_value(args, config, "repo_path"),
             max_codes=args.max_codes,
-            skip_judge=args.skip_judge,
+            skip_judge=bool_config_value(args, config, "skip_judge", False),
             save_intermediate=not args.no_intermediate,
             verbose=not args.quiet,
         )

@@ -14,6 +14,7 @@ from typing import Iterable
 
 from finding import store
 
+from .config import add_config_argument, config_value, load_atlas_config
 from .models import is_anthropic_model, is_bedrock_model, resolve_model_profile
 from .traces import DEFAULT_TRACE_ROOT
 
@@ -227,8 +228,9 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         description="Check atlas-skill installation, storage, model, and optional integrations."
     )
-    parser.add_argument("--store-dir", default=store.DEFAULT_STORE_DIR)
-    parser.add_argument("--trace-root", default=DEFAULT_TRACE_ROOT)
+    add_config_argument(parser)
+    parser.add_argument("--store-dir")
+    parser.add_argument("--trace-root")
     parser.add_argument("--trace-output")
     parser.add_argument("--atlas-model")
     parser.add_argument(
@@ -243,12 +245,17 @@ def main(argv=None) -> int:
     )
     parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     args = parser.parse_args(argv)
+    try:
+        config = load_atlas_config(args.config)
+    except Exception as exc:  # noqa: BLE001
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
 
     checks = run_checks(
-        store_dir=args.store_dir,
-        trace_root=args.trace_root,
-        trace_output=args.trace_output,
-        atlas_model=args.atlas_model,
+        store_dir=config_value(args, config, "store_dir", store.DEFAULT_STORE_DIR),
+        trace_root=config_value(args, config, "trace_root", DEFAULT_TRACE_ROOT),
+        trace_output=config_value(args, config, "trace_output"),
+        atlas_model=config_value(args, config, "atlas_model"),
         claude_code=args.claude_code,
         dashboard_port=args.dashboard_port,
     )

@@ -11,6 +11,7 @@ sit on top of this layer.
 | File | Purpose |
 |---|---|
 | [`__init__.py`](__init__.py) | Public API exports for the runtime package |
+| [`config.py`](config.py) | Shared `atlas.json` loader, validation, path normalization, and CLI/config precedence helpers |
 | [`dashboard.py`](dashboard.py) | Persistent localhost web dashboard showing the program's current taxonomy + live runtime evidence |
 | [`doctor.py`](doctor.py) | `atlas-doctor` CLI: read/write storage checks, model recognition, credential hints, optional Claude/dashboard checks |
 | [`generation.py`](generation.py) | MAST → generated-taxonomy transition: trigger, run, refine via reflection judge, register + activate |

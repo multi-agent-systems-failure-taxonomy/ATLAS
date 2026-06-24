@@ -27,6 +27,7 @@ from .lifecycle import (
     record_trace,
     start_session,
 )
+from .config import load_atlas_config
 from .protocol import GateDecision, evaluate_pre_submission, render_protocol
 from .generation import GenerationResult
 from .program import ProgramConflict, ProgramWorkspace
@@ -72,6 +73,7 @@ __all__ = [
     "pre_submission",
     "record_trace",
     "render_protocol",
+    "load_atlas_config",
     "redact_text",
     "redact_trace",
     "start_session",

@@ -12,6 +12,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Iterable
 
+from .config import add_config_argument, config_value, load_atlas_config
 from .traces import DEFAULT_TRACE_ROOT, GenerationTrace, RetentionPolicy, TraceStore
 
 _SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
@@ -177,14 +178,16 @@ def main(argv=None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
 
     status = sub.add_parser("status", help="show trace collection sizes and retention warnings")
-    status.add_argument("--trace-root", default=DEFAULT_TRACE_ROOT)
+    add_config_argument(status)
+    status.add_argument("--trace-root")
     status.add_argument("--trace-output", help="include a program's pending trace folder")
     status.add_argument("--max-total-records", type=int, default=10_000)
     status.add_argument("--max-age-days", type=int, default=90)
     status.add_argument("--json", action="store_true")
 
     prune = sub.add_parser("prune", help="delete old trace files; dry-run unless --yes")
-    prune.add_argument("--trace-root", default=DEFAULT_TRACE_ROOT)
+    add_config_argument(prune)
+    prune.add_argument("--trace-root")
     prune.add_argument("--taxonomy-id")
     prune.add_argument("--trace-output", help="also consider this program's pending traces")
     prune.add_argument("--older-than-days", type=float, required=True)
@@ -192,16 +195,18 @@ def main(argv=None) -> int:
     prune.add_argument("--json", action="store_true")
 
     export = sub.add_parser("export", help="write one taxonomy's traces as JSONL")
-    export.add_argument("--trace-root", default=DEFAULT_TRACE_ROOT)
+    add_config_argument(export)
+    export.add_argument("--trace-root")
     export.add_argument("--taxonomy-id", required=True)
     export.add_argument("--output", type=Path, help="output JSONL file; defaults to stdout")
 
     args = parser.parse_args(argv)
     try:
+        config = load_atlas_config(args.config)
         if args.command == "status":
             rows = collection_status(
-                trace_root=args.trace_root,
-                trace_output=args.trace_output,
+                trace_root=config_value(args, config, "trace_root", DEFAULT_TRACE_ROOT),
+                trace_output=config_value(args, config, "trace_output"),
                 policy=RetentionPolicy(
                     max_total_records=args.max_total_records,
                     max_age_days=args.max_age_days,
@@ -214,9 +219,9 @@ def main(argv=None) -> int:
             return 0
         if args.command == "prune":
             result = prune_traces(
-                trace_root=args.trace_root,
+                trace_root=config_value(args, config, "trace_root", DEFAULT_TRACE_ROOT),
                 taxonomy_id=args.taxonomy_id,
-                include_pending=args.trace_output,
+                include_pending=config_value(args, config, "trace_output"),
                 older_than_days=args.older_than_days,
                 confirm=args.yes,
             )
@@ -230,7 +235,10 @@ def main(argv=None) -> int:
                 )
             return 0
         if args.command == "export":
-            records = export_traces(args.taxonomy_id, trace_root=args.trace_root)
+            records = export_traces(
+                args.taxonomy_id,
+                trace_root=config_value(args, config, "trace_root", DEFAULT_TRACE_ROOT),
+            )
             count = _write_jsonl(records, args.output)
             if args.output is not None:
                 print(f"Exported {count} trace(s) to {args.output}")

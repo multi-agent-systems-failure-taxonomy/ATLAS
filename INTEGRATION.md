@@ -100,9 +100,8 @@ selection.
 
 ## Runtime configuration surface
 
-There is not yet a package-level `atlas.json` parser. For now, each harness
-should expose or store these values in whatever configuration system it
-already owns:
+ATLAS supports a dependency-free `atlas.json` config file for shared runtime
+values:
 
 ```json
 {
@@ -123,12 +122,26 @@ already owns:
 }
 ```
 
-Recommended rule: config supplies defaults; explicit CLI/API arguments win.
+Relative paths are resolved relative to the config file. Unknown fields are
+rejected so spelling mistakes fail loudly. Explicit CLI/API arguments win over
+config-file values.
+
+Supported operational CLIs:
+
+- `atlas-claude-install --config atlas.json`
+- `atlas-single-run --config atlas.json`
+- `atlas-import-traces --config atlas.json`
+- `atlas-register-taxonomy --config atlas.json`
+- `atlas-doctor --config atlas.json`
+- `atlas-traces status|export|prune --config atlas.json`
+
+Custom harnesses can load the same file with `atlas_runtime.load_atlas_config`.
 
 Use `atlas-doctor` in installation flows to verify the resolved values:
 
 ```bash
 atlas-doctor \
+  --config atlas.json \
   --trace-output ./atlas-program \
   --atlas-model gpt-5 \
   --dashboard-port 0

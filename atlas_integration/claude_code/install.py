@@ -12,6 +12,13 @@ import subprocess
 import sys
 from pathlib import Path
 
+from atlas_runtime.config import (
+    add_config_argument,
+    bool_config_value,
+    config_value,
+    load_atlas_config,
+    require_config_value,
+)
 from finding import resolver, store, webview
 
 from .config import ClaudeCodeConfig, CustomHookSpec
@@ -313,9 +320,10 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         description="Install the project-local ATLAS Claude Code runtime skin."
     )
-    parser.add_argument("--project-dir", default=".")
-    parser.add_argument("--trace-output", required=True)
-    parser.add_argument("--atlas-model", required=True)
+    add_config_argument(parser)
+    parser.add_argument("--project-dir")
+    parser.add_argument("--trace-output")
+    parser.add_argument("--atlas-model")
     parser.add_argument("--store-dir")
     parser.add_argument("--trace-root")
     parser.add_argument(
@@ -327,38 +335,39 @@ def main(argv=None) -> int:
             "taxonomy picker"
         ),
     )
-    parser.add_argument("--max-retries", type=int, default=3)
-    parser.add_argument("--generation-threshold", type=int, default=5)
+    parser.add_argument("--max-retries", type=int)
+    parser.add_argument("--generation-threshold", type=int)
     parser.add_argument(
         "--generation-stops",
         action=argparse.BooleanOptionalAction,
-        default=False,
+        default=None,
     )
     parser.add_argument(
         "--skip-judge",
-        action="store_true",
-        default=False,
+        action=argparse.BooleanOptionalAction,
+        default=None,
         help=(
             "skip the Reflection Judge + refiner step at the end of "
             "generation. Generated taxonomies are then accepted on "
             "structural validity alone"
         ),
     )
-    parser.add_argument("--k-init", type=int, default=10)
-    parser.add_argument("--k", type=int, default=20)
+    parser.add_argument("--k-init", type=int)
+    parser.add_argument("--k", type=int)
     parser.add_argument(
         "--refinement-stops",
         action=argparse.BooleanOptionalAction,
-        default=False,
+        default=None,
     )
     parser.add_argument(
         "--advanced-refinement",
         action=argparse.BooleanOptionalAction,
-        default=False,
+        default=None,
     )
-    parser.add_argument("--failure-throttle-calls", type=int, default=5)
-    parser.add_argument("--failure-recency-seconds", type=int, default=30)
-    parser.add_argument("--no-dashboard", action="store_true")
+    parser.add_argument("--failure-throttle-calls", type=int)
+    parser.add_argument("--failure-recency-seconds", type=int)
+    parser.add_argument("--dashboard", dest="dashboard", action="store_true", default=None)
+    parser.add_argument("--no-dashboard", dest="dashboard", action="store_false")
     parser.add_argument("--openai-base-url")
     parser.add_argument(
         "--openai-api-key-env",
@@ -385,27 +394,40 @@ def main(argv=None) -> int:
         ),
     )
     args = parser.parse_args(argv)
+    try:
+        config = load_atlas_config(args.config)
+        atlas_model = str(require_config_value(
+            args, config, "atlas_model", "--atlas-model"
+        ))
+        trace_output = Path(require_config_value(
+            args, config, "trace_output", "--trace-output"
+        )).resolve()
+    except Exception as exc:  # noqa: BLE001
+        parser.error(str(exc))
     if args.traces and args.inherit is not None:
         parser.error("--traces and --inherit are mutually exclusive")
-    inherit = args.inherit
+    inherit = args.inherit if args.inherit is not None else config.get("inherit")
+    store_dir_value = config_value(args, config, "store_dir")
+    trace_root_value = config_value(args, config, "trace_root")
+    skip_judge = bool_config_value(args, config, "skip_judge", False)
     if args.traces:
         # Compose: import traces -> get a taxonomy_id -> use as --inherit.
         from atlas_runtime.import_generation import generate_imported_taxonomy
 
         resolved_store_dir = (
-            Path(args.store_dir).resolve()
-            if args.store_dir
+            Path(store_dir_value).resolve()
+            if store_dir_value
             else store.DEFAULT_STORE_DIR
         )
         resolved_trace_root = (
-            Path(args.trace_root).resolve()
-            if args.trace_root
+            Path(trace_root_value).resolve()
+            if trace_root_value
             else None
         )
         import_kwargs: dict[str, Any] = {
-            "atlas_model": args.atlas_model,
+            "atlas_model": atlas_model,
             "store_dir": resolved_store_dir,
-            "skip_judge": args.skip_judge,
+            "skip_judge": skip_judge,
             "verbose": True,
         }
         if resolved_trace_root is not None:
@@ -420,45 +442,45 @@ def main(argv=None) -> int:
         selected = resolver.resolve(
             resolver.NO_ID,
             store_dir=(
-                Path(args.store_dir).resolve()
-                if args.store_dir
+                Path(store_dir_value).resolve()
+                if store_dir_value
                 else None
             ) or store.DEFAULT_STORE_DIR,
             launcher=webview.run_webview,
         )
         inherit = None if selected == resolver.NONE else selected
     fields = {
-        "trace_output": Path(args.trace_output).resolve(),
-        "atlas_model": args.atlas_model,
+        "trace_output": trace_output,
+        "atlas_model": atlas_model,
         "inherit": inherit,
-        "max_retries": args.max_retries,
-        "generation_threshold": args.generation_threshold,
-        "generation_stops": args.generation_stops,
-        "skip_judge": args.skip_judge,
-        "k_init": args.k_init,
-        "k": args.k,
-        "refinement_stops": args.refinement_stops,
-        "advanced_refinement": args.advanced_refinement,
-        "failure_throttle_calls": args.failure_throttle_calls,
-        "failure_recency_seconds": args.failure_recency_seconds,
-        "dashboard": not args.no_dashboard,
-        "openai_base_url": args.openai_base_url,
-        "openai_api_key_env": args.openai_api_key_env,
+        "max_retries": config_value(args, config, "max_retries", 3),
+        "generation_threshold": config_value(args, config, "generation_threshold", 5),
+        "generation_stops": bool_config_value(args, config, "generation_stops", False),
+        "skip_judge": skip_judge,
+        "k_init": config_value(args, config, "k_init", 10),
+        "k": config_value(args, config, "k", 20),
+        "refinement_stops": bool_config_value(args, config, "refinement_stops", False),
+        "advanced_refinement": bool_config_value(args, config, "advanced_refinement", False),
+        "failure_throttle_calls": config_value(args, config, "failure_throttle_calls", 5),
+        "failure_recency_seconds": config_value(args, config, "failure_recency_seconds", 30),
+        "dashboard": bool_config_value(args, config, "dashboard", True),
+        "openai_base_url": config_value(args, config, "openai_base_url"),
+        "openai_api_key_env": config_value(args, config, "openai_api_key_env"),
     }
-    if args.store_dir:
-        fields["store_dir"] = Path(args.store_dir).resolve()
-    if args.trace_root:
-        fields["trace_root"] = Path(args.trace_root).resolve()
+    if store_dir_value:
+        fields["store_dir"] = Path(store_dir_value).resolve()
+    if trace_root_value:
+        fields["trace_root"] = Path(trace_root_value).resolve()
     result = install(
-        args.project_dir,
+        config_value(args, config, "project_dir", "."),
         ClaudeCodeConfig(**fields),
         migrate_legacy_global=args.migrate_legacy_global,
     )
     # Make the learning cadence honest at install time so single-run users
     # don't expect taxonomy improvement that will never fire from one trace.
     print(
-        f"Learning thresholds: generation at {args.generation_threshold} traces, "
-        f"refinement at K_init={args.k_init} / K={args.k}. With fewer traces, "
+        f"Learning thresholds: generation at {fields['generation_threshold']} traces, "
+        f"refinement at K_init={fields['k_init']} / K={fields['k']}. With fewer traces, "
         f"the active taxonomy stays static.",
         file=sys.stderr,
     )

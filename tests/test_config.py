@@ -1,0 +1,266 @@
+"""Shared atlas.json configuration tests."""
+
+from __future__ import annotations
+
+import json
+import io
+import subprocess
+import sys
+import tempfile
+import unittest
+from contextlib import redirect_stderr, redirect_stdout
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+
+from atlas_runtime.config import config_value, load_atlas_config
+
+
+class AtlasConfigTests(unittest.TestCase):
+    def test_loads_and_normalizes_relative_paths(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            config_path = root / "atlas.json"
+            config_path.write_text(
+                json.dumps({
+                    "version": 1,
+                    "trace_output": "program",
+                    "trace_root": "traces",
+                    "store_dir": "taxonomies",
+                    "atlas_model": "gpt-5",
+                    "dashboard": False,
+                }),
+                encoding="utf-8",
+            )
+            config = load_atlas_config(config_path)
+        self.assertEqual(config["trace_output"], (root / "program").resolve())
+        self.assertEqual(config["trace_root"], (root / "traces").resolve())
+        self.assertEqual(config["store_dir"], (root / "taxonomies").resolve())
+        self.assertEqual(config["atlas_model"], "gpt-5")
+        self.assertFalse(config["dashboard"])
+
+    def test_unknown_field_is_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "atlas.json"
+            path.write_text(json.dumps({"trace_outpt": "typo"}), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "unknown ATLAS config field"):
+                load_atlas_config(path)
+
+    def test_explicit_cli_value_wins_over_config(self):
+        args = SimpleNamespace(trace_output=Path("cli-program"))
+        config = {"trace_output": Path("config-program")}
+        self.assertEqual(config_value(args, config, "trace_output"), Path("cli-program"))
+
+    def test_doctor_cli_reads_config_file(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            config_path = root / "atlas.json"
+            config_path.write_text(
+                json.dumps({
+                    "trace_output": "program",
+                    "trace_root": "traces",
+                    "store_dir": "taxonomies",
+                    "atlas_model": "gpt-5",
+                }),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "atlas_runtime.doctor",
+                    "--config",
+                    str(config_path),
+                    "--json",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(any(item["name"] == "trace output" for item in payload))
+        self.assertTrue(any(item["name"] == "atlas model" for item in payload))
+
+    def test_traces_status_cli_reads_trace_root_from_config(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            config_path = root / "atlas.json"
+            config_path.write_text(
+                json.dumps({"trace_root": "traces"}),
+                encoding="utf-8",
+            )
+            (root / "traces" / "tax-alpha").mkdir(parents=True)
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "atlas_runtime.traces_cli",
+                    "status",
+                    "--config",
+                    str(config_path),
+                    "--json",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        payload = json.loads(proc.stdout)
+        self.assertEqual(payload[0]["collection"], "tax-alpha")
+
+    def test_single_llm_cli_can_take_required_values_from_config(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            config_path = root / "atlas.json"
+            config_path.write_text(
+                json.dumps({
+                    "model": "gpt-5",
+                    "atlas_model": "gpt-5",
+                    "trace_output": "program",
+                    "trace_root": "traces",
+                    "dashboard": False,
+                }),
+                encoding="utf-8",
+            )
+            fake_result = SimpleNamespace(answer="done")
+            with (
+                patch(
+                    "atlas_integration.single_llm.cli.provider_call",
+                    return_value=lambda _messages: "done",
+                ),
+                patch(
+                    "atlas_integration.single_llm.cli.run_single_llm",
+                    return_value=fake_result,
+                ) as run,
+            ):
+                from atlas_integration.single_llm.cli import main
+
+                with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                    code = main(["--config", str(config_path), "--task", "do it"])
+        self.assertEqual(code, 0)
+        self.assertEqual(run.call_args.args[2].trace_output, (root / "program").resolve())
+
+    def test_claude_install_cli_can_take_required_values_from_config(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            config_path = root / "atlas.json"
+            config_path.write_text(
+                json.dumps({
+                    "project_dir": "project",
+                    "atlas_model": "gpt-5",
+                    "trace_output": "program",
+                    "store_dir": "taxonomies",
+                    "dashboard": False,
+                    "generation_threshold": 9,
+                }),
+                encoding="utf-8",
+            )
+            captured = {}
+
+            def fake_install(project_dir, config, **_kwargs):
+                captured["project_dir"] = Path(project_dir)
+                captured["config"] = config
+                return {}
+
+            with patch(
+                "atlas_integration.claude_code.install.install",
+                side_effect=fake_install,
+            ):
+                from atlas_integration.claude_code.install import main
+
+                with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                    code = main(["--config", str(config_path)])
+        self.assertEqual(code, 0)
+        self.assertEqual(captured["project_dir"], (root / "project").resolve())
+        self.assertEqual(captured["config"].trace_output, (root / "program").resolve())
+        self.assertEqual(captured["config"].generation_threshold, 9)
+        self.assertFalse(captured["config"].dashboard)
+
+    def test_import_traces_cli_uses_config_for_model_and_storage(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            traces = root / "traces.jsonl"
+            traces.write_text(
+                json.dumps({
+                    "problem_id": "p1",
+                    "task": "task",
+                    "raw_trajectory": "trajectory",
+                    "metadata": {},
+                }) + "\n",
+                encoding="utf-8",
+            )
+            config_path = root / "atlas.json"
+            config_path.write_text(
+                json.dumps({
+                    "atlas_model": "gpt-5",
+                    "store_dir": "taxonomies",
+                    "trace_root": "trace-root",
+                }),
+                encoding="utf-8",
+            )
+            fake_result = SimpleNamespace(to_dict=lambda: {"taxonomy_id": "tax-one"})
+            with patch(
+                "atlas_runtime.import_generation.generate_imported_taxonomy",
+                return_value=fake_result,
+            ) as generate:
+                from atlas_runtime.import_generation import main
+
+                with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                    code = main(["--config", str(config_path), "--traces", str(traces)])
+        self.assertEqual(code, 0)
+        self.assertEqual(generate.call_args.kwargs["atlas_model"], "gpt-5")
+        self.assertEqual(generate.call_args.kwargs["store_dir"], (root / "taxonomies").resolve())
+        self.assertEqual(generate.call_args.kwargs["trace_root"], (root / "trace-root").resolve())
+
+    def test_register_taxonomy_cli_uses_config_store_dir(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            taxonomy = root / "taxonomy.json"
+            taxonomy.write_text(
+                json.dumps({
+                    "repo": "",
+                    "domain": "demo",
+                    "codes": [
+                        {
+                            "id": "X.1",
+                            "name": "Example",
+                            "description": "Example failure",
+                            "category": "X",
+                        }
+                    ],
+                }),
+                encoding="utf-8",
+            )
+            config_path = root / "atlas.json"
+            config_path.write_text(
+                json.dumps({"store_dir": "taxonomies"}),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "atlas_runtime.register_taxonomy",
+                    "--config",
+                    str(config_path),
+                    "--file",
+                    str(taxonomy),
+                    "--id",
+                    "tax-configured",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        payload = json.loads(proc.stdout)
+        self.assertEqual(payload["taxonomy_id"], "tax-configured")
+        self.assertEqual(
+            Path(payload["taxonomy_path"]),
+            (root / "taxonomies" / "tax-configured.json").resolve(),
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

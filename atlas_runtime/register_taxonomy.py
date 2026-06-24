@@ -43,6 +43,11 @@ from typing import Any, Callable, Iterable
 from finding import store
 from vendor.atlas import load_traces
 
+from .config import (
+    add_config_argument,
+    config_value,
+    load_atlas_config,
+)
 from .generation import candidate_from_atlas
 from .reflection_refinement import RefinementSummary, refine_with_reflection_judge
 from .repository import discover_repo
@@ -339,6 +344,7 @@ def main(argv=None) -> int:
             "directories of *.json) for batch registration."
         ),
     )
+    add_config_argument(parser)
     parser.add_argument(
         "--file",
         action="append",
@@ -350,12 +356,10 @@ def main(argv=None) -> int:
     )
     parser.add_argument(
         "--store-dir",
-        default=str(store.DEFAULT_STORE_DIR),
         help="taxonomy store directory (default: $ATLAS_HOME/taxonomies/)",
     )
     parser.add_argument(
         "--trace-root",
-        default=str(DEFAULT_TRACE_ROOT),
         help="trace root used only when --traces is supplied",
     )
     parser.add_argument("--repo", help="display-only repository label")
@@ -390,6 +394,16 @@ def main(argv=None) -> int:
              "continuing through the remaining files",
     )
     args = parser.parse_args(argv)
+    try:
+        config = load_atlas_config(args.config)
+    except Exception as exc:  # noqa: BLE001
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+    store_dir = config_value(args, config, "store_dir", store.DEFAULT_STORE_DIR)
+    trace_root = config_value(args, config, "trace_root", DEFAULT_TRACE_ROOT)
+    repo = config_value(args, config, "repo")
+    repo_path = config_value(args, config, "repo_path")
+    atlas_model = config_value(args, config, "atlas_model")
 
     paths = _expand_paths(args.file)
     if not paths:
@@ -410,9 +424,9 @@ def main(argv=None) -> int:
         if is_batch:
             results = register_taxonomy_files(
                 paths,
-                store_dir=args.store_dir,
-                repo=args.repo,
-                repo_path=args.repo_path,
+                store_dir=store_dir,
+                repo=repo,
+                repo_path=repo_path,
                 domain=args.domain,
                 replace=args.replace,
                 continue_on_error=not args.stop_on_error,
@@ -431,15 +445,15 @@ def main(argv=None) -> int:
         else:
             result = register_taxonomy_file(
                 paths[0],
-                store_dir=args.store_dir,
-                trace_root=args.trace_root,
-                repo=args.repo,
-                repo_path=args.repo_path,
+                store_dir=store_dir,
+                trace_root=trace_root,
+                repo=repo,
+                repo_path=repo_path,
                 domain=args.domain,
                 taxonomy_id=args.taxonomy_id,
                 replace=args.replace,
                 traces=args.traces,
-                atlas_model=args.atlas_model,
+                atlas_model=atlas_model,
             )
             print(json.dumps(result.to_dict(), indent=2))
             return 0

@@ -6,7 +6,7 @@
 [![Claude Code](https://img.shields.io/badge/Claude_Code-blocking_hooks-D97757)](atlas_integration/claude_code/README.md)
 [![Runtime](https://img.shields.io/badge/runtime-harness_neutral-7C3AED)](atlas_runtime/)
 [![Taxonomy](https://img.shields.io/badge/taxonomy-dynamic_at_checkpoints-0EA5E9)](finding/mast.json)
-[![Tests](https://img.shields.io/badge/tests-243_passing-16A34A)](tests/)
+[![Tests](https://img.shields.io/badge/tests-252_passing-16A34A)](tests/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 ---
@@ -118,6 +118,9 @@ The installation provides:
 | `atlas-dashboard` | Open the live taxonomy dashboard |
 | `atlas-doctor` | Check installation, writable storage, model recognition, credentials, and optional integrations |
 | `atlas-traces` | Inspect, export, and conservatively prune stored trace files |
+
+Most operational CLIs accept `--config path/to/atlas.json`. Explicit CLI
+arguments override config-file values.
 
 ### Bringing your own taxonomy
 
@@ -435,7 +438,42 @@ second time.
 
 ## 🎛️ Configuration
 
-Claude Code exposes the main lifecycle controls directly:
+Use `atlas.json` when you want repeatable installs or several commands sharing
+the same paths/model:
+
+```json
+{
+  "version": 1,
+  "trace_output": "./atlas-program",
+  "atlas_model": "gpt-5",
+  "store_dir": "~/.atlas-skill/taxonomies",
+  "trace_root": "~/.atlas-skill/traces",
+  "inherit": null,
+  "generation_threshold": 5,
+  "generation_stops": false,
+  "skip_judge": false,
+  "k_init": 10,
+  "k": 20,
+  "refinement_stops": false,
+  "advanced_refinement": false,
+  "max_retries": 3,
+  "dashboard": true
+}
+```
+
+Supported shared fields include `trace_output`, `atlas_model`, `store_dir`,
+`trace_root`, `inherit`, `repo`, `repo_path`, `generation_threshold`,
+`generation_stops`, `skip_judge`, `k_init`, `k`, `refinement_stops`,
+`advanced_refinement`, `max_retries`, `dashboard`, `openai_base_url`,
+`openai_api_key_env`, and the single-LLM task `model`.
+
+Relative paths are resolved relative to the config file. Unknown fields are
+rejected so typos do not silently change a run. These commands currently read
+`--config`: `atlas-claude-install`, `atlas-single-run`,
+`atlas-import-traces`, `atlas-register-taxonomy`, `atlas-doctor`, and
+`atlas-traces`.
+
+Claude Code also exposes the main lifecycle controls directly:
 
 | Option | Default | Effect |
 |---|---:|---|
@@ -568,7 +606,7 @@ surfaced at runtime checkpoints.
 python -m pytest -q
 ```
 
-The current release includes **243 passing tests** covering:
+The current release includes **252 passing tests** covering:
 
 - taxonomy finding and interactive selection;
 - MAST fallback and canonical schema;
@@ -581,7 +619,8 @@ The current release includes **243 passing tests** covering:
 - imported-trace taxonomy generation;
 - install/uninstall behavior and writable storage defaults;
 - direct single-LLM checkpoints and repairs.
-- install health checks, trace management, and trace redaction helpers.
+- install health checks, trace management, trace redaction helpers, and
+  shared `atlas.json` config support.
 
 ---
 

@@ -7,6 +7,13 @@ import os
 import sys
 from pathlib import Path
 
+from atlas_runtime.config import (
+    add_config_argument,
+    bool_config_value,
+    config_value,
+    load_atlas_config,
+    require_config_value,
+)
 from finding import resolver, store, webview
 
 from .runtime import SingleLLMConfig, run_single_llm
@@ -66,11 +73,12 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         description="Run one LLM agent task through ATLAS without a harness."
     )
+    add_config_argument(parser)
     parser.add_argument("--task")
     parser.add_argument("--task-file")
-    parser.add_argument("--model", required=True)
+    parser.add_argument("--model")
     parser.add_argument("--atlas-model")
-    parser.add_argument("--trace-output", required=True)
+    parser.add_argument("--trace-output")
     parser.add_argument("--store-dir")
     parser.add_argument("--trace-root")
     parser.add_argument(
@@ -83,21 +91,30 @@ def main(argv=None) -> int:
         ),
     )
     parser.add_argument("--problem-id")
-    parser.add_argument("--no-dashboard", action="store_true")
+    parser.add_argument("--dashboard", dest="dashboard", action="store_true", default=None)
+    parser.add_argument("--no-dashboard", dest="dashboard", action="store_false")
     args = parser.parse_args(argv)
+    try:
+        config = load_atlas_config(args.config)
+    except Exception as exc:  # noqa: BLE001
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
     if bool(args.task) == bool(args.task_file):
         parser.error("provide exactly one of --task or --task-file")
+    try:
+        model = str(require_config_value(args, config, "model", "--model"))
+        trace_output = Path(
+            require_config_value(args, config, "trace_output", "--trace-output")
+        ).resolve()
+    except ValueError as exc:
+        parser.error(str(exc))
     task = (
         args.task
         if args.task is not None
         else Path(args.task_file).read_text(encoding="utf-8")
     )
-    store_dir = (
-        Path(args.store_dir).resolve()
-        if args.store_dir
-        else store.DEFAULT_STORE_DIR
-    )
-    inherit = args.inherit
+    store_dir = config_value(args, config, "store_dir", store.DEFAULT_STORE_DIR)
+    inherit = args.inherit if args.inherit is not None else config.get("inherit")
     if inherit == resolver.NO_ID:
         selected = resolver.resolve(
             resolver.NO_ID,
@@ -106,19 +123,20 @@ def main(argv=None) -> int:
         )
         inherit = None if selected == resolver.NONE else selected
     fields = {
-        "trace_output": Path(args.trace_output).resolve(),
-        "atlas_model": args.atlas_model or args.model,
+        "trace_output": trace_output,
+        "atlas_model": config_value(args, config, "atlas_model", model),
         "inherit": inherit,
-        "dashboard": not args.no_dashboard,
+        "dashboard": bool_config_value(args, config, "dashboard", True),
     }
-    if args.store_dir:
-        fields["store_dir"] = store_dir
-    if args.trace_root:
-        fields["trace_root"] = Path(args.trace_root).resolve()
+    if store_dir:
+        fields["store_dir"] = Path(store_dir).resolve()
+    trace_root = config_value(args, config, "trace_root")
+    if trace_root:
+        fields["trace_root"] = Path(trace_root).resolve()
     try:
         result = run_single_llm(
             task,
-            provider_call(args.model),
+            provider_call(model),
             SingleLLMConfig(**fields),
             problem_id=args.problem_id,
         )

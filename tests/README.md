@@ -11,6 +11,7 @@ fixtures (under [`fixtures/`](fixtures/)) — no live LLM calls.
 | [`__init__.py`](__init__.py) | Test-package marker + shared defaults |
 | [`test_claude_code_integration.py`](test_claude_code_integration.py) | Claude Code runtime skin: hooks, install/uninstall, config round-trip, transcript handling |
 | [`test_cli.py`](test_cli.py) | `atlas-find` CLI: stdout/exit-code wiring for the three `--inherit` forms |
+| [`test_config.py`](test_config.py) | Shared `atlas.json` config loading, validation, precedence, and CLI wiring |
 | [`test_dashboard.py`](test_dashboard.py) | Persistent live taxonomy dashboard (HTTP server, refresh, stop semantics) |
 | [`test_doctor.py`](test_doctor.py) | `atlas-doctor` health checks for storage, model recognition, JSON output, and error status |
 | [`test_generation_lifecycle.py`](test_generation_lifecycle.py) | MAST → generated-taxonomy lifecycle: warm-up threshold, blocking vs background, rejection paths |
