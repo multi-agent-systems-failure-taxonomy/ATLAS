@@ -65,6 +65,7 @@ class Session:
     generation_stops: bool
     atlas_model: str | None
     taxonomy_check: bool
+    skip_judge: bool
     k_init: int
     k: int
     refinement_stops: bool
@@ -95,6 +96,7 @@ def start_session(
     generation_stops: bool = False,
     atlas_model: str | None = None,
     taxonomy_check: bool = True,
+    skip_judge: bool = False,
     k_init: int = DEFAULT_K_INIT,
     k: int = DEFAULT_K,
     refinement_stops: bool = False,
@@ -170,6 +172,7 @@ def start_session(
         generation_stops=generation_stops,
         atlas_model=atlas_model or workspace.load().get("atlas_model"),
         taxonomy_check=taxonomy_check,
+        skip_judge=skip_judge,
         k_init=k_init,
         k=k,
         refinement_stops=refinement_stops,
@@ -249,6 +252,7 @@ def end_session(
             approver=approver,
             atlas_model=session.atlas_model,
             taxonomy_check=session.taxonomy_check,
+            skip_judge=session.skip_judge,
             judge_call=judge_call,
             background_launcher=background_launcher,
         )

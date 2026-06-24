@@ -65,12 +65,18 @@ def generate_imported_taxonomy(
     repo_path: Path | str | None = None,
     max_codes: int = 0,
     taxonomy_check: bool = True,
+    skip_judge: bool = False,
     save_intermediate: bool = True,
     verbose: bool = True,
     generator: Generator | None = None,
     judge_call: JudgeCall | None = None,
 ) -> ImportedTaxonomyResult:
-    """Generate, validate, and register a dormant taxonomy for later inheritance."""
+    """Generate, validate, and register a dormant taxonomy for later inheritance.
+
+    ``skip_judge=True`` bypasses the post-generation Selection Judge check
+    regardless of ``taxonomy_check``. Reserved for the future end-of-generation
+    reflection-judge refinement path too.
+    """
     if not str(atlas_model).strip():
         raise ValueError("atlas_model is required")
     if max_codes < 0:
@@ -111,7 +117,7 @@ def generate_imported_taxonomy(
             canonical,
             candidate,
             atlas_model=atlas_model,
-            enabled=taxonomy_check,
+            enabled=taxonomy_check and not skip_judge,
             judge_call=judge_call,
         )
         if not check.accepted:
@@ -325,6 +331,16 @@ def main(argv=None) -> int:
         action=argparse.BooleanOptionalAction,
         default=True,
     )
+    parser.add_argument(
+        "--skip-judge",
+        action="store_true",
+        default=False,
+        help=(
+            "skip the judge + refinement step at the end of generation. "
+            "Overrides --taxonomy-check and also bypasses reflection-judge "
+            "refinement when that path is wired in"
+        ),
+    )
     parser.add_argument("--no-intermediate", action="store_true")
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args(argv)
@@ -338,6 +354,7 @@ def main(argv=None) -> int:
             repo_path=args.repo_path,
             max_codes=args.max_codes,
             taxonomy_check=args.taxonomy_check,
+            skip_judge=args.skip_judge,
             save_intermediate=not args.no_intermediate,
             verbose=not args.quiet,
         )

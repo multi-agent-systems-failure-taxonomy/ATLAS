@@ -25,6 +25,7 @@ class ClaudeCodeConfig:
     generation_threshold: int = 5
     generation_stops: bool = False
     taxonomy_check: bool = True
+    skip_judge: bool = False
     k_init: int = 10
     k: int = 20
     refinement_stops: bool = False
@@ -97,6 +98,7 @@ class ClaudeCodeConfig:
             ),
             generation_stops=bool(data.get("generation_stops", False)),
             taxonomy_check=bool(data.get("taxonomy_check", True)),
+            skip_judge=bool(data.get("skip_judge", False)),
             k_init=max(1, int(data.get("k_init", 10))),
             k=max(1, int(data.get("k", 20))),
             refinement_stops=bool(data.get("refinement_stops", False)),
@@ -126,6 +128,7 @@ class ClaudeCodeConfig:
             "generation_threshold": self.generation_threshold,
             "generation_stops": self.generation_stops,
             "taxonomy_check": self.taxonomy_check,
+            "skip_judge": self.skip_judge,
             "k_init": self.k_init,
             "k": self.k,
             "refinement_stops": self.refinement_stops,

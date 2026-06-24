@@ -65,6 +65,7 @@ class SingleLLMConfig:
     repo_path: Path | None = None
     generation_stops: bool = False
     taxonomy_check: bool = True
+    skip_judge: bool = False
     refinement_stops: bool = False
     advanced_refinement: bool = False
 
@@ -103,6 +104,7 @@ def run_single_llm(
         repo_path=config.repo_path,
         generation_stops=config.generation_stops,
         taxonomy_check=config.taxonomy_check,
+        skip_judge=config.skip_judge,
         refinement_stops=config.refinement_stops,
         advanced_refinement=config.advanced_refinement,
     )

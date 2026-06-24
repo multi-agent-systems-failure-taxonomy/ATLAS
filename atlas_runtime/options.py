@@ -18,6 +18,7 @@ class RuntimeOptions:
     refinement_stops: bool = False
     advanced_refinement: bool = False
     taxonomy_check: bool = True
+    skip_judge: bool = False
 
 
 def add_runtime_arguments(parser: argparse.ArgumentParser) -> None:
@@ -54,6 +55,18 @@ def add_runtime_arguments(parser: argparse.ArgumentParser) -> None:
         action=argparse.BooleanOptionalAction,
         default=True,
         help="judge generated taxonomies before acceptance (default: true)",
+    )
+    parser.add_argument(
+        "--skip-judge",
+        "--skip_judge",
+        dest="skip_judge",
+        action="store_true",
+        default=False,
+        help=(
+            "skip the judge + refinement step at the end of generation. "
+            "Overrides --taxonomy-check and also bypasses reflection-judge "
+            "refinement when that path is wired in"
+        ),
     )
     parser.add_argument(
         "--refinement-stops",
@@ -98,4 +111,5 @@ def parse_runtime_args(args: Sequence[str]) -> RuntimeOptions:
         refinement_stops=parsed.refinement_stops,
         advanced_refinement=parsed.advanced_refinement,
         taxonomy_check=parsed.taxonomy_check,
+        skip_judge=parsed.skip_judge,
     )

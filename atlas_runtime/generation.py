@@ -19,7 +19,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Iterable, Sequence
 
 from finding import store
 
@@ -29,8 +29,10 @@ from .taxonomy_check import JudgeCall, check_taxonomy, latest_snapshot_count
 from .traces import DEFAULT_TRACE_ROOT, GenerationTrace, TraceStore
 
 DEFAULT_GENERATION_THRESHOLD = 5
+DEFAULT_CATEGORIES: tuple[str, ...] = ("A", "B", "C")
 Generator = Callable[[list[dict[str, Any]]], dict[str, Any]]
 Approver = Callable[[dict[str, Any]], bool]
+ProjectFn = Callable[[dict[str, Any]], dict[str, Any]]
 
 
 @dataclass(frozen=True)
@@ -54,8 +56,27 @@ def _atlas_generate(
     traces: list[dict[str, Any]],
     atlas_model: str,
     output_dir: Path,
+    *,
+    project_fn: ProjectFn | None = None,
+    seed_roles: dict[str, dict[str, Any]] | None = None,
+    categories: Sequence[str] = DEFAULT_CATEGORIES,
+    max_codes: int = 0,
 ) -> dict[str, Any]:
     """Call the vendored ATLAS pipeline at its public generation boundary.
+
+    Matches GEPA's ``ATLAS_Taxonomy.generation.generate_taxonomy_from_traces``
+    semantics:
+
+    - ``project_fn`` rewrites each trace dict before generation (oracle-blind
+      projection). Defaults to ``outcome_blind_trace``, which strips outcome
+      metadata while keeping the canonical generation fields. Pass a custom
+      callable to add additional projection (e.g. summarization, redaction).
+    - ``seed_roles`` declares each agent role and the trace step names it
+      owns. Required for B-codes; without it, the trace-structure extractor
+      has no role labels and B is effectively skipped.
+    - ``categories`` controls which axes the pipeline generates. Default
+      ``("A","B","C")``; pass ``("A","C")`` when no role schema is available.
+    - ``max_codes`` caps the total number of codes (0 = no cap).
 
     The vendored pipeline always writes ``taxonomy.json`` plus a timestamped
     copy to its output_dir (pipeline.py), regardless of ``save_intermediate``.
@@ -68,8 +89,45 @@ def _atlas_generate(
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    project = project_fn or outcome_blind_trace
+    projected = [project(trace) for trace in traces]
+
+    # Build a PipelineConfig only when caller actually supplied advanced fields
+    # — the vendored PipelineConfig may not accept ``categories`` / ``seed_roles``
+    # (older snapshot than upstream ATLAS). Falling back to the keyword-arg path
+    # keeps the default flow byte-compatible with the previous implementation.
+    cats = tuple(c.strip().upper() for c in categories if c and c.strip())
+    advanced = bool(seed_roles) or cats != DEFAULT_CATEGORIES or max_codes > 0
+    if advanced:
+        from vendor.atlas.config import PipelineConfig
+
+        config_kwargs: dict[str, Any] = {"model": atlas_model}
+        if max_codes:
+            config_kwargs["max_codes"] = max_codes
+        # The two GEPA-side fields only exist on newer PipelineConfigs; pass
+        # them iff the vendored version accepts them so older snapshots still
+        # work (silent no-op rather than a hard TypeError).
+        try:
+            from inspect import signature
+
+            accepted = set(signature(PipelineConfig).parameters)
+        except (TypeError, ValueError):
+            accepted = set()
+        if "categories" in accepted and cats != DEFAULT_CATEGORIES:
+            config_kwargs["categories"] = cats
+        if "seed_roles" in accepted and seed_roles:
+            config_kwargs["seed_roles"] = dict(seed_roles) if "B" in cats else {}
+        config = PipelineConfig(**config_kwargs)
+        return generate_taxonomy(
+            traces=projected,
+            output_dir=output_dir,
+            config=config,
+            save_intermediate=True,
+            verbose=False,
+        )
+
     return generate_taxonomy(
-        traces=[outcome_blind_trace(trace) for trace in traces],
+        traces=projected,
         output_dir=output_dir,
         model=atlas_model,
         save_intermediate=True,
@@ -159,10 +217,18 @@ def trigger_generation(
     approver: Approver | None = None,
     atlas_model: str | None = None,
     taxonomy_check: bool = True,
+    skip_judge: bool = False,
     judge_call: JudgeCall | None = None,
     background_launcher: Callable[[], None] | None = None,
 ) -> GenerationResult:
-    """Start generation when the MAST warm-up threshold is crossed."""
+    """Start generation when the MAST warm-up threshold is crossed.
+
+    ``skip_judge`` is a higher-level flag than ``taxonomy_check``: when True it
+    suppresses BOTH the post-generation Selection Judge (taxonomy_check) AND
+    any future end-of-generation reflection-judge refinement step.
+    ``--no-taxonomy-check`` continues to skip just the Selection Judge for
+    backward compatibility.
+    """
     count = workspace.pending.count()
     retry_after = workspace.generation_retry_after(threshold)
     if count < retry_after:
@@ -182,6 +248,7 @@ def trigger_generation(
             approver=approver,
             atlas_model=atlas_model,
             taxonomy_check=taxonomy_check,
+            skip_judge=skip_judge,
             judge_call=judge_call,
             generation_threshold=threshold,
         )
@@ -209,16 +276,23 @@ def run_generation_job(
     approver: Approver | None = None,
     atlas_model: str | None = None,
     taxonomy_check: bool = True,
+    skip_judge: bool = False,
     judge_call: JudgeCall | None = None,
     generation_threshold: int = DEFAULT_GENERATION_THRESHOLD,
     activation_poll_seconds: float = 0.05,
     activation_timeout_seconds: float = 86_400,
 ) -> GenerationResult:
-    """Generate, accept/reject, then transactionally register and activate."""
+    """Generate, accept/reject, then transactionally register and activate.
+
+    When ``skip_judge=True``, the post-generation Selection Judge check is
+    bypassed regardless of ``taxonomy_check``. Reserved to also bypass the
+    end-of-generation reflection-judge refinement once that path lands.
+    """
     model = atlas_model or workspace.load().get("atlas_model")
     if not model:
         workspace.mark_generation("failed", "atlas_model is required")
         return GenerationResult("failed", "atlas_model is required")
+    effective_taxonomy_check = taxonomy_check and not skip_judge
     try:
         while True:
             result = _generate_and_check_once(
@@ -228,7 +302,7 @@ def run_generation_job(
                 model=str(model),
                 generator=generator,
                 approver=approver,
-                taxonomy_check=taxonomy_check,
+                taxonomy_check=effective_taxonomy_check,
                 judge_call=judge_call,
                 generation_threshold=generation_threshold,
                 activation_poll_seconds=activation_poll_seconds,

@@ -303,6 +303,16 @@ def main(argv=None) -> int:
         action=argparse.BooleanOptionalAction,
         default=True,
     )
+    parser.add_argument(
+        "--skip-judge",
+        action="store_true",
+        default=False,
+        help=(
+            "skip the judge + refinement step at the end of generation. "
+            "Overrides --taxonomy-check and also bypasses reflection-judge "
+            "refinement when that path is wired in"
+        ),
+    )
     parser.add_argument("--k-init", type=int, default=10)
     parser.add_argument("--k", type=int, default=20)
     parser.add_argument(
@@ -355,6 +365,7 @@ def main(argv=None) -> int:
         "generation_threshold": args.generation_threshold,
         "generation_stops": args.generation_stops,
         "taxonomy_check": args.taxonomy_check,
+        "skip_judge": args.skip_judge,
         "k_init": args.k_init,
         "k": args.k,
         "refinement_stops": args.refinement_stops,
