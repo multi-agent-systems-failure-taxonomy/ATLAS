@@ -4,7 +4,7 @@ The upstream ATLAS loader and eight-stage pipeline own trace normalization and
 taxonomy induction. This module adds atlas_skill lifecycle semantics:
 
 * canonical ``GenerationTrace`` validation;
-* the existing support-based taxonomy check;
+* optional Reflection-Judge refinement of the generated candidate;
 * unique taxonomy ID allocation;
 * transactional taxonomy + trace registration;
 * no program binding or automatic activation.

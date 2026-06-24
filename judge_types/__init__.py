@@ -1,12 +1,10 @@
 """ATLAS skill judge types.
 
-A canonical catalog of the seven taxonomy-aware judges atlas_skill exposes
-(or stubs). Each judge consumes a taxonomy and produces a different
-structured signal:
+A canonical catalog of the seven taxonomy-aware judges atlas_skill exposes.
+Each judge consumes a taxonomy and produces a different structured signal:
 
   1. **SelectionJudge** — trace + taxonomy -> flat failure-mode labels.
-     Shallow, scalable, used for search/selection. Real implementation wraps
-     ``atlas_runtime.taxonomy_check``.
+     Shallow, scalable, used for search/selection.
 
   2. **ReflectionJudge** — trace + taxonomy -> failure-point graph + taxonomy
      mappings. Deep, causal, used for mutation/reflection/debugging. Real
@@ -15,24 +13,24 @@ structured signal:
 
   3. **MappingJudge** — failure_point + taxonomy -> best code(s). Modular
      sub-judge; useful when failure-point identification and code-assignment
-     are split. Placeholder for now.
+     are split.
 
   4. **CoverageJudge** — trace or failure_point + taxonomy -> covered /
-     partially / missing. Drives taxonomy expansion. Placeholder for now.
+     partially / missing. Drives taxonomy expansion.
 
   5. **QualityJudge** — taxonomy + support traces -> codebook quality
-     feedback. Evaluates codes (not traces). Placeholder for now.
+     feedback. Evaluates codes (not traces).
 
   6. **CalibrationJudge** — annotation + evidence + taxonomy -> reliability of
-     a code assignment. Audits the Selection Judge. Placeholder for now.
+     a code assignment. Audits the Selection Judge.
 
   7. **SelectionSummaryJudge** — taxonomy-labeled failures -> compressed
      selection signal (root / candidate-attributable / unrecovered / terminal /
      actionable / external buckets). Real implementation wraps
      ``judge_types.reflection_judge.selection.derive_selection_summary``.
 
-Module-level constants ``REAL`` and ``PLACEHOLDER`` enumerate which judges
-currently have working implementations vs. stubs raising NotImplementedError.
+Module-level constants ``REAL`` and ``PLACEHOLDER`` enumerate implementation
+status. ``PLACEHOLDER`` is empty when every cataloged judge is implemented.
 """
 
 from __future__ import annotations

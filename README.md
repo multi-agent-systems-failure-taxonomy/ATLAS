@@ -6,7 +6,7 @@
 [![Claude Code](https://img.shields.io/badge/Claude_Code-blocking_hooks-D97757)](atlas_integration/claude_code/README.md)
 [![Runtime](https://img.shields.io/badge/runtime-harness_neutral-7C3AED)](atlas_runtime/)
 [![Taxonomy](https://img.shields.io/badge/taxonomy-dynamic_at_checkpoints-0EA5E9)](finding/mast.json)
-[![Tests](https://img.shields.io/badge/tests-164_passing-16A34A)](tests/)
+[![Tests](https://img.shields.io/badge/tests-243_passing-16A34A)](tests/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 ---
@@ -78,7 +78,7 @@ flowchart LR
 | Generate a taxonomy from **my existing traces** | [Import your own traces](#-bring-your-own-traces) |
 | Pick a stored taxonomy interactively | [Taxonomy inheritance](#-taxonomy-inheritance) |
 | Watch codes fire live | [Dashboard](#-live-dashboard) |
-| Integrate another harness | [Public runtime API](#-public-runtime-api) |
+| Integrate another harness | [Pipeline integration guide](INTEGRATION.md) |
 
 ---
 
@@ -116,6 +116,8 @@ The installation provides:
 | `atlas-register-taxonomy` | **Register** a pre-generated taxonomy.json file as-is (no judging, no generation) |
 | `atlas-find` | List, resolve, or interactively choose a taxonomy |
 | `atlas-dashboard` | Open the live taxonomy dashboard |
+| `atlas-doctor` | Check installation, writable storage, model recognition, credentials, and optional integrations |
+| `atlas-traces` | Inspect, export, and conservatively prune stored trace files |
 
 ### Bringing your own taxonomy
 
@@ -170,6 +172,20 @@ atlas-claude-install \
   --trace-output /path/to/atlas-program \
   --atlas-model claude-sonnet-4-6
 ```
+
+Optional preflight:
+
+```bash
+atlas-doctor \
+  --trace-output /path/to/atlas-program \
+  --atlas-model claude-sonnet-4-6 \
+  --claude-code \
+  --dashboard-port 8765
+```
+
+Warnings mean "ATLAS can still run, but you may be missing something useful"
+such as a provider API key. Errors mean the install or requested integration
+is not ready.
 
 That's enough to get started. For the **full hook event list, repair-loop
 semantics, Claude binary discovery, OpenAI-compatible learning endpoints,
@@ -280,8 +296,8 @@ The command:
 
 1. Normalizes supported traces into the canonical schema.
 2. Runs the vendored upstream ATLAS eight-stage generator.
-3. Runs the support-based taxonomy check by default.
-4. Allocates an ID only after acceptance.
+3. Runs Reflection-Judge refinement by default.
+4. Allocates an ID only after structural acceptance.
 5. Transactionally stores the taxonomy, traces, and generation artifacts.
 6. Leaves the taxonomy dormant until selected with `--inherit`.
 
@@ -348,20 +364,23 @@ Task traces:  1 ── 2 ── 3 ── 4 ── 5
                          Generate candidate
                                   │
                                   ▼
-                      Support-based validation
-                           │             │
-                      accepted       rejected
-                           │             │
-                           ▼             ▼
-                    activate later   keep MAST +
-                                     wait for N more
+                 Reflection Judge + refiner
+                           │
+                           ▼
+                  structural validation
+                           │
+                           ▼
+                    activate later
 ```
 
 - Default generation threshold: **N = 5** traces.
 - Success and failure traces count equally.
 - Generation input is outcome-blind.
-- Acceptance requires at least **5 ACTIVE codes**, each supported by at least
-  one distinct trace.
+- By default, the generated candidate passes through the Reflection Judge and
+  refiner before registration.
+- `--skip-judge` accepts the generated candidate on structural validity alone.
+- A structurally invalid or explicitly rejected candidate receives no
+  taxonomy ID; pending traces stay in the program folder.
 - Activation waits until no task is running.
 
 ### Refinement
@@ -378,15 +397,16 @@ while preserving their own counters.
 <details>
 <summary><strong>Generation and validation details</strong></summary>
 
-- The support judge processes at most four trace units per call.
-- Oversized traces are split into context-safe chunks.
-- Chunk findings are merged back to the original trace.
-- One code receives at most one support vote per distinct trace.
-- Unknown codes, duplicate assignments, and mismatched quotes are ignored.
-- Invalid judge JSON receives one bounded repair retry.
-- Failed or omitted units contribute no support and do not crash the pass.
-- A rejected taxonomy receives no ID and does not consume pending traces.
-- After rejection, generation retries after another `N` traces arrive.
+- The vendored ATLAS pipeline induces a candidate taxonomy from the frozen
+  generation trace set.
+- The Reflection Judge analyzes the same trace set for concrete failure
+  points and taxonomy mappings.
+- The refiner applies add / edit / split / retire mutations to sharpen the
+  candidate before it is registered.
+- Judge and refiner calls use bounded JSON repair retry.
+- A rejected candidate receives no ID and does not consume pending traces.
+- After structural rejection or explicit approver rejection, generation retries
+  after another `N` traces arrive.
 
 </details>
 
@@ -456,7 +476,9 @@ Explicit CLI and API paths always take precedence.
 
 ## 🔌 Public runtime API
 
-Custom harnesses can use the engine directly:
+Custom harnesses can use the engine directly. For ownership boundaries,
+configuration, trace-output semantics, and a fuller adapter checklist, see
+[`INTEGRATION.md`](INTEGRATION.md).
 
 ```python
 from atlas_runtime import (
@@ -546,7 +568,7 @@ surfaced at runtime checkpoints.
 python -m pytest -q
 ```
 
-The current release includes **164 passing tests** covering:
+The current release includes **243 passing tests** covering:
 
 - taxonomy finding and interactive selection;
 - MAST fallback and canonical schema;
@@ -559,6 +581,7 @@ The current release includes **164 passing tests** covering:
 - imported-trace taxonomy generation;
 - install/uninstall behavior and writable storage defaults;
 - direct single-LLM checkpoints and repairs.
+- install health checks, trace management, and trace redaction helpers.
 
 ---
 
@@ -576,6 +599,33 @@ remains under `~/.atlas-skill/` unless custom paths were supplied.
 Trace retention is intentionally conservative: data is not expired
 automatically. ATLAS warns when a trace folder exceeds 10,000 records or its
 oldest file is more than 90 days old.
+
+Use `atlas-traces` to inspect or manage trace growth:
+
+```bash
+# Show all taxonomy trace folders, plus one program's pending folder
+atlas-traces status \
+  --trace-root ~/.atlas-skill/traces \
+  --trace-output ./atlas-program
+
+# Export one taxonomy trace folder as JSONL
+atlas-traces export \
+  --taxonomy-id tax-20260624T203104Z-7cf91f62-56ac5e \
+  --output traces.jsonl
+
+# Dry-run prune first; add --yes only when the matched paths look right
+atlas-traces prune \
+  --older-than-days 90 \
+  --taxonomy-id tax-20260624T203104Z-7cf91f62-56ac5e
+atlas-traces prune \
+  --older-than-days 90 \
+  --taxonomy-id tax-20260624T203104Z-7cf91f62-56ac5e \
+  --yes
+```
+
+Pruning only considers files named `trace-*.json` inside selected trace
+collections. It does not delete manifests, taxonomy records, locks, dashboard
+state, or generation artifacts.
 
 ---
 

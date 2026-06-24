@@ -1,0 +1,203 @@
+# Integrating ATLAS into a pipeline
+
+This is the harness-author contract: what your application owns, what ATLAS
+owns, and the minimum call sequence needed to get runtime reflection,
+trace capture, generation, refinement, and lineage.
+
+If you only want a ready-made integration, start with:
+
+- Claude Code: [`atlas_integration/claude_code/`](atlas_integration/claude_code/)
+- Single LLM call: [`atlas_integration/single_llm/`](atlas_integration/single_llm/)
+
+## The boundary
+
+ATLAS owns:
+
+- taxonomy selection by `taxonomy_id`;
+- the built-in MAST fallback when no taxonomy is inherited;
+- the pre-submission gate parser and retry envelope;
+- canonical trace persistence;
+- taxonomy generation/refinement triggers;
+- taxonomy storage and successor lineage;
+- the optional local dashboard.
+
+Your harness owns:
+
+- model execution;
+- when a task/subtask/checkpoint boundary occurs;
+- how checkpoint prompts reach the agent;
+- how the complete task trajectory is collected;
+- any trace redaction/summarization before calling `record_trace`;
+- user-facing configuration and credentials.
+
+`trace_output` is mandatory because it is the program identity. Reusing the
+same `trace_output` means "same program": counters, pending traces, active
+taxonomy, and local manifest state are shared. Use a different `trace_output`
+when two task streams should learn independently.
+
+## Minimal lifecycle
+
+```python
+from atlas_runtime import (
+    GenerationTrace,
+    end_session,
+    pre_submission,
+    record_trace,
+    start_session,
+)
+
+session = start_session(
+    trace_output="./atlas-program",
+    atlas_model="gpt-5",
+    inherit=None,  # omit this argument entirely for the default MAST path
+)
+
+# At task start:
+# - deliver session.delivery.runtime_protocol as standing behavior
+# - do NOT dump the full taxonomy into ordinary task context
+
+# At a meaningful checkpoint:
+# - deliver session.delivery.taxonomy plus your recent trajectory window
+# - ask the agent to produce the required ATLAS reflection shape
+# - continue only after your harness accepts/records that reflection
+
+# Before releasing a final answer:
+decision = pre_submission(session, gate_text)
+if not decision.allow:
+    # ask the agent to repair or re-emit a valid gate response
+    ...
+
+record_trace(
+    session,
+    GenerationTrace(
+        problem_id="stable-task-id",
+        task="user-visible task prompt",
+        raw_trajectory="complete redacted trajectory",
+        metadata={"harness": "my-pipeline"},
+    ),
+)
+
+result = end_session(session)
+```
+
+`end_session()` is where learning triggers fire. If the active taxonomy is
+MAST and the program has reached the generation threshold, generation starts
+or runs. If the active taxonomy is a stored taxonomy and the program has
+reached its refinement threshold, refinement starts or runs.
+
+## `--inherit` semantics
+
+All harnesses should preserve the same three forms:
+
+| User input | Runtime selection |
+|---|---|
+| no inherit value at all | start from built-in MAST |
+| explicit `taxonomy_id` | inherit that stored taxonomy |
+| inherit flag with no id | open the blocking local picker |
+
+Repository and domain are display metadata only. They must not route taxonomy
+selection.
+
+## Runtime configuration surface
+
+There is not yet a package-level `atlas.json` parser. For now, each harness
+should expose or store these values in whatever configuration system it
+already owns:
+
+```json
+{
+  "trace_output": "./atlas-program",
+  "atlas_model": "gpt-5",
+  "store_dir": "~/.atlas-skill/taxonomies",
+  "trace_root": "~/.atlas-skill/traces",
+  "inherit": null,
+  "generation_threshold": 5,
+  "generation_stops": false,
+  "skip_judge": false,
+  "k_init": 10,
+  "k": 20,
+  "refinement_stops": false,
+  "advanced_refinement": false,
+  "max_retries": 3,
+  "dashboard": true
+}
+```
+
+Recommended rule: config supplies defaults; explicit CLI/API arguments win.
+
+Use `atlas-doctor` in installation flows to verify the resolved values:
+
+```bash
+atlas-doctor \
+  --trace-output ./atlas-program \
+  --atlas-model gpt-5 \
+  --dashboard-port 0
+```
+
+## Model and credential expectations
+
+`atlas_model` is the model used by ATLAS generation, judging, and refinement.
+Keep it separate from the task agent's model if your pipeline exposes both.
+
+Transport selection is model-id based:
+
+- Claude / Anthropic / Bedrock-shaped IDs use Anthropic transports unless
+  `OPENAI_BASE_URL` is set.
+- Gemini-shaped IDs use `GEMINI_API_KEY` or `GOOGLE_API_KEY`.
+- OpenAI-shaped IDs use the OpenAI client and honor `OPENAI_BASE_URL`.
+
+Do not write credential values into ATLAS config. Store only environment
+variable names or let the provider SDK read its normal environment.
+
+## Trace privacy and redaction
+
+ATLAS stores traces and may send trace excerpts to the ATLAS model for
+generation, judging, and refinement. A harness should redact secrets before
+calling `record_trace()`.
+
+At minimum, redact:
+
+- API keys, bearer tokens, and cookies;
+- private file paths if they are sensitive;
+- user/private data not needed to understand the failure pattern;
+- benchmark labels or outcomes if they would leak oracle information.
+
+The runtime strips known outcome fields from learning inputs, but it cannot
+guess secrets inside `raw_trajectory`. Treat redaction as a harness
+responsibility.
+
+ATLAS ships a small helper for common credential shapes:
+
+```python
+from atlas_runtime import GenerationTrace, redact_trace, record_trace
+
+trace = GenerationTrace(
+    problem_id="task-1",
+    task=task_prompt,
+    raw_trajectory=full_transcript,
+    metadata={"harness": "my-pipeline"},
+)
+
+record_trace(session, redact_trace(
+    trace,
+    extra_patterns=[r"internal-ticket-\d+"],
+))
+```
+
+This helper is intentionally conservative and dependency-free. It is not a
+data-loss-prevention product; use project-specific `extra_patterns` for values
+your pipeline knows are sensitive.
+
+## Operational commands to expose to users
+
+Useful commands for pipeline installers:
+
+```bash
+atlas-doctor --trace-output ./atlas-program --atlas-model gpt-5
+atlas-find --list
+atlas-traces status --trace-output ./atlas-program
+atlas-traces export --taxonomy-id <taxonomy_id> --output traces.jsonl
+atlas-traces prune --older-than-days 90 --taxonomy-id <taxonomy_id>
+```
+
+`atlas-traces prune` is dry-run by default; require `--yes` for deletion.

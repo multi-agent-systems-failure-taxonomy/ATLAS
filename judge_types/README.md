@@ -1,8 +1,7 @@
 # judge_types/
 
-Seven taxonomy-aware judges atlas_skill exposes (or stubs for future
-implementation). Each judge consumes a taxonomy and produces a different
-structured signal.
+Seven taxonomy-aware judges atlas_skill exposes. Each judge consumes a
+taxonomy and produces a different structured signal.
 
 | # | Judge | Status | File | Purpose |
 |---|---|---|---|---|

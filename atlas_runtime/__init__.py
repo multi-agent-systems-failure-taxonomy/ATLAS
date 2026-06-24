@@ -40,6 +40,7 @@ from .dashboard import (
     stop_dashboard_if_idle,
 )
 from .repository import discover_repo
+from .redaction import redact_text, redact_trace
 from .traces import (
     GenerationTrace,
     RetentionPolicy,
@@ -71,6 +72,8 @@ __all__ = [
     "pre_submission",
     "record_trace",
     "render_protocol",
+    "redact_text",
+    "redact_trace",
     "start_session",
     "stop_dashboard",
     "stop_dashboard_if_idle",

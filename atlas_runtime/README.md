@@ -12,6 +12,7 @@ sit on top of this layer.
 |---|---|
 | [`__init__.py`](__init__.py) | Public API exports for the runtime package |
 | [`dashboard.py`](dashboard.py) | Persistent localhost web dashboard showing the program's current taxonomy + live runtime evidence |
+| [`doctor.py`](doctor.py) | `atlas-doctor` CLI: read/write storage checks, model recognition, credential hints, optional Claude/dashboard checks |
 | [`generation.py`](generation.py) | MAST → generated-taxonomy transition: trigger, run, refine via reflection judge, register + activate |
 | [`import_generation.py`](import_generation.py) | One-shot CLI (`atlas-import-traces`): generate + refine + register a dormant inheritable taxonomy from user-supplied traces |
 | [`learning_calls.py`](learning_calls.py) | LLM transport for judge + refiner calls (Anthropic SDK, OpenAI SDK, Gemini REST — chosen by model-id prefix + env vars); JSON repair-retry |
@@ -21,11 +22,13 @@ sit on top of this layer.
 | [`options.py`](options.py) | Reusable argparse options + `RuntimeOptions` dataclass shared by every harness integration |
 | [`program.py`](program.py) | `ProgramWorkspace`: program identity, manifest, pending-trace store, lock-coordinated state transitions |
 | [`protocol.py`](protocol.py) | Minimal pre-submission gate: reflection-shape validation + repair-retry envelope |
+| [`redaction.py`](redaction.py) | Dependency-free helpers for harnesses to redact secrets before `record_trace()` |
 | [`refinement.py`](refinement.py) | Program-local refinement cadence (K_init / K thresholds) — fires periodically against the active taxonomy |
 | [`reflection_refinement.py`](reflection_refinement.py) | End-of-generation validation via the Reflection Judge + LLM refiner — replaces the legacy `taxonomy_check` Selection-Judge gate |
 | [`repository.py`](repository.py) | Display-only repository metadata discovery (git remote, repo name) — never used for taxonomy routing |
 | [`taxonomy_data.py`](taxonomy_data.py) | Taxonomy data model: `Code`, `Taxonomy`, `JudgeLog`, `CostMeter`, `render_code_spec`. Ported from GEPA |
 | [`traces.py`](traces.py) | Crash-safe per-program trace files in the canonical ATLAS generation-input shape; integration across taxonomy successors |
+| [`traces_cli.py`](traces_cli.py) | `atlas-traces` CLI for trace status, JSONL export, and dry-run-first pruning |
 
 ## Two refinement modules — what's the difference?
 
