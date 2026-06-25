@@ -27,7 +27,7 @@ When upgrading from the old global `atlas-failure-modes` hooks, add
 preserved.
 
 The installer verifies the locally installed Claude Code binary before writing
-`.claude/settings.local.json`. Verified events:
+`.claude/settings.local.json`. Built-in events:
 
 - `SessionStart`: select and hold the session taxonomy; inject only standing
   checkpoint instructions.
@@ -39,6 +39,47 @@ The installer verifies the locally installed Claude Code binary before writing
 - `PostToolUse`: nonblocking nudge when a nominally successful tool response
   contains a failure signature.
 - `PostToolUseFailure`: nonblocking nudge for actual tool execution failures.
+
+All built-ins are installed by default for backwards compatibility, but you can
+reduce noise for a project. Disable an event:
+
+```powershell
+atlas-claude-install `
+  --project-dir C:\path\to\project `
+  --trace-output C:\path\to\program-traces `
+  --atlas-model claude-sonnet-4-6 `
+  --disable-hook SubagentStop
+```
+
+Restrict successful/failed tool-result nudges to specific Claude Code tool
+matchers:
+
+```powershell
+atlas-claude-install `
+  --project-dir C:\path\to\project `
+  --trace-output C:\path\to\program-traces `
+  --atlas-model claude-sonnet-4-6 `
+  --post-tool-use-matchers Bash,Edit,Write `
+  --post-tool-use-failure-matchers Bash
+```
+
+The config-file equivalent is the top-level `built_in_hooks` object:
+
+```json
+{
+  "built_in_hooks": {
+    "SubagentStop": false,
+    "PostToolUse": ["Bash", "Edit", "Write"],
+    "PostToolUseFailure": {
+      "enabled": true,
+      "matchers": ["Bash"]
+    }
+  }
+}
+```
+
+Only `PostToolUse` and `PostToolUseFailure` support matcher lists. Other
+built-in events are on/off.
 
 Taxonomy content is surfaced only when a checkpoint fires. Accepted reflections
 write taxonomy-version-scoped runtime evidence to
@@ -147,7 +188,7 @@ their built-in handler regardless; a custom hook on a built-in event
 | File | Purpose |
 |---|---|
 | [`__init__.py`](__init__.py) | Public exports |
-| [`config.py`](config.py) | `ClaudeCodeConfig` dataclass + `CustomHookSpec` — serialized to `.claude/atlas-skill.json`, loaded by every hook |
+| [`config.py`](config.py) | `ClaudeCodeConfig` dataclass + built-in/custom hook specs — serialized to `.claude/atlas-skill.json`, loaded by every hook |
 | [`custom.py`](custom.py) | Reflection runtime for `CustomHookSpec` entries: `custom_blocking_checkpoint` + `custom_advisory` reuse the same reflection-shape validator as the built-in gates |
 | [`dispatcher.py`](dispatcher.py) | Single command entry point. Built-in events route by `hook_event_name`; custom hooks route via `--custom <spec_name>` |
 | [`install.py`](install.py) | `atlas-claude-install` CLI: write project-local `.claude/settings.local.json` + `atlas-skill.json`, register built-in events + every `custom_hooks` entry, verify Claude Code binary contract |

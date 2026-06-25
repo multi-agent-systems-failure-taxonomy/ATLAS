@@ -19,10 +19,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 from atlas_integration.claude_code.config import (
+    BUILT_IN_HOOK_EVENTS,
     CLAUDE_CODE_EVENTS,
     CUSTOM_HOOK_MODES,
+    BuiltInHookSpec,
     ClaudeCodeConfig,
     CustomHookSpec,
+    parse_built_in_hooks,
 )
 from atlas_integration.claude_code.custom import (
     custom_advisory,
@@ -103,6 +106,39 @@ class CustomHookSpecValidationTests(unittest.TestCase):
             CustomHookSpec(name=f"on_{event.lower()}", event=event)
 
 
+class BuiltInHookSpecValidationTests(unittest.TestCase):
+    def test_defaults_cover_all_built_in_events(self):
+        specs = parse_built_in_hooks()
+        self.assertEqual(
+            tuple(spec.event for spec in specs),
+            BUILT_IN_HOOK_EVENTS,
+        )
+        self.assertEqual(
+            next(s for s in specs if s.event == "PostToolUse").matchers,
+            ("*",),
+        )
+
+    def test_matcher_on_non_tool_result_event_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "does not support matchers"):
+            BuiltInHookSpec(event="SubagentStop", matchers=("Bash",))
+
+    def test_object_form_overrides_enabled_and_matchers(self):
+        specs = {
+            spec.event: spec
+            for spec in parse_built_in_hooks({
+                "SubagentStop": False,
+                "PostToolUse": ["Bash", "Edit"],
+                "PostToolUseFailure": {
+                    "enabled": True,
+                    "matchers": ["Bash"],
+                },
+            })
+        }
+        self.assertFalse(specs["SubagentStop"].enabled)
+        self.assertEqual(specs["PostToolUse"].matchers, ("Bash", "Edit"))
+        self.assertEqual(specs["PostToolUseFailure"].matchers, ("Bash",))
+
+
 class ConfigRoundTripTests(unittest.TestCase):
     def test_custom_hooks_round_trip_through_to_dict_load(self):
         hooks = (
@@ -129,6 +165,24 @@ class ConfigRoundTripTests(unittest.TestCase):
             )
             loaded = ClaudeCodeConfig.load(path)
             self.assertEqual(loaded.custom_hooks, hooks)
+
+    def test_built_in_hooks_round_trip_through_to_dict_load(self):
+        hooks = parse_built_in_hooks({
+            "SubagentStop": False,
+            "PostToolUse": ["Bash", "Edit"],
+        })
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cfg = ClaudeCodeConfig(
+                trace_output=root / "program",
+                atlas_model="gpt-5",
+                store_dir=STORE_DIR,
+                built_in_hooks=hooks,
+            )
+            path = root / "atlas-skill.json"
+            path.write_text(json.dumps(cfg.to_dict()), encoding="utf-8")
+            loaded = ClaudeCodeConfig.load(path)
+            self.assertEqual(loaded.built_in_hooks, hooks)
 
     def test_legacy_config_without_custom_hooks_still_loads(self):
         with tempfile.TemporaryDirectory() as td:

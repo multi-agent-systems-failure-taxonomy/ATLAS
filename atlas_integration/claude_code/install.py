@@ -10,6 +10,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 from atlas_runtime.config import (
@@ -21,18 +22,16 @@ from atlas_runtime.config import (
 )
 from finding import resolver, store, webview
 
-from .config import ClaudeCodeConfig, CustomHookSpec
+from .config import (
+    BUILT_IN_HOOK_EVENTS,
+    BuiltInHookSpec,
+    ClaudeCodeConfig,
+    CustomHookSpec,
+    parse_built_in_hooks,
+)
 from .uninstall import remove_atlas_hooks
 
-REQUIRED_EVENTS = (
-    "SessionStart",
-    "SessionEnd",
-    "Stop",
-    "TaskCompleted",
-    "SubagentStop",
-    "PostToolUse",
-    "PostToolUseFailure",
-)
+REQUIRED_EVENTS = BUILT_IN_HOOK_EVENTS
 
 
 def installed_claude_executable() -> Path:
@@ -196,50 +195,29 @@ def install(
     command = _module_command(Path(python), config_path)
     remove_atlas_hooks(settings, include_legacy=False)
     hooks = settings.setdefault("hooks", {})
-    for event in REQUIRED_EVENTS:
-        entries = hooks.setdefault(event, [])
-        matcher = "*" if event in ("PostToolUse", "PostToolUseFailure") else None
-        registration = {
-            **({"matcher": matcher} if matcher else {}),
-            "hooks": [
-                {
-                    "type": "command",
-                    "command": command,
-                    "timeout": 15,
-                }
-            ],
-        }
-        if not any(
-            any(
-                hook.get("command") == command
-                for hook in entry.get("hooks", [])
+    installed_events: list[str] = []
+    for spec in config.built_in_hooks:
+        if not spec.enabled:
+            continue
+        entries = hooks.setdefault(spec.event, [])
+        matchers = spec.matchers or (None,)
+        for matcher in matchers:
+            _append_registration(
+                entries,
+                command=command,
+                matcher=matcher,
             )
-            for entry in entries
-        ):
-            entries.append(registration)
+        installed_events.append(spec.event)
     for spec in config.custom_hooks:
         custom_command = _custom_command(
             Path(python), config_path, spec.name,
         )
         entries = hooks.setdefault(spec.event, [])
-        registration = {
-            **({"matcher": spec.matcher} if spec.matcher else {}),
-            "hooks": [
-                {
-                    "type": "command",
-                    "command": custom_command,
-                    "timeout": 15,
-                }
-            ],
-        }
-        if not any(
-            any(
-                hook.get("command") == custom_command
-                for hook in entry.get("hooks", [])
-            )
-            for entry in entries
-        ):
-            entries.append(registration)
+        _append_registration(
+            entries,
+            command=custom_command,
+            matcher=spec.matcher,
+        )
     _write_json_atomic(settings_path, settings)
     migrated = None
     if migrate_legacy_global:
@@ -252,9 +230,36 @@ def install(
         "claude_version": version,
         "config": str(config_path),
         "settings": str(settings_path),
-        "events": list(REQUIRED_EVENTS),
+        "events": installed_events,
         "legacy_global_migration": migrated,
     }
+
+
+def _append_registration(
+    entries: list,
+    *,
+    command: str,
+    matcher: str | None,
+) -> None:
+    registration = {
+        **({"matcher": matcher} if matcher else {}),
+        "hooks": [
+            {
+                "type": "command",
+                "command": command,
+                "timeout": 15,
+            }
+        ],
+    }
+    if not any(
+        entry.get("matcher") == matcher
+        and any(
+            hook.get("command") == command
+            for hook in entry.get("hooks", [])
+        )
+        for entry in entries
+    ):
+        entries.append(registration)
 
 
 def _module_command(python: Path, config: Path) -> str:
@@ -331,9 +336,14 @@ def main(argv=None) -> int:
         nargs="?",
         const=resolver.NO_ID,
         help=(
-            "taxonomy ID to inherit; pass without a value to open the local "
-            "taxonomy picker"
+            "taxonomy ID to inherit; the no-value picker form is deprecated, "
+            "use --inherit-pick instead"
         ),
+    )
+    parser.add_argument(
+        "--inherit-pick",
+        action="store_true",
+        help="open the local taxonomy picker at install time",
     )
     parser.add_argument("--max-retries", type=int)
     parser.add_argument("--generation-threshold", type=int)
@@ -366,6 +376,29 @@ def main(argv=None) -> int:
     )
     parser.add_argument("--failure-throttle-calls", type=int)
     parser.add_argument("--failure-recency-seconds", type=int)
+    parser.add_argument(
+        "--disable-hook",
+        action="append",
+        choices=BUILT_IN_HOOK_EVENTS,
+        help=(
+            "do not install this built-in Claude Code hook event. Repeat for "
+            "multiple events, e.g. --disable-hook SubagentStop"
+        ),
+    )
+    parser.add_argument(
+        "--post-tool-use-matchers",
+        help=(
+            "comma-separated Claude Code tool matchers for PostToolUse "
+            "(default: *). Example: Bash,Edit,Write"
+        ),
+    )
+    parser.add_argument(
+        "--post-tool-use-failure-matchers",
+        help=(
+            "comma-separated Claude Code tool matchers for PostToolUseFailure "
+            "(default: *). Example: Bash"
+        ),
+    )
     parser.add_argument("--dashboard", dest="dashboard", action="store_true", default=None)
     parser.add_argument("--no-dashboard", dest="dashboard", action="store_false")
     parser.add_argument("--openai-base-url")
@@ -404,12 +437,21 @@ def main(argv=None) -> int:
         )).resolve()
     except Exception as exc:  # noqa: BLE001
         parser.error(str(exc))
-    if args.traces and args.inherit is not None:
-        parser.error("--traces and --inherit are mutually exclusive")
-    inherit = args.inherit if args.inherit is not None else config.get("inherit")
+    if args.inherit_pick and args.inherit is not None:
+        parser.error("--inherit-pick cannot be combined with --inherit")
+    if args.traces and (args.inherit is not None or args.inherit_pick):
+        parser.error("--traces and inheritance selection are mutually exclusive")
+    if args.inherit_pick:
+        inherit = resolver.NO_ID
+    else:
+        inherit = args.inherit if args.inherit is not None else config.get("inherit")
     store_dir_value = config_value(args, config, "store_dir")
     trace_root_value = config_value(args, config, "trace_root")
     skip_judge = bool_config_value(args, config, "skip_judge", False)
+    try:
+        built_in_hooks = _built_in_hooks_from_options(args, config)
+    except ValueError as exc:
+        parser.error(str(exc))
     if args.traces:
         # Compose: import traces -> get a taxonomy_id -> use as --inherit.
         from atlas_runtime.import_generation import generate_imported_taxonomy
@@ -439,6 +481,12 @@ def main(argv=None) -> int:
             file=sys.stderr,
         )
     elif inherit == resolver.NO_ID:
+        if not args.inherit_pick:
+            print(
+                "warning: bare --inherit is deprecated; use --inherit-pick "
+                "for the interactive picker.",
+                file=sys.stderr,
+            )
         selected = resolver.resolve(
             resolver.NO_ID,
             store_dir=(
@@ -463,6 +511,7 @@ def main(argv=None) -> int:
         "advanced_refinement": bool_config_value(args, config, "advanced_refinement", False),
         "failure_throttle_calls": config_value(args, config, "failure_throttle_calls", 5),
         "failure_recency_seconds": config_value(args, config, "failure_recency_seconds", 30),
+        "built_in_hooks": built_in_hooks,
         "dashboard": bool_config_value(args, config, "dashboard", True),
         "openai_base_url": config_value(args, config, "openai_base_url"),
         "openai_api_key_env": config_value(args, config, "openai_api_key_env"),
@@ -486,6 +535,47 @@ def main(argv=None) -> int:
     )
     print(json.dumps(result, indent=2))
     return 0
+
+
+def _built_in_hooks_from_options(
+    args: argparse.Namespace,
+    config: dict,
+) -> tuple[BuiltInHookSpec, ...]:
+    specs = {spec.event: spec for spec in parse_built_in_hooks(config.get("built_in_hooks"))}
+    disabled = set(args.disable_hook or ())
+    matcher_overrides = {
+        "PostToolUse": args.post_tool_use_matchers,
+        "PostToolUseFailure": args.post_tool_use_failure_matchers,
+    }
+    conflicts = sorted(
+        event
+        for event, value in matcher_overrides.items()
+        if event in disabled and value is not None
+    )
+    if conflicts:
+        raise ValueError(
+            "--disable-hook cannot be combined with matcher overrides for "
+            + ", ".join(conflicts)
+        )
+    for event in disabled:
+        specs[event] = replace(specs[event], enabled=False)
+    for event, value in matcher_overrides.items():
+        if value is not None:
+            specs[event] = replace(
+                specs[event],
+                enabled=True,
+                matchers=_split_matchers(value),
+            )
+    return tuple(specs[event] for event in BUILT_IN_HOOK_EVENTS)
+
+
+def _split_matchers(value: str) -> tuple[str, ...]:
+    matchers = tuple(part.strip() for part in value.split(",") if part.strip())
+    if not matchers:
+        raise ValueError("hook matcher list cannot be empty")
+    if len(set(matchers)) != len(matchers):
+        raise ValueError("hook matcher list contains duplicates")
+    return matchers
 
 
 if __name__ == "__main__":

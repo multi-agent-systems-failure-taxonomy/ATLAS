@@ -2,12 +2,16 @@
 
 import json
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
 from atlas_runtime.lifecycle import end_session, record_trace, start_session
 from atlas_runtime.lineage import TaxonomyLineage
+from atlas_runtime.program import ProgramWorkspace
+from atlas_runtime.refinement import trigger_refinement
 from atlas_runtime.traces import GenerationTrace
+from atlas_runtime.worker_state import REFINEMENT_WORKER_STATE, write_worker_state
 
 ROOT = Path(__file__).resolve().parent.parent
 BASE_STORE = ROOT / "tests" / "fixtures" / "taxonomies"
@@ -227,6 +231,45 @@ class RefinementLifecycleTests(unittest.TestCase):
                 session.workspace.refinement_state()["traces_since_refinement"],
                 1,
             )
+
+    def test_stale_background_refinement_worker_can_be_retried(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            output, store_dir, trace_root = root / "program", root / "tax", root / "traces"
+            copy_store(store_dir)
+            workspace = ProgramWorkspace(output)
+            workspace.bind_inherited_taxonomy(BASE_ID)
+            with workspace.locked_manifest() as manifest:
+                manifest["refinement"].update(
+                    {
+                        "traces_since_refinement": 1,
+                        "state": "running",
+                        "last_error": None,
+                        "worker_kind": "background",
+                        "worker_started_unix": time.time() - 1_000,
+                    }
+                )
+            write_worker_state(
+                output / REFINEMENT_WORKER_STATE,
+                "refinement",
+                pid=123,
+                now=time.time() - 1_000,
+            )
+            launched = []
+
+            result = trigger_refinement(
+                workspace,
+                store_dir=store_dir,
+                trace_root=trace_root,
+                k_init=1,
+                background_launcher=lambda: launched.append(True),
+            )
+
+            self.assertEqual(result.action, "started")
+            self.assertEqual(launched, [True])
+            refinement = workspace.refinement_state()
+            self.assertEqual(refinement["state"], "running")
+            self.assertIsNone(refinement["last_error"])
 
     def test_basic_refinement_persists_structural_diff(self):
         with tempfile.TemporaryDirectory() as td:

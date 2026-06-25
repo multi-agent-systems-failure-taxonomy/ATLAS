@@ -2,12 +2,10 @@
 
 The ATLAS Reflection Judge — a multi-stage trace-analysis judge that
 identifies failure points, builds a backward-grounded causal graph
-between them, and only AFTER that assigns taxonomy codes. Ported from
-GEPA's `ATLAS_Taxonomy/atlas_reflection_judge/`, stripped of litellm /
-Bedrock-default coupling.
+between them, and only AFTER that assigns taxonomy codes.
 
 Used by `atlas_runtime/reflection_refinement.py` as the end-of-generation
-validation gate (replaces the legacy `taxonomy_check` Selection-Judge gate).
+validation gate.
 
 ## Programs
 

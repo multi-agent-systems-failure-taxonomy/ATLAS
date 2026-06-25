@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from atlas_integration.claude_code.config import ClaudeCodeConfig
+from atlas_integration.claude_code.config import ClaudeCodeConfig, parse_built_in_hooks
 from atlas_integration.claude_code.hooks import (
     post_tool_use,
     post_tool_use_failure,
@@ -767,6 +767,38 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
                 if os.name == "nt":
                     self.assertNotIn("\\", command)
 
+    def test_installer_can_filter_built_in_hooks_and_tool_matchers(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            config = ClaudeCodeConfig(
+                trace_output=root / "program",
+                atlas_model="test-model",
+                store_dir=STORE_DIR,
+                built_in_hooks=parse_built_in_hooks({
+                    "SubagentStop": False,
+                    "PostToolUse": ["Bash", "Edit"],
+                    "PostToolUseFailure": ["Bash"],
+                }),
+            )
+            result = install(root, config, verify=False)
+            settings = json.loads(
+                Path(result["settings"]).read_text(encoding="utf-8")
+            )
+
+            self.assertNotIn("SubagentStop", settings["hooks"])
+            self.assertNotIn("SubagentStop", result["events"])
+            self.assertEqual(
+                {entry["matcher"] for entry in settings["hooks"]["PostToolUse"]},
+                {"Bash", "Edit"},
+            )
+            self.assertEqual(
+                [entry["matcher"] for entry in settings["hooks"]["PostToolUseFailure"]],
+                ["Bash"],
+            )
+            for event in {"SessionStart", "SessionEnd", "Stop", "TaskCompleted"}:
+                self.assertIn(event, settings["hooks"])
+                self.assertNotIn("matcher", settings["hooks"][event][0])
+
     def test_installer_refuses_invalid_existing_settings(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -833,6 +865,44 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
                             "--store-dir",
                             str(STORE_DIR),
                             "--inherit",
+                        ]
+                    ),
+                    0,
+                )
+            self.assertEqual(captured["inherit"], "tax-django-orm-001")
+            self.assertEqual(resolve.call_count, 1)
+
+    def test_inherit_pick_resolves_picker_at_install_time(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            captured = {}
+
+            def fake_install(_project, config, **_kwargs):
+                captured["inherit"] = config.inherit
+                return {}
+
+            with (
+                patch(
+                    "atlas_integration.claude_code.install.resolver.resolve",
+                    return_value="tax-django-orm-001",
+                ) as resolve,
+                patch(
+                    "atlas_integration.claude_code.install.install",
+                    side_effect=fake_install,
+                ),
+            ):
+                self.assertEqual(
+                    install_main(
+                        [
+                            "--project-dir",
+                            str(root),
+                            "--trace-output",
+                            str(root / "program"),
+                            "--atlas-model",
+                            "gpt-5",
+                            "--store-dir",
+                            str(STORE_DIR),
+                            "--inherit-pick",
                         ]
                     ),
                     0,

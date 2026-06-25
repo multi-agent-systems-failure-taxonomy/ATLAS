@@ -4,6 +4,7 @@ import io
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 from finding import cli
 
@@ -33,6 +34,34 @@ class CliTests(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertEqual(out, "")               # not a silent "none"
         self.assertIn("tax-missing-999", err)
+
+    def test_inherit_pick_opens_picker_without_warning(self):
+        with patch("finding.cli.webview.run_webview", return_value="tax-django-orm-001"):
+            code, out, err = run(["--inherit-pick", "--store-dir", STORE_DIR])
+        self.assertEqual(code, 0)
+        self.assertEqual(out, "tax-django-orm-001")
+        self.assertEqual(err, "")
+
+    def test_bare_inherit_still_opens_picker_with_warning(self):
+        with patch("finding.cli.webview.run_webview", return_value="tax-django-orm-001"):
+            code, out, err = run(["--inherit", "--store-dir", STORE_DIR])
+        self.assertEqual(code, 0)
+        self.assertEqual(out, "tax-django-orm-001")
+        self.assertIn("bare --inherit is deprecated", err)
+
+    def test_inherit_pick_cannot_combine_with_inherit(self):
+        code, out, err = run(
+            [
+                "--inherit-pick",
+                "--inherit",
+                "tax-django-orm-001",
+                "--store-dir",
+                STORE_DIR,
+            ]
+        )
+        self.assertEqual(code, 2)
+        self.assertEqual(out, "")
+        self.assertIn("--inherit-pick cannot be combined", err)
 
 
 if __name__ == "__main__":

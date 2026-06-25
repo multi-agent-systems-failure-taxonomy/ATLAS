@@ -10,7 +10,7 @@ fixtures (under [`fixtures/`](fixtures/)) — no live LLM calls.
 |---|---|
 | [`__init__.py`](__init__.py) | Test-package marker + shared defaults |
 | [`test_claude_code_integration.py`](test_claude_code_integration.py) | Claude Code runtime skin: hooks, install/uninstall, config round-trip, transcript handling |
-| [`test_cli.py`](test_cli.py) | `atlas-find` CLI: stdout/exit-code wiring for the three `--inherit` forms |
+| [`test_cli.py`](test_cli.py) | `atlas-find` CLI: stdout/exit-code wiring for inherit-by-id, explicit picker, deprecated bare-picker, and missing-id errors |
 | [`test_config.py`](test_config.py) | Shared `atlas.json` config loading, validation, precedence, and CLI wiring |
 | [`test_dashboard.py`](test_dashboard.py) | Persistent live taxonomy dashboard (HTTP server, refresh, stop semantics) |
 | [`test_doctor.py`](test_doctor.py) | `atlas-doctor` health checks for storage, model recognition, JSON output, and error status |
@@ -29,7 +29,7 @@ fixtures (under [`fixtures/`](fixtures/)) — no live LLM calls.
 | [`test_single_llm_integration.py`](test_single_llm_integration.py) | Single-LLM no-harness runtime (drives a stubbed model through the lifecycle) |
 | [`test_skip_judge.py`](test_skip_judge.py) | `--skip-judge` flag plumbing: defaults, override path, refinement bypass, session round-trip |
 | [`test_store.py`](test_store.py) | Flat taxonomy store: register / fetch_by_id / list_all / unregister, schema validation, atomic writes |
-| [`test_taxonomy_data.py`](test_taxonomy_data.py) | Ported `Code`/`Taxonomy`/`JudgeLog`/`CostMeter` data model: round-trips, mutations, retirement bookkeeping |
+| [`test_taxonomy_data.py`](test_taxonomy_data.py) | Taxonomy data-model helpers: round-trips, mutations, retirement bookkeeping |
 | [`test_traces.py`](test_traces.py) | Generation-trace storage + retention reports |
 | [`test_traces_cli.py`](test_traces_cli.py) | `atlas-traces` status/export/prune behavior, including dry-run pruning |
 | [`test_webview.py`](test_webview.py) | Webview HTTP server: table rendering, detail view, choice recording (no browser needed) |

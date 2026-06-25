@@ -125,7 +125,8 @@ arguments override config-file values.
 ### Bringing your own taxonomy
 
 If you already have a `taxonomy.json` from somewhere — a custom pipeline,
-a sibling project, a hand-edited file, an export from a different taxonomy generator — you do NOT
+a sibling project, a hand-edited file, or an export from a different taxonomy
+generator — you do NOT
 need to re-run generation or re-judge traces to make it inheritable.
 `atlas-register-taxonomy` ingests it as-is:
 
@@ -261,13 +262,16 @@ lifecycle.
 Taxonomies are selected only by `taxonomy_id`. Repository and domain fields are
 display metadata—not routing keys.
 
-All supported CLIs use the same three forms:
+All supported CLIs use the same selection forms:
 
 | Invocation | Result |
 |---|---|
 | Omit `--inherit` | Fresh program starts with built-in MAST |
 | `--inherit <taxonomy_id>` | Use that stored taxonomy |
-| `--inherit` | Open the local visual taxonomy picker |
+| `--inherit-pick` | Open the local visual taxonomy picker |
+
+Bare `--inherit` still opens the picker for compatibility, but it is
+deprecated because it is easy to confuse with an accidental missing id.
 
 Example:
 
@@ -457,7 +461,15 @@ the same paths/model:
   "refinement_stops": false,
   "advanced_refinement": false,
   "max_retries": 3,
-  "dashboard": true
+  "dashboard": true,
+  "built_in_hooks": {
+    "SubagentStop": false,
+    "PostToolUse": {
+      "enabled": true,
+      "matchers": ["Bash", "Edit", "Write"]
+    },
+    "PostToolUseFailure": ["Bash"]
+  }
 }
 ```
 
@@ -465,7 +477,7 @@ Supported shared fields include `trace_output`, `atlas_model`, `store_dir`,
 `trace_root`, `inherit`, `repo`, `repo_path`, `generation_threshold`,
 `generation_stops`, `skip_judge`, `k_init`, `k`, `refinement_stops`,
 `advanced_refinement`, `max_retries`, `dashboard`, `openai_base_url`,
-`openai_api_key_env`, and the single-LLM task `model`.
+`openai_api_key_env`, `built_in_hooks`, and the single-LLM task `model`.
 
 Relative paths are resolved relative to the config file. Unknown fields are
 rejected so typos do not silently change a run. These commands currently read
@@ -487,6 +499,9 @@ Claude Code also exposes the main lifecycle controls directly:
 | `--max-retries` | `3` | Completed final-gate repair opportunities before honest unresolved release |
 | `--failure-throttle-calls` | `5` | Minimum tool calls between reactive nudges |
 | `--failure-recency-seconds` | `30` | Time-based duplicate-nudge suppression |
+| `--disable-hook` | none | Do not install a built-in Claude Code hook event, e.g. `SubagentStop` |
+| `--post-tool-use-matchers` | `*` | Restrict successful-tool nudges to selected Claude Code tool matchers |
+| `--post-tool-use-failure-matchers` | `*` | Restrict failed-tool nudges to selected Claude Code tool matchers |
 | `--no-dashboard` | off | Let an outer application own dashboard lifecycle |
 
 ### Storage
@@ -682,7 +697,7 @@ it does and what each sub-folder is for.
 | [`atlas_integration/single_llm/`](atlas_integration/single_llm/README.md) | No-harness single-LLM adapter |
 | [`finding/`](finding/README.md) | Taxonomy store, MAST loader, `--inherit` resolver, web picker |
 | [`judge_types/`](judge_types/README.md) | The 7 taxonomy-aware judge types (Selection, Reflection, Mapping, Coverage, Quality, Calibration, Selection-Summary) |
-| [`judge_types/reflection_judge/`](judge_types/reflection_judge/README.md) | The deep multi-stage Reflection Judge (ported from GEPA) |
+| [`judge_types/reflection_judge/`](judge_types/reflection_judge/README.md) | The deep multi-stage Reflection Judge |
 | [`examples/`](examples/README.md) | Runnable demonstration scripts |
 | [`vendor/`](vendor/README.md) | Third-party code vendored into the package |
 | [`vendor/atlas/`](vendor/atlas/README.md) | Vendored upstream ATLAS taxonomy-induction library |

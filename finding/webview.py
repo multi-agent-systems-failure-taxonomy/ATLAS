@@ -1,4 +1,4 @@
-"""Blocking localhost web view for the interactive `--inherit` (no id) form.
+"""Blocking localhost web view for explicit interactive taxonomy picking.
 
 Serves:
   * GET /                       -> table: exactly 3 columns repo, taxonomy_id,

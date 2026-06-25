@@ -4,12 +4,12 @@ Resolves WHICH taxonomy a run inherits. Returns a taxonomy_id string, or
 the literal "none". It does NOT load full taxonomy content for use — that
 is Render, a later step.
 
-The `--inherit` flag arrives in one of three forms, modelled by two
-sentinels produced by the CLI parser:
+The CLI maps inheritance requests into one of three forms, modelled by two
+sentinels:
 
-  * ABSENT  (flag not given)            -> "none"
-  * <id>    (flag given with a value)   -> that id, or error if missing
-  * NO_ID   (flag given with no value)  -> launch blocking web view
+  * ABSENT  (no inherited taxonomy)  -> "none"
+  * <id>    (explicit taxonomy id)   -> that id, or error if missing
+  * NO_ID   (interactive picker)     -> launch blocking web view
 
 `resolve()` returns the Finding decision: an id, or the literal "none".
 """
@@ -20,9 +20,9 @@ from . import store
 
 NONE = "none"
 
-# Sentinels for argparse: distinct from any real taxonomy_id string.
-ABSENT = object()   # --inherit not present at all
-NO_ID = object()    # --inherit present with no value -> interactive picker
+# Sentinels distinct from any real taxonomy_id string.
+ABSENT = object()   # no inherited taxonomy requested
+NO_ID = object()    # interactive picker requested
 
 
 def resolve(inherit, store_dir=store.DEFAULT_STORE_DIR, launcher=None) -> str:
@@ -43,14 +43,14 @@ def resolve(inherit, store_dir=store.DEFAULT_STORE_DIR, launcher=None) -> str:
     store.TaxonomyNotFound
         When an explicit id has no record (never a silent "none").
     """
-    # Form 1: no --inherit -> start from 0.
+    # Form 1: no inherited taxonomy -> start from 0.
     if inherit is ABSENT:
         return NONE
 
-    # Form 3: --inherit with no id -> blocking web picker.
+    # Form 3: interactive picker -> blocking web view.
     if inherit is NO_ID:
         if launcher is None:
-            raise RuntimeError("interactive --inherit requires a web-view launcher")
+            raise RuntimeError("interactive inheritance requires a web-view launcher")
         chosen = launcher(store_dir)
         return chosen if chosen else NONE
 

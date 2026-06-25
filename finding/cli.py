@@ -4,7 +4,7 @@ Usage::
 
     python -m finding                       # no --inherit  -> prints "none"
     python -m finding --inherit <id>        # explicit id   -> prints that id
-    python -m finding --inherit             # no id         -> web picker
+    python -m finding --inherit-pick        # web picker
     python -m finding --list                # list stored taxonomies (id, repo, domain)
 
 Prints the resolved taxonomy_id (or "none") to stdout. On a missing
@@ -35,7 +35,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=resolver.ABSENT,   # flag absent            -> "none"
         metavar="taxonomy_id",
         help="Omit for none; pass a taxonomy_id to inherit it; "
-             "pass with no value to open the web picker.",
+             "pass with no value to open the deprecated web picker form.",
+    )
+    parser.add_argument(
+        "--inherit-pick",
+        action="store_true",
+        help="Open the local web picker to choose a stored taxonomy.",
     )
     parser.add_argument(
         "--list",
@@ -53,6 +58,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
+    if args.inherit_pick and args.inherit is not resolver.ABSENT:
+        print("error: --inherit-pick cannot be combined with --inherit", file=sys.stderr)
+        return 2
     if args.list:
         records = store.list_all(args.store_dir)
         if not records:
@@ -63,9 +71,16 @@ def main(argv=None) -> int:
             tid = rec["taxonomy_id"].ljust(width)
             print(f"{tid}  {rec.get('repo','')!s:30s}  {rec.get('domain','')}")
         return 0
+    inherit = resolver.NO_ID if args.inherit_pick else args.inherit
+    if inherit is resolver.NO_ID and not args.inherit_pick:
+        print(
+            "warning: bare --inherit is deprecated; use --inherit-pick "
+            "for the interactive picker.",
+            file=sys.stderr,
+        )
     try:
         result = resolver.resolve(
-            args.inherit,
+            inherit,
             store_dir=args.store_dir,
             launcher=webview.run_webview,
         )

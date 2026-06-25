@@ -37,12 +37,11 @@ based on the model id.
 
 ## Real implementations
 
-- **Selection Judge** — shallow per-trace classifier. Replaces the
-  workspace-coupled `taxonomy_check.py` we removed; this version is
-  standalone, no `ProgramWorkspace` required.
-- **Reflection Judge** — ported from GEPA's
-  `ATLAS_Taxonomy/atlas_reflection_judge/`, stripped of
-  litellm/Bedrock-default coupling.
+- **Selection Judge** — shallow per-trace classifier for scalable
+  taxonomy-code assignment. Standalone: no `ProgramWorkspace` required.
+- **Reflection Judge** — deep multi-stage trace analyzer that identifies
+  failure points, builds causal structure, and maps supported points to
+  taxonomy codes.
 - **Mapping Judge** — single-failure-point code assignment. Mirrors the
   Reflection Judge's two-call Stage 8 but standalone.
 - **Coverage Judge** — given a trace and/or failure point, decides
@@ -58,9 +57,7 @@ based on the model id.
   Judge output into root/attributable/unrecovered/etc. buckets.
 
 The Reflection Judge is also the validation gate used by
-`atlas_runtime/reflection_refinement.py` at end of generation — it
-replaces the legacy `taxonomy_check` Selection-Judge acceptance gate
-that used to sit there.
+`atlas_runtime/reflection_refinement.py` at the end of generation.
 
 ## How each judge fits in a generation+refinement run
 

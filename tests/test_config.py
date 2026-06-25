@@ -153,6 +153,10 @@ class AtlasConfigTests(unittest.TestCase):
                     "store_dir": "taxonomies",
                     "dashboard": False,
                     "generation_threshold": 9,
+                    "built_in_hooks": {
+                        "SubagentStop": False,
+                        "PostToolUse": ["Bash", "Edit"],
+                    },
                 }),
                 encoding="utf-8",
             )
@@ -176,6 +180,11 @@ class AtlasConfigTests(unittest.TestCase):
         self.assertEqual(captured["config"].trace_output, (root / "program").resolve())
         self.assertEqual(captured["config"].generation_threshold, 9)
         self.assertFalse(captured["config"].dashboard)
+        hooks = {
+            spec.event: spec for spec in captured["config"].built_in_hooks
+        }
+        self.assertFalse(hooks["SubagentStop"].enabled)
+        self.assertEqual(hooks["PostToolUse"].matchers, ("Bash", "Edit"))
 
     def test_import_traces_cli_uses_config_for_model_and_storage(self):
         with tempfile.TemporaryDirectory() as td:

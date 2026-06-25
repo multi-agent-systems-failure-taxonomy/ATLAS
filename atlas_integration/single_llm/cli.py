@@ -86,9 +86,14 @@ def main(argv=None) -> int:
         nargs="?",
         const=resolver.NO_ID,
         help=(
-            "taxonomy ID to inherit; pass without a value to open the local "
-            "taxonomy picker"
+            "taxonomy ID to inherit; the no-value picker form is deprecated, "
+            "use --inherit-pick instead"
         ),
+    )
+    parser.add_argument(
+        "--inherit-pick",
+        action="store_true",
+        help="open the local taxonomy picker before running the task",
     )
     parser.add_argument("--problem-id")
     parser.add_argument("--dashboard", dest="dashboard", action="store_true", default=None)
@@ -108,14 +113,26 @@ def main(argv=None) -> int:
         ).resolve()
     except ValueError as exc:
         parser.error(str(exc))
+    if args.inherit_pick and args.inherit is not None:
+        parser.error("--inherit-pick cannot be combined with --inherit")
     task = (
         args.task
         if args.task is not None
         else Path(args.task_file).read_text(encoding="utf-8")
     )
     store_dir = config_value(args, config, "store_dir", store.DEFAULT_STORE_DIR)
-    inherit = args.inherit if args.inherit is not None else config.get("inherit")
+    inherit = (
+        resolver.NO_ID
+        if args.inherit_pick
+        else args.inherit if args.inherit is not None else config.get("inherit")
+    )
     if inherit == resolver.NO_ID:
+        if not args.inherit_pick:
+            print(
+                "warning: bare --inherit is deprecated; use --inherit-pick "
+                "for the interactive picker.",
+                file=sys.stderr,
+            )
         selected = resolver.resolve(
             resolver.NO_ID,
             store_dir=store_dir,

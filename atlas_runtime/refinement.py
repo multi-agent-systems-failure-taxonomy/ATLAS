@@ -28,6 +28,11 @@ from .learning_calls import (
 from .lineage import TaxonomyLineage
 from .program import ProgramWorkspace
 from .traces import DEFAULT_TRACE_ROOT, GenerationTrace
+from .worker_state import (
+    REFINEMENT_WORKER_STATE,
+    WorkerHeartbeat,
+    write_worker_state,
+)
 
 DEFAULT_K_INIT = 10
 DEFAULT_K = 20
@@ -98,7 +103,8 @@ def trigger_refinement(
             "none",
             f"refinement threshold not reached: {count}/{threshold}",
         )
-    if not workspace.try_begin_refinement(threshold):
+    worker_kind = "inline" if refinement_stops else "background"
+    if not workspace.try_begin_refinement(threshold, worker_kind=worker_kind):
         return RefinementResult("none", "refinement already running or unnecessary")
 
     if refinement_stops:
@@ -597,7 +603,12 @@ def _spawn_worker(
         )
     else:
         kwargs["start_new_session"] = True
-    subprocess.Popen(command, **kwargs)
+    process = subprocess.Popen(command, **kwargs)
+    write_worker_state(
+        Path(trace_output) / REFINEMENT_WORKER_STATE,
+        "refinement",
+        pid=process.pid,
+    )
 
 
 def main() -> int:
@@ -611,13 +622,15 @@ def main() -> int:
     args = parser.parse_args()
     if not args.worker:
         parser.error("--worker is required")
-    result = run_refinement_job(
-        ProgramWorkspace(args.trace_output),
-        store_dir=args.store_dir,
-        trace_root=args.trace_root,
-        advanced_refinement=args.advanced_refinement,
-        atlas_model=args.atlas_model,
-    )
+    workspace = ProgramWorkspace(args.trace_output)
+    with WorkerHeartbeat(workspace.root / REFINEMENT_WORKER_STATE, "refinement"):
+        result = run_refinement_job(
+            workspace,
+            store_dir=args.store_dir,
+            trace_root=args.trace_root,
+            advanced_refinement=args.advanced_refinement,
+            atlas_model=args.atlas_model,
+        )
     return 0 if result.action == "activated" else 1
 
 

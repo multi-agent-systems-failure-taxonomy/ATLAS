@@ -25,9 +25,9 @@ sit on top of this layer.
 | [`protocol.py`](protocol.py) | Minimal pre-submission gate: reflection-shape validation + repair-retry envelope |
 | [`redaction.py`](redaction.py) | Dependency-free helpers for harnesses to redact secrets before `record_trace()` |
 | [`refinement.py`](refinement.py) | Program-local refinement cadence (K_init / K thresholds) — fires periodically against the active taxonomy |
-| [`reflection_refinement.py`](reflection_refinement.py) | End-of-generation validation via the Reflection Judge + LLM refiner — replaces the legacy `taxonomy_check` Selection-Judge gate |
+| [`reflection_refinement.py`](reflection_refinement.py) | End-of-generation validation via the Reflection Judge + LLM refiner |
 | [`repository.py`](repository.py) | Display-only repository metadata discovery (git remote, repo name) — never used for taxonomy routing |
-| [`taxonomy_data.py`](taxonomy_data.py) | Taxonomy data model: `Code`, `Taxonomy`, `JudgeLog`, `CostMeter`, `render_code_spec`. Ported from GEPA |
+| [`taxonomy_data.py`](taxonomy_data.py) | Taxonomy data model: `Code`, `Taxonomy`, `JudgeLog`, `CostMeter`, `render_code_spec` |
 | [`traces.py`](traces.py) | Crash-safe per-program trace files in the canonical ATLAS generation-input shape; integration across taxonomy successors |
 | [`traces_cli.py`](traces_cli.py) | `atlas-traces` CLI for trace status, JSONL export, and dry-run-first pruning |
 
@@ -41,5 +41,5 @@ sit on top of this layer.
 | Mutates via | Refiner-produced full-replacement taxonomy | Add / edit / split / retire mutations on a `Taxonomy` object |
 
 Both are real, separate concerns. `refinement.py` is the long-running
-program-local cadence; `reflection_refinement.py` is the validation gate
-that replaced `taxonomy_check`.
+program-local cadence; `reflection_refinement.py` is the end-of-generation
+validation gate.

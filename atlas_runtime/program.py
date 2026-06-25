@@ -12,6 +12,12 @@ from typing import Any
 
 from .repository import discover_repo
 from .traces import TraceStore
+from .worker_state import (
+    DEFAULT_WORKER_STALE_AFTER_SECONDS,
+    GENERATION_WORKER_STATE,
+    REFINEMENT_WORKER_STATE,
+    worker_state_is_stale,
+)
 
 MANIFEST_NAME = ".atlas-program.json"
 
@@ -155,7 +161,13 @@ class ProgramWorkspace:
             or self._new_manifest()["refinement"]
         )
 
-    def try_begin_refinement(self, threshold: int) -> bool:
+    def try_begin_refinement(
+        self,
+        threshold: int,
+        *,
+        worker_kind: str = "inline",
+        worker_stale_after_seconds: float = DEFAULT_WORKER_STALE_AFTER_SECONDS,
+    ) -> bool:
         with self.locked_manifest() as manifest:
             refinement = manifest.setdefault(
                 "refinement",
@@ -164,9 +176,23 @@ class ProgramWorkspace:
             if int(refinement.get("traces_since_refinement", 0)) < threshold:
                 return False
             if refinement.get("state") == "running":
-                return False
+                existing_kind = refinement.get("worker_kind")
+                if existing_kind in (None, "background") and self._worker_is_stale(
+                    refinement,
+                    REFINEMENT_WORKER_STATE,
+                    worker_stale_after_seconds,
+                    legacy_without_timestamp_is_stale=existing_kind is None,
+                ):
+                    refinement["state"] = "failed"
+                    refinement["last_error"] = (
+                        "previous background refinement worker became stale"
+                    )
+                else:
+                    return False
             refinement["state"] = "running"
             refinement["last_error"] = None
+            refinement["worker_kind"] = worker_kind
+            refinement["worker_started_unix"] = time.time()
             return True
 
     def mark_refinement(self, state: str, error: str | None = None) -> None:
@@ -177,6 +203,9 @@ class ProgramWorkspace:
             )
             refinement["state"] = state
             refinement["last_error"] = error
+            if state != "running":
+                refinement.pop("worker_kind", None)
+                refinement.pop("worker_started_unix", None)
 
     def complete_refinement(self, taxonomy_id: str) -> None:
         with self.locked_manifest() as manifest:
@@ -192,6 +221,8 @@ class ProgramWorkspace:
             refinement["trace_refs"] = []
             refinement["state"] = "complete"
             refinement["last_error"] = None
+            refinement.pop("worker_kind", None)
+            refinement.pop("worker_started_unix", None)
 
     def finish_session(self, session_id: str) -> None:
         with self.locked_manifest() as manifest:
@@ -222,6 +253,9 @@ class ProgramWorkspace:
             generation = manifest.setdefault("generation", {})
             generation["state"] = state
             generation["last_error"] = error
+            if state != "running":
+                generation.pop("worker_kind", None)
+                generation.pop("worker_started_unix", None)
 
     def mark_generation_rejected(
         self,
@@ -235,16 +269,37 @@ class ProgramWorkspace:
             generation["last_error"] = error
             generation["last_check_snapshot_count"] = snapshot_count
             generation["retry_after_count"] = snapshot_count + threshold
+            generation.pop("worker_kind", None)
+            generation.pop("worker_started_unix", None)
 
-    def try_begin_generation(self) -> bool:
+    def try_begin_generation(
+        self,
+        *,
+        worker_kind: str = "inline",
+        worker_stale_after_seconds: float = DEFAULT_WORKER_STALE_AFTER_SECONDS,
+    ) -> bool:
         with self.locked_manifest() as manifest:
             if manifest.get("taxonomy_id"):
                 return False
-            if manifest.get("generation", {}).get("state") == "running":
-                return False
             generation = manifest.setdefault("generation", {})
+            if generation.get("state") == "running":
+                existing_kind = generation.get("worker_kind")
+                if existing_kind in (None, "background") and self._worker_is_stale(
+                    generation,
+                    GENERATION_WORKER_STATE,
+                    worker_stale_after_seconds,
+                    legacy_without_timestamp_is_stale=existing_kind is None,
+                ):
+                    generation["state"] = "failed"
+                    generation["last_error"] = (
+                        "previous background generation worker became stale"
+                    )
+                else:
+                    return False
             generation["state"] = "running"
             generation["last_error"] = None
+            generation["worker_kind"] = worker_kind
+            generation["worker_started_unix"] = time.time()
             return True
 
     def generation_retry_after(self, default: int) -> int:
@@ -262,6 +317,26 @@ class ProgramWorkspace:
             manifest["taxonomy_id"] = taxonomy_id
             manifest["generation"] = {"state": "complete", "last_error": None}
             return True
+
+    def _worker_is_stale(
+        self,
+        job: dict[str, Any],
+        filename: str,
+        stale_after_seconds: float,
+        *,
+        legacy_without_timestamp_is_stale: bool,
+    ) -> bool:
+        worker_path = self.root / filename
+        if worker_path.exists():
+            return worker_state_is_stale(
+                worker_path,
+                stale_after_seconds=stale_after_seconds,
+                missing_is_stale=False,
+            )
+        started = job.get("worker_started_unix")
+        if isinstance(started, int | float):
+            return time.time() - float(started) > stale_after_seconds
+        return legacy_without_timestamp_is_stale
 
     @contextmanager
     def locked_manifest(self, *, timeout: float = 5.0, stale_after: float = 60.0):

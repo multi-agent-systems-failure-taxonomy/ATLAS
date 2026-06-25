@@ -33,7 +33,8 @@ STRING_FIELDS = {
     "openai_api_key_env",
     "model",
 }
-ALL_FIELDS = PATH_FIELDS | INT_FIELDS | BOOL_FIELDS | STRING_FIELDS
+RAW_FIELDS = {"built_in_hooks"}
+ALL_FIELDS = PATH_FIELDS | INT_FIELDS | BOOL_FIELDS | STRING_FIELDS | RAW_FIELDS
 
 
 def add_config_argument(parser: argparse.ArgumentParser) -> None:
@@ -134,4 +135,6 @@ def _normalize_field(key: str, value: Any, base: Path) -> Any:
         if key == "inherit" and stripped.lower() == "none":
             return None
         return stripped if stripped else None
+    if key in RAW_FIELDS:
+        return value
     raise ValueError(f"unknown ATLAS config field: {key}")

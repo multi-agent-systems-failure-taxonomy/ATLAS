@@ -11,9 +11,12 @@ from atlas_runtime.generation import (
     candidate_from_atlas,
     run_generation_job,
     structurally_accept,
+    trigger_generation,
 )
 from atlas_runtime.lifecycle import end_session, record_trace, start_session
+from atlas_runtime.program import ProgramWorkspace
 from atlas_runtime.traces import GenerationTrace, TraceStore
+from atlas_runtime.worker_state import GENERATION_WORKER_STATE, write_worker_state
 from finding import resolver, store
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -249,6 +252,75 @@ class GenerationLifecycleTests(unittest.TestCase):
                 later.delivery.taxonomy_id,
                 outcome["result"].taxonomy_id,
             )
+
+    def test_stale_background_generation_worker_can_be_retried(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            output, store_dir, trace_root = root / "program", root / "tax", root / "traces"
+            copy_store(store_dir)
+            workspace = ProgramWorkspace(output)
+            workspace.pending.append_many(trace(number) for number in range(5))
+            with workspace.locked_manifest() as manifest:
+                manifest["generation"] = {
+                    "state": "running",
+                    "last_error": None,
+                    "worker_kind": "background",
+                    "worker_started_unix": time.time() - 1_000,
+                }
+            write_worker_state(
+                output / GENERATION_WORKER_STATE,
+                "generation",
+                pid=123,
+                now=time.time() - 1_000,
+            )
+            launched = []
+
+            result = trigger_generation(
+                workspace,
+                store_dir=store_dir,
+                trace_root=trace_root,
+                threshold=5,
+                background_launcher=lambda: launched.append(True),
+            )
+
+            self.assertEqual(result.action, "started")
+            self.assertEqual(launched, [True])
+            generation = workspace.load()["generation"]
+            self.assertEqual(generation["state"], "running")
+            self.assertIsNone(generation["last_error"])
+
+    def test_live_background_generation_worker_is_not_retried(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            output, store_dir, trace_root = root / "program", root / "tax", root / "traces"
+            copy_store(store_dir)
+            workspace = ProgramWorkspace(output)
+            workspace.pending.append_many(trace(number) for number in range(5))
+            with workspace.locked_manifest() as manifest:
+                manifest["generation"] = {
+                    "state": "running",
+                    "last_error": None,
+                    "worker_kind": "background",
+                    "worker_started_unix": time.time(),
+                }
+            write_worker_state(
+                output / GENERATION_WORKER_STATE,
+                "generation",
+                pid=123,
+            )
+            launched = []
+
+            result = trigger_generation(
+                workspace,
+                store_dir=store_dir,
+                trace_root=trace_root,
+                threshold=5,
+                background_launcher=lambda: launched.append(True),
+            )
+
+            self.assertEqual(result.action, "none")
+            self.assertEqual(result.reason, "generation already running or unnecessary")
+            self.assertEqual(launched, [])
 
 
 class AtlasCandidateConversionTests(unittest.TestCase):

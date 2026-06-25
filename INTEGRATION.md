@@ -85,18 +85,40 @@ MAST and the program has reached the generation threshold, generation starts
 or runs. If the active taxonomy is a stored taxonomy and the program has
 reached its refinement threshold, refinement starts or runs.
 
-## `--inherit` semantics
+## Taxonomy inheritance semantics
 
-All harnesses should preserve the same three forms:
+All harnesses should preserve the same selection behavior:
 
 | User input | Runtime selection |
 |---|---|
 | no inherit value at all | start from built-in MAST |
 | explicit `taxonomy_id` | inherit that stored taxonomy |
-| inherit flag with no id | open the blocking local picker |
+| explicit picker request, e.g. `--inherit-pick` | open the blocking local picker |
+
+Bare `--inherit` is still accepted by the bundled CLIs as a deprecated
+compatibility alias for the picker. New harnesses should expose an explicit
+picker flag instead of overloading the missing-id case.
 
 Repository and domain are display metadata only. They must not route taxonomy
 selection.
+
+## Claude Code hook selection
+
+`atlas-claude-install` installs every built-in hook by default for backwards
+compatibility. Projects can reduce noise by disabling a built-in event or by
+restricting tool-result hooks to selected Claude Code tool matchers:
+
+```bash
+atlas-claude-install \
+  --config atlas.json \
+  --disable-hook SubagentStop \
+  --post-tool-use-matchers Bash,Edit \
+  --post-tool-use-failure-matchers Bash
+```
+
+The equivalent config-file field is `built_in_hooks`. Boolean values enable or
+disable an event; lists set matchers for `PostToolUse` and
+`PostToolUseFailure`; object values can carry both `enabled` and `matchers`.
 
 ## Runtime configuration surface
 
@@ -118,7 +140,15 @@ values:
   "refinement_stops": false,
   "advanced_refinement": false,
   "max_retries": 3,
-  "dashboard": true
+  "dashboard": true,
+  "built_in_hooks": {
+    "SubagentStop": false,
+    "PostToolUse": ["Bash", "Edit"],
+    "PostToolUseFailure": {
+      "enabled": true,
+      "matchers": ["Bash"]
+    }
+  }
 }
 ```
 

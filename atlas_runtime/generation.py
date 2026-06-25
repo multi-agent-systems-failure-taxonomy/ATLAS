@@ -27,6 +27,11 @@ from .program import ProgramWorkspace
 from .learning_calls import outcome_blind_trace
 from .reflection_refinement import RefinementSummary, refine_with_reflection_judge
 from .traces import DEFAULT_TRACE_ROOT, GenerationTrace, TraceStore
+from .worker_state import (
+    GENERATION_WORKER_STATE,
+    WorkerHeartbeat,
+    write_worker_state,
+)
 
 DEFAULT_GENERATION_THRESHOLD = 5
 DEFAULT_CATEGORIES: tuple[str, ...] = ("A", "B", "C")
@@ -260,7 +265,8 @@ def trigger_generation(
             "none",
             f"generation threshold not reached: {count}/{retry_after}",
         )
-    if not workspace.try_begin_generation():
+    worker_kind = "inline" if generation_stops else "background"
+    if not workspace.try_begin_generation(worker_kind=worker_kind):
         return GenerationResult("none", "generation already running or unnecessary")
 
     if generation_stops:
@@ -561,7 +567,12 @@ def _spawn_worker(trace_output: Path, store_dir: Path, trace_root: Path) -> None
         )
     else:
         kwargs["start_new_session"] = True
-    subprocess.Popen(command, **kwargs)
+    process = subprocess.Popen(command, **kwargs)
+    write_worker_state(
+        Path(trace_output) / GENERATION_WORKER_STATE,
+        "generation",
+        pid=process.pid,
+    )
 
 
 def main() -> int:
@@ -574,12 +585,13 @@ def main() -> int:
     if not args.worker:
         parser.error("--worker is required")
     workspace = ProgramWorkspace(args.trace_output)
-    result = run_generation_job(
-        workspace,
-        store_dir=args.store_dir,
-        trace_root=args.trace_root,
-        atlas_model=workspace.load().get("atlas_model"),
-    )
+    with WorkerHeartbeat(workspace.root / GENERATION_WORKER_STATE, "generation"):
+        result = run_generation_job(
+            workspace,
+            store_dir=args.store_dir,
+            trace_root=args.trace_root,
+            atlas_model=workspace.load().get("atlas_model"),
+        )
     return 0 if result.action == "activated" else 1
 
 

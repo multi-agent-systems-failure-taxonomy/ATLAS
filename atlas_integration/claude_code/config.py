@@ -12,6 +12,16 @@ from atlas_runtime.traces import DEFAULT_TRACE_ROOT
 
 CUSTOM_HOOK_MODES = ("blocking", "advisory")
 CUSTOM_HOOK_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+BUILT_IN_HOOK_EVENTS = (
+    "SessionStart",
+    "SessionEnd",
+    "Stop",
+    "TaskCompleted",
+    "SubagentStop",
+    "PostToolUse",
+    "PostToolUseFailure",
+)
+BUILT_IN_MATCHER_EVENTS = ("PostToolUse", "PostToolUseFailure")
 CLAUDE_CODE_EVENTS = (
     "SessionStart", "SessionEnd", "Stop", "TaskCompleted", "SubagentStop",
     "PreToolUse", "PostToolUse", "PostToolUseFailure",
@@ -74,6 +84,114 @@ class CustomHookSpec:
 
 
 @dataclass(frozen=True)
+class BuiltInHookSpec:
+    """Registration policy for one built-in Claude Code hook event."""
+
+    event: str
+    enabled: bool = True
+    matchers: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.event not in BUILT_IN_HOOK_EVENTS:
+            raise ValueError(
+                f"built-in hook event {self.event!r} must be one of "
+                f"{BUILT_IN_HOOK_EVENTS}"
+            )
+        if self.matchers and self.event not in BUILT_IN_MATCHER_EVENTS:
+            raise ValueError(
+                f"built-in hook event {self.event!r} does not support matchers"
+            )
+        normalized = tuple(str(item).strip() for item in self.matchers)
+        if any(not item for item in normalized):
+            raise ValueError("built-in hook matcher cannot be empty string")
+        if len(set(normalized)) != len(normalized):
+            raise ValueError("built-in hook matchers must be unique per event")
+        object.__setattr__(self, "matchers", normalized)
+
+    def to_dict(self) -> dict:
+        data = {"enabled": self.enabled}
+        if self.event in BUILT_IN_MATCHER_EVENTS:
+            data["matchers"] = list(self.matchers)
+        return data
+
+    @classmethod
+    def from_value(
+        cls,
+        event: str,
+        value,
+        *,
+        default: "BuiltInHookSpec | None" = None,
+    ) -> "BuiltInHookSpec":
+        default = default or default_built_in_hook(event)
+        if isinstance(value, bool):
+            return cls(event=event, enabled=value, matchers=default.matchers)
+        if isinstance(value, list | tuple):
+            return cls(event=event, enabled=True, matchers=_matchers(value))
+        if isinstance(value, dict):
+            enabled = bool(value.get("enabled", default.enabled))
+            raw_matchers = value.get("matchers", default.matchers)
+            return cls(event=event, enabled=enabled, matchers=_matchers(raw_matchers))
+        raise ValueError(
+            f"built_in_hooks.{event} must be a bool, matcher list, or object"
+        )
+
+
+def default_built_in_hook(event: str) -> BuiltInHookSpec:
+    return BuiltInHookSpec(
+        event=event,
+        enabled=True,
+        matchers=("*",) if event in BUILT_IN_MATCHER_EVENTS else (),
+    )
+
+
+def default_built_in_hooks() -> tuple[BuiltInHookSpec, ...]:
+    return tuple(default_built_in_hook(event) for event in BUILT_IN_HOOK_EVENTS)
+
+
+def parse_built_in_hooks(value=None) -> tuple[BuiltInHookSpec, ...]:
+    defaults = {spec.event: spec for spec in default_built_in_hooks()}
+    if value is None:
+        return tuple(defaults[event] for event in BUILT_IN_HOOK_EVENTS)
+    if isinstance(value, dict):
+        unknown = set(value) - set(BUILT_IN_HOOK_EVENTS)
+        if unknown:
+            raise ValueError(f"unknown built_in_hooks event(s): {sorted(unknown)}")
+        merged = dict(defaults)
+        for event, event_value in value.items():
+            merged[event] = BuiltInHookSpec.from_value(
+                event,
+                event_value,
+                default=defaults[event],
+            )
+        return tuple(merged[event] for event in BUILT_IN_HOOK_EVENTS)
+    if isinstance(value, list | tuple):
+        merged = dict(defaults)
+        for item in value:
+            if not isinstance(item, dict) or "event" not in item:
+                raise ValueError(
+                    "built_in_hooks list entries must be objects with an event"
+                )
+            event = str(item["event"])
+            merged[event] = BuiltInHookSpec.from_value(
+                event,
+                item,
+                default=defaults.get(event),
+            )
+        return tuple(merged[event] for event in BUILT_IN_HOOK_EVENTS)
+    raise ValueError("built_in_hooks must be an object or list")
+
+
+def _matchers(value) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if isinstance(value, str):
+        return tuple(part.strip() for part in value.split(",") if part.strip())
+    if isinstance(value, list | tuple):
+        return tuple(str(item).strip() for item in value)
+    raise ValueError("built-in hook matchers must be a string or list")
+
+
+@dataclass(frozen=True)
 class ClaudeCodeConfig:
     trace_output: Path
     atlas_model: str
@@ -93,6 +211,9 @@ class ClaudeCodeConfig:
     advanced_refinement: bool = False
     failure_throttle_calls: int = 5
     failure_recency_seconds: int = 30
+    built_in_hooks: tuple[BuiltInHookSpec, ...] = field(
+        default_factory=default_built_in_hooks
+    )
     custom_hooks: tuple[CustomHookSpec, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
@@ -127,6 +248,17 @@ class ClaudeCodeConfig:
                     "be unique within a config"
                 )
             seen_names.add(spec.name)
+        seen_built_in: set[str] = set()
+        for spec in self.built_in_hooks:
+            if not isinstance(spec, BuiltInHookSpec):
+                raise TypeError(
+                    "built_in_hooks entries must be BuiltInHookSpec instances"
+                )
+            if spec.event in seen_built_in:
+                raise ValueError(
+                    f"duplicate built_in_hooks event {spec.event!r}"
+                )
+            seen_built_in.add(spec.event)
 
     def find_custom_hook(self, name: str) -> CustomHookSpec | None:
         for spec in self.custom_hooks:
@@ -157,6 +289,7 @@ class ClaudeCodeConfig:
         custom_hooks = tuple(
             CustomHookSpec.from_dict(entry) for entry in raw_hooks
         )
+        built_in_hooks = parse_built_in_hooks(data.get("built_in_hooks"))
         return cls(
             trace_output=Path(trace_output).expanduser().resolve(),
             atlas_model=atlas_model,
@@ -196,6 +329,7 @@ class ClaudeCodeConfig:
             failure_recency_seconds=max(
                 0, int(data.get("failure_recency_seconds", 30))
             ),
+            built_in_hooks=built_in_hooks,
             custom_hooks=custom_hooks,
         )
 
@@ -220,5 +354,8 @@ class ClaudeCodeConfig:
             "advanced_refinement": self.advanced_refinement,
             "failure_throttle_calls": self.failure_throttle_calls,
             "failure_recency_seconds": self.failure_recency_seconds,
+            "built_in_hooks": {
+                spec.event: spec.to_dict() for spec in self.built_in_hooks
+            },
             "custom_hooks": [spec.to_dict() for spec in self.custom_hooks],
         }
