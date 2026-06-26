@@ -24,6 +24,8 @@ from atlas_runtime.register_taxonomy import (
 )
 from finding import store
 
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
+REAL_ATLAS_OUTPUT = FIXTURES / "real_atlas_generation_output.json"
 
 FLAT = {
     "repo": "demo",
@@ -67,6 +69,11 @@ class LoadCandidateTests(unittest.TestCase):
             # Round-trip via Taxonomy: 2 codes survive, renumbered A.1 / C.1.
             self.assertEqual({c["category"] for c in c["codes"]}, {"A", "C"})
 
+    def test_loads_real_atlas_pipeline_shape_with_annotation_codes(self) -> None:
+        c = load_candidate(REAL_ATLAS_OUTPUT)
+        self.assertEqual({code["id"] for code in c["codes"]}, {"A.1", "B.1"})
+        self.assertEqual(c["domain"], "Software Engineering / Code Repair")
+
     def test_rejects_unrecognized_shape(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             p = Path(td) / "t.json"
@@ -97,6 +104,18 @@ class RegisterTaxonomyFileTests(unittest.TestCase):
             r = register_taxonomy_file(src, store_dir=td / "store")
             rec = store.fetch_by_id(r.taxonomy_id, td / "store")
             self.assertEqual({c["category"] for c in rec["codes"]}, {"A", "C"})
+
+    def test_registers_real_atlas_pipeline_file_without_traces(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td)
+            r = register_taxonomy_file(
+                REAL_ATLAS_OUTPUT,
+                store_dir=td / "store",
+                taxonomy_id="real-atlas-output",
+            )
+            rec = store.fetch_by_id(r.taxonomy_id, td / "store")
+            self.assertEqual({code["id"] for code in rec["codes"]}, {"A.1", "B.1"})
+            self.assertEqual(rec["domain"], "Software Engineering / Code Repair")
 
     def test_honors_explicit_id(self) -> None:
         with tempfile.TemporaryDirectory() as td:

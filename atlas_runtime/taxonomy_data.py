@@ -105,7 +105,12 @@ class Taxonomy:
         n = 0
         for cat, key in (("A", "category_a"), ("B", "category_b"), ("C", "category_c")):
             full_cat = full.get(key, {})
-            items = list(full_cat.values()) if isinstance(full_cat, dict) else (full_cat or ann.get(key, []))
+            if isinstance(full_cat, dict) and full_cat:
+                items = list(full_cat.values())
+            elif isinstance(full_cat, list) and full_cat:
+                items = full_cat
+            else:
+                items = ann.get(key, [])
             items = sorted(items, key=lambda c: int((re.findall(r"\d+", c.get("code", "0")) or ["0"])[0]))
             for c in items:
                 n += 1
@@ -120,7 +125,16 @@ class Taxonomy:
                     origin="seed",
                 ))
         roles = data.get("role_definitions", {})
-        return cls(codes, {"version_n": 1, "role_definitions": roles})
+        metadata: dict[str, Any] = {
+            "version_n": 1,
+            "role_definitions": roles,
+        }
+        domain_info = full.get("domain_info")
+        if isinstance(domain_info, Mapping):
+            domain = domain_info.get("domain")
+            if isinstance(domain, Mapping) and isinstance(domain.get("name"), str):
+                metadata["domain"] = domain["name"].strip()
+        return cls(codes, metadata)
 
     @classmethod
     def from_flat(cls, flat: Mapping[str, Any]) -> "Taxonomy":
