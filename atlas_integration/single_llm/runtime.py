@@ -9,20 +9,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from atlas_integration.claude_code.prompts import reflection_prompt
-from atlas_integration.claude_code.reflection import (
-    ReflectionResult,
-    parse_reflection,
-)
-from atlas_integration.claude_code.state import record_reflection
 from atlas_runtime import (
     GenerationTrace,
+    ReflectionResult,
     SessionEndResult,
     end_session,
     pre_submission,
     record_trace,
     start_session,
 )
+from atlas_runtime.checkpoint_prompt import render_reflection_prompt
+from atlas_runtime.evidence import record_reflection
+from atlas_runtime.reflection import parse_reflection
 from atlas_runtime.traces import DEFAULT_TRACE_ROOT
 from finding import resolver, store
 
@@ -256,9 +254,9 @@ def _collect_reflection(
     prompt_suffix: str = "",
 ):
     checkpoint_id = uuid.uuid4().hex
-    state = {"taxonomy_id": taxonomy_id, "taxonomy": taxonomy}
-    prompt = reflection_prompt(
-        state,
+    prompt = render_reflection_prompt(
+        taxonomy_id=taxonomy_id,
+        codes=taxonomy["codes"],
         checkpoint_id=checkpoint_id,
         gate_label=gate_label,
         recent_activity=recent_activity,

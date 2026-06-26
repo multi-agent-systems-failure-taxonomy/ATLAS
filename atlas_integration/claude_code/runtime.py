@@ -22,12 +22,13 @@ from atlas_runtime import (
     record_trace,
     start_session,
 )
+from atlas_runtime.evidence import record_reflection
+from atlas_runtime.reflection import ReflectionResult, parse_reflection
 from finding import resolver
 
 from .config import ClaudeCodeConfig
 from .prompts import STANDING_PROMPT, failure_nudge, reflection_prompt
-from .reflection import ReflectionResult, parse_reflection
-from .state import load_state, record_reflection, save_state
+from .state import load_state, save_state
 from .transcript import (
     first_user_message,
     read_raw_transcript,

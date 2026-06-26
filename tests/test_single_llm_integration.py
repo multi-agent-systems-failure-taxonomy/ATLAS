@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 from atlas_integration.single_llm import SingleLLMConfig, run_single_llm
-from atlas_integration.claude_code.state import EVIDENCE_FILE
+from atlas_runtime.evidence import EVIDENCE_FILE
 from atlas_runtime.program import ProgramWorkspace
 
 ROOT = Path(__file__).resolve().parent.parent

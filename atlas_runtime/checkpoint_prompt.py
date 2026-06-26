@@ -1,0 +1,72 @@
+"""Shared ATLAS checkpoint-reflection prompt body."""
+
+from __future__ import annotations
+
+from typing import Any
+
+
+def render_reflection_prompt(
+    *,
+    taxonomy_id: str,
+    codes: list[dict[str, Any]] | tuple[dict[str, Any], ...],
+    checkpoint_id: str,
+    gate_label: str,
+    recent_activity: str,
+    full: bool,
+    final_instructions: str = "",
+) -> str:
+    """Render the agent-agnostic checkpoint reflection prompt."""
+    code_list = "\n".join(
+        f"- {code['id']} — {code['name']}: {code['description']}"
+        for code in codes
+    )
+    scope = "the full task trajectory" if full else (
+        "only the recent activity since the previous ATLAS checkpoint"
+    )
+    return f"""ATLAS {gate_label} — reflection required before this boundary can pass.
+
+Checkpoint ID: {checkpoint_id}
+Active taxonomy: {taxonomy_id}
+
+Failure modes to consider:
+{code_list}
+
+Scope: {scope}.
+
+Recent trajectory excerpt:
+--- begin recent activity ---
+{recent_activity[-12000:] or "(no transcript text was available; use the activity in context)"}
+--- end recent activity ---
+
+Work the steps IN ORDER. Do not consult the failure-mode list above until the
+Map step: first identify what actually went wrong or what expected step is
+missing, then label those failure points with taxonomy codes. This keeps the
+labels from biasing what you look for.
+
+ATLAS reflection:
+- Checkpoint ID: {checkpoint_id}
+- Observe: as a neutral third-person reviewer of the scoped activity, list the
+  concrete failure points: specific things that went wrong, are weak, or are
+  missing. Each needs verbatim evidence, either a quote or a concrete fact from
+  the trace. Then do one forward sweep for expected steps that are absent, such
+  as missing verification, no alternate search, repeated plateaued strategy, or
+  no problem decomposition. If the work is genuinely clean, say exactly what you
+  checked.
+- Correlate: for each failure point, look earlier in the trace for its cause
+  and name the root one. Only assert a cause the trace shows.
+- Map: now consult the failure modes above and label each failure point:
+  - `<CODE> | evidence: "<verbatim fact from that failure point>"`
+  - multiple codes are allowed, and the same code may recur on different points
+  - only if you found no failure points at all:
+    `none apply | considered: <CODE,...> | evidence: "<why the work is genuinely clean>"`
+- Decide: in first person, address the highest-value point, exactly one of:
+  - `change: <one focused change>`
+  - `no change needed, because <evidence-based reason>`
+
+Find failure points from the work itself, not by scanning the code list for
+matches. A better result than before is not evidence that nothing is failing:
+improving work can still have weak spots, skipped steps, or better directions
+not yet tried. Judge the activity on its own terms. A well-supported
+`none apply` is still valid; never manufacture a failure or a change merely to
+satisfy the checkpoint.{final_instructions}
+"""

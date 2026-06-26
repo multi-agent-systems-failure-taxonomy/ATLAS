@@ -34,7 +34,7 @@ RUNTIME_EVIDENCE = ".atlas-runtime-evidence.json"
 TASK_LABELS = ".atlas-task-labels.json"
 # Reflection evidence/reasoning can be very long; the dashboard only needs a
 # readable preview, so each field is clipped server-side before it is sent.
-EVIDENCE_PREVIEW_CHARS = 280
+EVIDENCE_PREVIEW_CHARS = 8000
 _MANAGED_PROCESSES: dict[str, subprocess.Popen] = {}
 
 
@@ -104,7 +104,34 @@ def current_taxonomy(
         ),
         "domain": record.get("domain", ""),
         "codes": [_code_view(code, labels) for code in record["codes"]],
+        "clean_checkpoints": _clean_checkpoints(
+            workspace.root / RUNTIME_EVIDENCE,
+            latest_id,
+            labels,
+        ),
     }
+
+
+def _checkpoint_seq_map(
+    evidence: dict[str, Any],
+    taxonomy_id: str,
+) -> dict[str, int]:
+    """Number checkpoints for a taxonomy in chronological order."""
+    ordered = sorted(
+        (
+            checkpoint
+            for checkpoint in evidence.get("checkpoints", [])
+            if isinstance(checkpoint, dict)
+            and str(checkpoint.get("taxonomy_id")) == str(taxonomy_id)
+        ),
+        key=lambda checkpoint: checkpoint.get("timestamp") or 0,
+    )
+    sequence: dict[str, int] = {}
+    for index, checkpoint in enumerate(ordered, 1):
+        checkpoint_id = checkpoint.get("checkpoint_id")
+        if checkpoint_id is not None and checkpoint_id not in sequence:
+            sequence[str(checkpoint_id)] = index
+    return sequence
 
 
 def _overlay_runtime_evidence(
@@ -117,6 +144,7 @@ def _overlay_runtime_evidence(
         evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return
+    sequence = _checkpoint_seq_map(evidence, taxonomy_id)
     codes = (
         evidence.get("taxonomies", {})
         .get(taxonomy_id, {})
@@ -143,6 +171,8 @@ def _overlay_runtime_evidence(
         if isinstance(events, list):
             code["runtime_evidence"] = [
                 {
+                    "seq": sequence.get(str(event.get("checkpoint_id"))),
+                    "timestamp": event.get("timestamp"),
                     "gate": event.get("gate"),
                     "task_id": event.get("task_id"),
                     "task_label": _task_label(
@@ -156,6 +186,47 @@ def _overlay_runtime_evidence(
                 for event in events
                 if isinstance(event, dict)
             ]
+
+
+def _clean_checkpoints(
+    evidence_path: Path,
+    taxonomy_id: str,
+    labels: dict[str, Any] | None = None,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Return accepted checkpoints that did not fire a code."""
+    try:
+        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    sequence = _checkpoint_seq_map(evidence, taxonomy_id)
+    checkpoints: list[dict[str, Any]] = []
+    for checkpoint in evidence.get("checkpoints", []):
+        if not isinstance(checkpoint, dict):
+            continue
+        if str(checkpoint.get("taxonomy_id")) != str(taxonomy_id):
+            continue
+        if checkpoint.get("fired_codes"):
+            continue
+        checkpoints.append(
+            {
+                "seq": sequence.get(str(checkpoint.get("checkpoint_id"))),
+                "timestamp": checkpoint.get("timestamp"),
+                "checkpoint_id": checkpoint.get("checkpoint_id"),
+                "gate": checkpoint.get("gate"),
+                "task_id": checkpoint.get("task_id"),
+                "task_label": _task_label(
+                    str(checkpoint.get("task_id", "")),
+                    labels,
+                ),
+                "none_apply": bool(checkpoint.get("none_apply")),
+                "considered": list(checkpoint.get("considered_codes") or []),
+                "observe": _clip(checkpoint.get("observe")),
+                "correlate": _clip(checkpoint.get("correlate")),
+                "decide": _clip(checkpoint.get("decide")),
+            }
+        )
+    return checkpoints[-limit:]
 
 
 def _code_view(
@@ -677,6 +748,45 @@ _PAGE = r"""<!doctype html>
       white-space: nowrap;
     }
     .codes { display: grid; gap: 12px; }
+    .clean-panel {
+      margin: 0 0 18px;
+      border: 1px solid var(--line);
+      background: rgba(249,251,253,.94);
+      box-shadow: 0 5px 20px rgba(23,32,51,.05);
+    }
+    .clean-panel summary {
+      padding: 18px 56px 18px 22px;
+      font-family: Consolas, "SFMono-Regular", monospace;
+      font-size: .8rem;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: #344054;
+    }
+    .clean-list {
+      display: grid;
+      gap: 10px;
+      padding: 0 22px 20px;
+    }
+    .clean-item {
+      border-left: 4px solid #98a2b3;
+      background: white;
+      padding: 12px 14px;
+      line-height: 1.45;
+    }
+    .clean-meta {
+      color: var(--muted);
+      font: .7rem/1.3 Consolas, monospace;
+      margin-bottom: 6px;
+    }
+    .clean-tag {
+      display: inline-block;
+      margin-right: 8px;
+      padding: 2px 6px;
+      background: #e8eefc;
+      color: var(--cobalt);
+      font: .68rem/1.3 Consolas, monospace;
+      text-transform: uppercase;
+    }
     .code-card {
       display: grid;
       grid-template-columns: 92px minmax(0, 1fr);
@@ -875,6 +985,7 @@ _PAGE = r"""<!doctype html>
       <div class="count" id="count">0 codes</div>
     </section>
 
+    <section id="clean-checkpoints" hidden></section>
     <section class="codes" id="codes" aria-live="polite"></section>
   </main>
 
@@ -888,6 +999,7 @@ _PAGE = r"""<!doctype html>
       checked: document.querySelector("#checked"),
       search: document.querySelector("#search"),
       count: document.querySelector("#count"),
+      clean: document.querySelector("#clean-checkpoints"),
       codes: document.querySelector("#codes")
     };
     let state = null;
@@ -905,7 +1017,57 @@ _PAGE = r"""<!doctype html>
       els.program.textContent = data.program_id;
       els.checked.textContent = new Date().toLocaleTimeString();
       els.status.textContent = data.is_latest_successor ? "latest successor" : "live";
+      renderCleanCheckpoints(data.clean_checkpoints || []);
       applyFilter();
+    }
+
+    function checkpointLabel(item) {
+      const parts = [];
+      if (item.seq) parts.push(`#${item.seq}`);
+      if (item.gate) parts.push(item.gate);
+      if (item.task_label || item.task_id) parts.push(item.task_label || item.task_id);
+      if (item.checkpoint_id) parts.push(item.checkpoint_id);
+      return parts.join(" / ");
+    }
+
+    function renderCleanCheckpoints(items) {
+      if (!items.length) {
+        els.clean.hidden = true;
+        els.clean.replaceChildren();
+        return;
+      }
+      els.clean.hidden = false;
+      const panel = document.createElement("details");
+      panel.className = "clean-panel";
+      const summary = document.createElement("summary");
+      summary.textContent = `Clean checkpoints — reflection fired no code (${items.length})`;
+      panel.append(summary);
+      const list = document.createElement("div");
+      list.className = "clean-list";
+      for (const item of items.slice().reverse()) {
+        const row = document.createElement("div");
+        row.className = "clean-item";
+        const meta = document.createElement("div");
+        meta.className = "clean-meta";
+        meta.textContent = checkpointLabel(item);
+        const tag = document.createElement("span");
+        tag.className = "clean-tag";
+        tag.textContent = item.none_apply ? "none apply" : "no firing";
+        const considered = document.createElement("span");
+        considered.textContent = item.considered && item.considered.length
+          ? `Considered: ${item.considered.join(", ")}`
+          : "Considered codes not recorded";
+        const observe = document.createElement("div");
+        observe.textContent = `Observe: ${item.observe || "not recorded"}`;
+        const correlate = document.createElement("div");
+        correlate.textContent = `Reasoning: ${item.correlate || "not recorded"}`;
+        const decide = document.createElement("div");
+        decide.textContent = `Decision: ${item.decide || "not recorded"}`;
+        row.append(meta, tag, considered, observe, correlate, decide);
+        list.append(row);
+      }
+      panel.append(list);
+      els.clean.replaceChildren(panel);
     }
 
     function applyFilter() {
@@ -995,7 +1157,12 @@ _PAGE = r"""<!doctype html>
           event.className = "runtime-event";
           const meta = document.createElement("div");
           meta.className = "runtime-event-meta";
-          meta.textContent = [item.gate, item.task_label || item.task_id, item.checkpoint_id]
+          meta.textContent = [
+            item.seq ? `#${item.seq}` : "",
+            item.gate,
+            item.task_label || item.task_id,
+            item.checkpoint_id
+          ]
             .filter(Boolean).join(" / ");
           const evidenceLabel = document.createElement("strong");
           evidenceLabel.textContent = "Evidence: ";

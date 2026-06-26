@@ -9,8 +9,9 @@ particular host needs.
 
 - [`claude_code/`](claude_code/) — Project-local Claude Code integration:
   hook registration, the dispatcher that routes every hook event to the
-  right runtime checkpoint, reflection-shape parsing, transcript handling,
-  and the per-session state store.
+  right runtime checkpoint, transcript handling, and the per-session state
+  store. The reflection parser, checkpoint prompt body, and runtime-evidence
+  schema live in `atlas_runtime/` so other adapters can share them.
 
 - [`single_llm/`](single_llm/) — No-harness integration: drives a single
   LLM conversation through ATLAS's lifecycle (record trace → pre-submission

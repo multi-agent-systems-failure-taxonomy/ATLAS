@@ -15,10 +15,12 @@ import hashlib
 import json
 from typing import Any
 
+from atlas_runtime.evidence import record_reflection
+from atlas_runtime.reflection import parse_reflection
+
 from .config import ClaudeCodeConfig, CustomHookSpec
 from .prompts import reflection_prompt
-from .reflection import parse_reflection
-from .state import record_reflection, save_state
+from .state import save_state
 from .transcript import read_transcript, transcript_size
 
 

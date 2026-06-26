@@ -193,10 +193,10 @@ their built-in handler regardless; a custom hook on a built-in event
 | [`dispatcher.py`](dispatcher.py) | Single command entry point. Built-in events route by `hook_event_name`; custom hooks route via `--custom <spec_name>` |
 | [`install.py`](install.py) | `atlas-claude-install` CLI: write project-local `.claude/settings.local.json` + `atlas-skill.json`, register built-in events + every `custom_hooks` entry, verify Claude Code binary contract |
 | [`manage_hooks.py`](manage_hooks.py) | `atlas-claude-add-hook` / `remove-hook` / `list-hooks` CLIs to mutate `custom_hooks` and refresh `settings.local.json` in one command |
-| [`prompts.py`](prompts.py) | Standing instruction + gate-specific reflection prompts |
-| [`reflection.py`](reflection.py) | Reflection-shape validation (Observe/Map/Correlate/Decide block parser) — pure regex, no LLM call |
+| [`prompts.py`](prompts.py) | Claude Code standing instruction + Claude-specific final-gate wrapper around the shared checkpoint prompt |
+| [`reflection.py`](reflection.py) | Compatibility re-export for the shared `atlas_runtime.reflection` parser |
 | [`runtime.py`](runtime.py) | Shared hook behavior: `session_start`, `blocking_checkpoint`, `post_tool`, transcript capture, lifecycle wiring |
-| [`state.py`](state.py) | Per-session hook state (mode, pending checkpoints) and live runtime evidence file |
+| [`state.py`](state.py) | Claude Code per-session hook state (mode, pending checkpoints); runtime evidence is recorded by `atlas_runtime.evidence` |
 | [`transcript.py`](transcript.py) | Claude Code JSONL transcript readers/writers |
 | [`uninstall.py`](uninstall.py) | `atlas-claude-uninstall` CLI: remove the hook registrations, preserve unrelated settings |
 

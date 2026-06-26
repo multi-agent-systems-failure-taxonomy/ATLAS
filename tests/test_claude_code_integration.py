@@ -28,8 +28,9 @@ from atlas_integration.claude_code.install import (
     verify_installed_hooks,
 )
 from atlas_integration.claude_code.uninstall import uninstall
-from atlas_integration.claude_code.state import EVIDENCE_FILE, load_state
+from atlas_integration.claude_code.state import load_state
 from atlas_runtime.dashboard import current_taxonomy
+from atlas_runtime.evidence import EVIDENCE_FILE
 from atlas_runtime.program import ProgramWorkspace
 from atlas_runtime.traces import TRACE_FIELDS
 
@@ -146,6 +147,9 @@ class ClaudeCodeIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(code, 2)
         self.assertIn("MAST-12", prompt)
+        self.assertIn("Work the steps IN ORDER", prompt)
+        self.assertIn("failure points", prompt)
+        self.assertIn("`<CODE> | evidence:", prompt)
 
     def test_task_completed_blocks_hollow_and_releases_valid_none_apply(self):
         event = {
@@ -197,6 +201,59 @@ class ClaudeCodeIntegrationTests(unittest.TestCase):
             "verification genuinely",
             code_data["events"][0]["correlate"],
         )
+
+    def test_markdown_reflection_fires_code_id_with_evidence(self):
+        event = {
+            **self.base,
+            "hook_event_name": "TaskCompleted",
+            "task_id": "markdown-task",
+            "task_subject": "Markdown reflection",
+        }
+        code, prompt = task_completed.handle(event, self.config)
+        self.assertEqual(code, 2)
+        cid = checkpoint_id(prompt)
+        append_text(
+            self.transcript,
+            f"""## ATLAS Reflection
+- Checkpoint ID: {cid}
+**Observe:** The trace has a concrete weak point.
+**Root cause:** The agent skipped verification before declaring the work done.
+**Map**
+- MAST-12 | evidence - "verification was absent"
+**Decide**
+Run the missing verification before proceeding.
+""",
+        )
+
+        code, _ = task_completed.handle(event, self.config)
+        self.assertEqual(code, 0)
+        evidence = json.loads(
+            (self.trace_output / EVIDENCE_FILE).read_text(encoding="utf-8")
+        )
+        code_data = evidence["taxonomies"]["mast"]["codes"]["MAST-12"]
+        self.assertEqual(code_data["fire_count"], 1)
+        self.assertEqual(
+            code_data["events"][0]["evidence"],
+            "verification was absent",
+        )
+
+    def test_reflection_still_requires_matching_checkpoint_id(self):
+        event = {
+            **self.base,
+            "hook_event_name": "TaskCompleted",
+            "task_id": "wrong-id-task",
+            "task_subject": "Wrong checkpoint",
+        }
+        code, _prompt = task_completed.handle(event, self.config)
+        self.assertEqual(code, 2)
+        append_text(
+            self.transcript,
+            fired_reflection("not-the-pending-checkpoint"),
+        )
+
+        code, error = task_completed.handle(event, self.config)
+        self.assertEqual(code, 2)
+        self.assertIn("Checkpoint ID", error)
 
     def test_subagent_stop_rejects_hollow_and_accepts_none_apply(self):
         agent_transcript = self.root / "agent-none.jsonl"

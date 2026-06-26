@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from atlas_runtime.checkpoint_prompt import render_reflection_prompt
+
 STANDING_PROMPT = """ATLAS runtime interaction is active for this session.
 
 Do not ask for or load the taxonomy at task start. Continue normal work.
@@ -30,13 +32,6 @@ def reflection_prompt(
     full: bool,
     repair_attempts_used: int = 0,
 ) -> str:
-    codes = "\n".join(
-        f"- {code['id']} — {code['name']}: {code['description']}"
-        for code in state["taxonomy"]["codes"]
-    )
-    scope = "the full task trajectory" if full else (
-        "only the recent activity since the previous ATLAS checkpoint"
-    )
     gate_tail = (
         f"""
 
@@ -68,37 +63,15 @@ The hook owns this counter. Emit exactly
 """
         if full else ""
     )
-    return f"""ATLAS {gate_label} — reflection required before this boundary can pass.
-
-Checkpoint ID: {checkpoint_id}
-Active taxonomy: {state['taxonomy_id']}
-
-Failure modes to consider:
-{codes}
-
-Scope: {scope}.
-
-Recent trajectory excerpt:
---- begin recent activity ---
-{recent_activity[-12000:] or "(no transcript text was available; use the activity in context)"}
---- end recent activity ---
-
-Emit this structured block:
-
-ATLAS reflection:
-- Checkpoint ID: {checkpoint_id}
-- Observe: assess the scoped execution trace as a neutral third-person reviewer.
-- Map:
-  - `<CODE> | exhibited | evidence: "<verbatim trace fact>"`
-  - or `none apply | considered: <CODE,...> | evidence: "<why the trace is clean>"`
-- Correlate: explain whether each apparent match truly constitutes that failure.
-- Decide: switch to first person and write exactly one of:
-  - `change: <one focused change>`
-  - `no change needed, because <reason>`
-
-The Map must name at least one code and contain evidence. Do not force a
-failure or a change merely to satisfy the checkpoint.{gate_tail}
-"""
+    return render_reflection_prompt(
+        taxonomy_id=str(state["taxonomy_id"]),
+        codes=state["taxonomy"]["codes"],
+        checkpoint_id=checkpoint_id,
+        gate_label=gate_label,
+        recent_activity=recent_activity,
+        full=full,
+        final_instructions=gate_tail,
+    )
 
 
 def failure_nudge(

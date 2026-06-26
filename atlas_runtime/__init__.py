@@ -33,6 +33,9 @@ from .generation import GenerationResult
 from .program import ProgramConflict, ProgramWorkspace
 from .options import RuntimeOptions, add_runtime_arguments, parse_runtime_args
 from .refinement import RefinementResult
+from .checkpoint_prompt import render_reflection_prompt
+from .evidence import EVIDENCE_FILE, record_reflection
+from .reflection import CodeAssignment, ReflectionResult, parse_reflection
 from .dashboard import (
     build_server as build_dashboard_server,
     current_taxonomy,
@@ -53,9 +56,12 @@ __all__ = [
     "GateDecision",
     "GenerationResult",
     "GenerationTrace",
+    "CodeAssignment",
+    "EVIDENCE_FILE",
     "ProgramConflict",
     "ProgramWorkspace",
     "ProjectFn",
+    "ReflectionResult",
     "RuntimeOptions",
     "RetentionPolicy",
     "RetentionReport",
@@ -72,8 +78,11 @@ __all__ = [
     "evaluate_pre_submission",
     "pre_submission",
     "record_trace",
+    "record_reflection",
     "render_protocol",
+    "render_reflection_prompt",
     "load_atlas_config",
+    "parse_reflection",
     "redact_text",
     "redact_trace",
     "start_session",

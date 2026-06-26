@@ -79,6 +79,14 @@ class DashboardDataTests(unittest.TestCase):
                 json.dumps(
                     {
                         "version": 1,
+                        "checkpoints": [
+                            {
+                                "taxonomy_id": "mast",
+                                "checkpoint_id": "cp-1",
+                                "timestamp": 1,
+                                "fired_codes": ["MAST-1"],
+                            }
+                        ],
                         "taxonomies": {
                             "mast": {
                                 "codes": {
@@ -87,6 +95,8 @@ class DashboardDataTests(unittest.TestCase):
                                         "task_firings": {"task-a": 2},
                                         "events": [
                                             {
+                                                "checkpoint_id": "cp-1",
+                                                "timestamp": 1,
                                                 "evidence": "ignored spec",
                                                 "correlate": "genuine mismatch",
                                             }
@@ -110,6 +120,7 @@ class DashboardDataTests(unittest.TestCase):
                 first["runtime_evidence"][0]["evidence"],
                 "ignored spec",
             )
+            self.assertEqual(first["runtime_evidence"][0]["seq"], 1)
 
     def test_task_labels_and_evidence_clipping(self):
         with tempfile.TemporaryDirectory() as td:
@@ -151,8 +162,58 @@ class DashboardDataTests(unittest.TestCase):
             self.assertEqual(first["task_firings"][0]["label"], "UID0001 ✓")
             event = first["runtime_evidence"][0]
             self.assertEqual(event["task_label"], "UID0001 ✓")
-            self.assertLessEqual(len(event["evidence"]), 281)
-            self.assertTrue(event["evidence"].endswith("…"))
+            self.assertEqual(event["evidence"], long_evidence)
+
+    def test_clean_checkpoints_are_exposed_with_sequence_labels(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            workspace = ProgramWorkspace(root / "program")
+            (workspace.root / ".atlas-task-labels.json").write_text(
+                json.dumps({"task-clean": "Dataset item 7"}),
+                encoding="utf-8",
+            )
+            (workspace.root / RUNTIME_EVIDENCE).write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "checkpoints": [
+                            {
+                                "taxonomy_id": "mast",
+                                "checkpoint_id": "cp-fired",
+                                "timestamp": 1,
+                                "gate": "task_completed",
+                                "task_id": "task-fired",
+                                "fired_codes": ["MAST-1"],
+                            },
+                            {
+                                "taxonomy_id": "mast",
+                                "checkpoint_id": "cp-clean",
+                                "timestamp": 2,
+                                "gate": "stop",
+                                "task_id": "task-clean",
+                                "none_apply": True,
+                                "considered_codes": ["MAST-1", "MAST-12"],
+                                "fired_codes": [],
+                                "observe": "everything relevant was checked",
+                                "correlate": "no root failure found",
+                                "decide": "no change needed, because checks passed",
+                            },
+                        ],
+                        "taxonomies": {},
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            data = current_taxonomy(workspace, BASE_STORE)
+
+            self.assertEqual(len(data["clean_checkpoints"]), 1)
+            clean = data["clean_checkpoints"][0]
+            self.assertEqual(clean["seq"], 2)
+            self.assertEqual(clean["checkpoint_id"], "cp-clean")
+            self.assertEqual(clean["task_label"], "Dataset item 7")
+            self.assertTrue(clean["none_apply"])
+            self.assertEqual(clean["considered"], ["MAST-1", "MAST-12"])
 
 
 class DashboardServerTests(unittest.TestCase):
@@ -196,6 +257,7 @@ class DashboardServerTests(unittest.TestCase):
         self.assertIn("Total firings", body)
         self.assertIn("task(s)", body)
         self.assertIn("Runtime evidence", body)
+        self.assertIn("Clean checkpoints", body)
         self.assertNotIn("TASK-1042", body)
 
     def test_api_returns_render_ready_full_taxonomy(self):
@@ -211,6 +273,7 @@ class DashboardServerTests(unittest.TestCase):
         self.assertIsNone(data["codes"][0]["fire_count"])
         self.assertEqual(data["codes"][0]["task_firings"], [])
         self.assertEqual(data["codes"][0]["runtime_evidence"], [])
+        self.assertEqual(data["clean_checkpoints"], [])
 
     def test_api_normalizes_optional_placeholder_metrics(self):
         record = json.loads(
