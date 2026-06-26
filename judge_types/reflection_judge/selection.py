@@ -1,11 +1,10 @@
 """Deterministic derivation of ``selection_summary`` from failure points + relations.
 
-Ported verbatim from GEPA's ``ATLAS_Taxonomy/atlas_reflection_judge/selection.py``.
-Pure stdlib; no GEPA-specific imports.
+Pure stdlib; no provider-specific imports.
 
 The judge's LLM output contains the rich diagnostic graph. The
 ``selection_summary`` is a compressed, set-oriented view of that graph used by
-search algorithms (e.g. candidate selection in GEPA). We derive it
+search or optimization algorithms. We derive it
 deterministically in Python so the rules are auditable and don't depend on the
 LLM remembering them.
 

@@ -1,7 +1,5 @@
 """Taxonomy data model: ``Code``, ``Taxonomy``, ``JudgeLog`` + spec rendering.
 
-Ported from GEPA's ``ATLAS_Taxonomy/core.py``. Pipeline-agnostic.
-
 A taxonomy is an ordered, mutable set of A/B/C failure codes with stable uids
 (so refinement-streak bookkeeping survives code renumbering on retire / add /
 split).
@@ -14,10 +12,9 @@ Each code carries a name, definition, ``when_to_use`` / ``when_not_to_use``
 guidance, and a list of ``detection_heuristics``. ``render_code_spec`` formats
 all of those for the judge prompt.
 
-In addition to GEPA's ``from_json`` (file path) loader, this port adds
-``from_dict`` (ATLAS pipeline output dict) and ``from_flat`` (atlas_skill's
-flat ``{repo, domain, codes: [{id, name, description, category, ...}]}``
-record) so the reflection judge can run against either source.
+The model can load from JSON files, ATLAS pipeline output dicts, or
+atlas_skill's flat ``{repo, domain, codes: [{id, name, description, category,
+...}]}`` records so the reflection judge can run against either source.
 """
 
 from __future__ import annotations
@@ -339,8 +336,7 @@ class JudgeLog:
 
 
 class CostMeter:
-    """Lightweight cost accumulator. Compatible interface with GEPA's CostMeter
-    for the reflection judge, but without the dspy/litellm-specific extras.
+    """Lightweight cost accumulator used by the reflection judge.
 
     Use ``add_extra(usd)`` to accumulate per-call costs. Reflection judge will
     pass response cost here when the LLM transport surfaces it.

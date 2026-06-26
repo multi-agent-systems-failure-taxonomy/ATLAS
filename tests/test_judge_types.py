@@ -105,8 +105,8 @@ class ReflectionJudgeShellTests(unittest.TestCase):
     """Construct the judge with a stub LLM to confirm wiring works.
 
     We don't exercise the prompt — that would mean an LLM call. The point is
-    to prove import/construction is sane and that the public surface matches
-    the GEPA original (sans hardcoded model default).
+    to prove import/construction is sane and that the public surface keeps
+    model selection explicit.
     """
 
     def test_requires_judge_model(self) -> None:

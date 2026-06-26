@@ -1,8 +1,6 @@
 """LLM prompts for the ATLAS Reflection Judge.
 
-Ported verbatim from GEPA's
-``ATLAS_Taxonomy/atlas_reflection_judge/prompts.py``. Pure stdlib; no
-GEPA-specific imports.
+Pure stdlib prompt builders with no provider-specific imports.
 
 Two prompts (default ``mode="two_call"``):
 

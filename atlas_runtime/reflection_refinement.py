@@ -28,11 +28,10 @@ candidate is always at least as good as the pre-refine one. The output
 candidate carries a ``judge_metadata`` block with the action counts and
 trace coverage so the dashboard can surface what changed.
 
-Ported from GEPA's ``ATLAS_Taxonomy.generation.refine_taxonomy_via_reflection_judge``,
-adapted for atlas_skill: operates on the flat ``{repo, domain, codes}``
-candidate shape in memory (no file IO), uses ``learning_calls.refine_json``
-for the refiner LLM (Anthropic / OpenAI / Gemini, env-driven) instead of
-litellm + Bedrock.
+This implementation operates on atlas_skill's flat ``{repo, domain, codes}``
+candidate shape in memory (no file IO) and uses ``learning_calls.refine_json``
+for the refiner LLM, with provider routing driven by the configured model id
+and environment credentials.
 """
 
 from __future__ import annotations

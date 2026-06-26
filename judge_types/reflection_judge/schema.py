@@ -1,7 +1,6 @@
 """Schema for the ATLAS Reflection Judge output.
 
-Ported verbatim from GEPA's ``ATLAS_Taxonomy/atlas_reflection_judge/schema.py``.
-Pure stdlib; no GEPA-specific imports.
+Pure stdlib; no provider-specific imports.
 
 The output is a plain ``dict`` (JSON-roundtrippable). This module defines the
 enumerated values each field may take and a ``validate_output`` function that

@@ -6,7 +6,7 @@
 [![Claude Code](https://img.shields.io/badge/Claude_Code-blocking_hooks-D97757)](atlas_integration/claude_code/README.md)
 [![Runtime](https://img.shields.io/badge/runtime-harness_neutral-7C3AED)](atlas_runtime/)
 [![Taxonomy](https://img.shields.io/badge/taxonomy-dynamic_at_checkpoints-0EA5E9)](finding/mast.json)
-[![Tests](https://img.shields.io/badge/tests-252_passing-16A34A)](tests/)
+[![Tests](https://img.shields.io/badge/tests-269_passing-16A34A)](tests/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 ---
@@ -621,7 +621,7 @@ surfaced at runtime checkpoints.
 python -m pytest -q
 ```
 
-The current release includes **252 passing tests** covering:
+The current release includes **269 passing tests** covering:
 
 - taxonomy finding and interactive selection;
 - MAST fallback and canonical schema;

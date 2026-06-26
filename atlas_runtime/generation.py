@@ -76,8 +76,8 @@ def _atlas_generate(
 ) -> dict[str, Any]:
     """Call the vendored ATLAS pipeline at its public generation boundary.
 
-    Matches GEPA's ``ATLAS_Taxonomy.generation.generate_taxonomy_from_traces``
-    semantics:
+    This wrapper preserves the pipeline's generation semantics while adapting
+    it to atlas_skill's runtime contract:
 
     - ``project_fn`` rewrites each trace dict before generation (oracle-blind
       projection). Defaults to ``outcome_blind_trace``, which strips outcome
@@ -126,9 +126,9 @@ def _atlas_generate(
         config_kwargs: dict[str, Any] = {"model": atlas_model}
         if max_codes:
             config_kwargs["max_codes"] = max_codes
-        # The two GEPA-side fields only exist on newer PipelineConfigs; pass
-        # them iff the vendored version accepts them so older snapshots still
-        # work (silent no-op rather than a hard TypeError).
+        # These optional fields only exist on newer PipelineConfigs; pass them
+        # iff the vendored version accepts them so older snapshots still work
+        # (silent no-op rather than a hard TypeError).
         try:
             from inspect import signature
 

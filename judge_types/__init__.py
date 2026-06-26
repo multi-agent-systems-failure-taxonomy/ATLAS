@@ -8,8 +8,7 @@ Each judge consumes a taxonomy and produces a different structured signal:
 
   2. **ReflectionJudge** — trace + taxonomy -> failure-point graph + taxonomy
      mappings. Deep, causal, used for mutation/reflection/debugging. Real
-     implementation lives in ``judge_types.reflection_judge`` (ported from
-     GEPA's ``atlas_reflection_judge``).
+     implementation lives in ``judge_types.reflection_judge``.
 
   3. **MappingJudge** — failure_point + taxonomy -> best code(s). Modular
      sub-judge; useful when failure-point identification and code-assignment

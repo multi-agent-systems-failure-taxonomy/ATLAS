@@ -1,12 +1,9 @@
 """ATLAS Reflection Judge — multi-stage trace-analysis judge.
 
-Ported from GEPA's ``ATLAS_Taxonomy/atlas_reflection_judge/``. Two adaptations:
-
-  1. The LLM transport routes through atlas_skill's existing
-     ``atlas_runtime.learning_calls.support_model_call`` (Anthropic + OpenAI +
-     Gemini, env-driven) instead of litellm + a hardcoded Bedrock Sonnet 4.5.
-  2. ``judge_model`` is a required parameter at construction time; there is no
-     hidden default model.
+The LLM transport routes through atlas_skill's existing
+``atlas_runtime.learning_calls.support_model_call`` (Anthropic + OpenAI +
+Gemini, env-driven). ``judge_model`` is a required parameter at construction
+time; there is no hidden default model.
 
 Public API:
 

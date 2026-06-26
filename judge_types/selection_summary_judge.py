@@ -1,8 +1,8 @@
 """Selection-Summary Judge — labeled failures -> compressed selection signal.
 
 Not a true LLM judge — a deterministic compression of the Reflection Judge's
-rich output into the buckets a search algorithm (GEPA, AdaEvolve, etc.) needs
-for candidate selection:
+rich output into the buckets a search or optimization algorithm can use for
+candidate selection:
 
   - root_failure_modes
   - candidate_attributable_failure_modes

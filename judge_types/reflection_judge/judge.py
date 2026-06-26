@@ -1,15 +1,9 @@
 """``AtlasReflectionJudge`` — orchestrates the multi-stage reflection judge.
 
-Ported from GEPA's ``ATLAS_Taxonomy/atlas_reflection_judge/judge.py``. Two
-adaptations from the original:
-
-  1. ``judge_model`` is REQUIRED at construction time. The GEPA version
-     silently fell back to a hardcoded Bedrock Sonnet 4.5 model id; this
-     version makes the model an explicit constructor argument.
-  2. The default LLM transport routes through atlas_skill's existing
-     ``learning_calls.support_model_call`` (env-driven Anthropic + OpenAI +
-     Gemini) via the bridge in ``._llm``. Inject ``llm_call=...`` to override
-     for tests.
+``judge_model`` is required at construction time so model choice is explicit.
+The default LLM transport routes through atlas_skill's
+``learning_calls.support_model_call`` (env-driven Anthropic + OpenAI + Gemini)
+via the bridge in ``._llm``. Inject ``llm_call=...`` to override for tests.
 
 Default ``mode="two_call"`` (recommended):
   1. Analysis call: trace → events, failure_points (no taxonomy), relations,
