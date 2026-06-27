@@ -59,6 +59,7 @@ session = start_session(
 # At a meaningful checkpoint:
 # - deliver session.delivery.taxonomy plus your recent trajectory window
 # - ask the agent to produce the required ATLAS reflection shape
+#   (Observe -> Correlate -> Map -> Decide)
 # - continue only after your harness accepts/records that reflection
 
 # Before releasing a final answer:

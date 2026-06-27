@@ -9,8 +9,8 @@ Follow checkpoint instructions emitted by the active ATLAS integration.
 
 - After completing a sub-task or major task segment, request an ATLAS checkpoint when the integration supports it.
 - At a checkpoint, inspect only the trajectory since the previous checkpoint.
-- First analyze the trajectory from a third-person perspective and map supported failure-mode codes with concrete evidence.
-- Then recognize that the trajectory is yours, decide whether a change is necessary, and change course only when the evidence warrants it.
+- Follow the emitted reflection order: Observe concrete failure points or missing expected steps, Correlate supported causes, Map to taxonomy codes only after that, then Decide.
+- In Decide, recognize that the trajectory is yours, make one focused change if evidence warrants it, or explain why no change is needed.
 - Treat `none apply` as valid. Do not invent a failure or force an edit.
 - Complete the final ATLAS submission gate before declaring the task finished.
 

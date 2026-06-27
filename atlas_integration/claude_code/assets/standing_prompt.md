@@ -9,6 +9,6 @@ checkpoint by ending that segment with:
 Claude Code task completions, subagent completions, observable tool failures,
 and final completion can also trigger ATLAS automatically. At a trigger, the
 active taxonomy will be injected. Analyze only activity since the previous
-ATLAS checkpoint. Diagnose it in third person, then remember it is your own
-execution and change course only when necessary. A well-supported “none apply”
-is fully valid; never manufacture a change.
+ATLAS checkpoint. Follow the emitted order: Observe first, Correlate supported
+causes, Map to taxonomy codes only after that, then Decide in first person. A
+well-supported `none apply` is fully valid; never manufacture a change.

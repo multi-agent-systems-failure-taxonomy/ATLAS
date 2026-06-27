@@ -28,15 +28,21 @@ generate a taxonomy specialized to the user's own traces.
 
 ### The interaction model
 
-Every checkpoint follows the same two-perspective reflection:
+Every gate asks for the same evidence-first reflection shape:
 
-1. **Observe → Map → Correlate** — inspect the recent trajectory like a neutral
-   third-party reviewer and map only evidence-supported failure modes.
-2. **Decide** — recognize that the trajectory is your own and change course
-   only when necessary.
+1. **Observe**: inspect only the scoped recent activity and name concrete
+   failure points, missing expected steps, or the checks that make the work
+   genuinely clean.
+2. **Correlate**: look backward in the trace for supported causes and root
+   failure points; do not speculate beyond the evidence.
+3. **Map**: only now consult the active taxonomy and label the supported
+   failure points with codes, or justify `none apply`.
+4. **Decide**: in first person, make one focused change or explain why no
+   change is needed.
 
-`none apply` is a valid result. ATLAS enforces that reflection happened in the
-required shape; it cannot guarantee that the reflection is insightful.
+ATLAS enforces the reflection shape and retry envelope. It can verify that the
+agent cited evidence or justified `none apply`; it cannot guarantee that the
+reflection is insightful.
 
 ---
 
@@ -609,7 +615,7 @@ surfaced at runtime checkpoints.
 python -m pytest -q
 ```
 
-The current release includes **271 passing tests** covering:
+The current release includes **272 passing tests** covering:
 
 - taxonomy finding and interactive selection;
 - MAST fallback and canonical schema;
