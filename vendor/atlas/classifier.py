@@ -14,7 +14,9 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
+from importlib.resources import files
 from pathlib import Path
+from string import Template
 from typing import Any, Dict, List, Optional, Union
 
 from vendor.atlas.config import PipelineConfig
@@ -75,24 +77,16 @@ class TaxonomyClassifier:
         taxonomy_desc = self._format_codes_for_prompt()
         trace_text = format_trace_for_prompt(trace, max_length=30000)
 
-        prompt = (
-            f"Given this failure taxonomy:\n\n{taxonomy_desc}\n\n"
-            f"Classify the following agent failure trace into ONE taxonomy code.\n\n"
-            f"TRACE:\n{trace_text}\n\n"
-            f"Respond in this exact JSON format:\n"
-            f'{{"code": "<code>", "label": "<label>", '
-            f'"evidence": "<specific evidence from trace>", '
-            f'"confidence": <0.0-1.0>, '
-            f'"recovery_hint": "<what to try differently>"}}'
+        prompt = _render_classifier_asset(
+            "classifier_user.md",
+            taxonomy_desc=taxonomy_desc,
+            trace_text=trace_text,
         )
 
         try:
             response = self.client.chat(
                 prompt,
-                system=(
-                    "You are a failure diagnosis classifier for AI agents. "
-                    "Classify failures precisely based on evidence in the trace."
-                ),
+                system=_classifier_asset("classifier_system.md"),
             )
             data = extract_json(response)
             if not data:
@@ -202,3 +196,15 @@ def _flatten_codes(taxonomy: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 def _has_code(codes: List[Dict[str, Any]], code_id: str) -> bool:
     return any(c.get("code") == code_id for c in codes)
+
+
+def _classifier_asset(name: str) -> str:
+    return (
+        files("vendor.atlas")
+        .joinpath("assets", name)
+        .read_text(encoding="utf-8")
+    )
+
+
+def _render_classifier_asset(name: str, **context: str) -> str:
+    return Template(_classifier_asset(name)).substitute(context)

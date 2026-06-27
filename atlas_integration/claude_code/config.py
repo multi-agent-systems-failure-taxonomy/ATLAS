@@ -5,28 +5,23 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
+from importlib.resources import files
 from pathlib import Path
 
 from finding import store
 from atlas_runtime.traces import DEFAULT_TRACE_ROOT
 
-CUSTOM_HOOK_MODES = ("blocking", "advisory")
+_HOOK_EVENTS = json.loads(
+    files(__package__).joinpath("assets", "hook_events.json").read_text(
+        encoding="utf-8"
+    )
+)
+
+CUSTOM_HOOK_MODES = tuple(_HOOK_EVENTS["custom_hook_modes"])
 CUSTOM_HOOK_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
-BUILT_IN_HOOK_EVENTS = (
-    "SessionStart",
-    "SessionEnd",
-    "Stop",
-    "TaskCompleted",
-    "SubagentStop",
-    "PostToolUse",
-    "PostToolUseFailure",
-)
-BUILT_IN_MATCHER_EVENTS = ("PostToolUse", "PostToolUseFailure")
-CLAUDE_CODE_EVENTS = (
-    "SessionStart", "SessionEnd", "Stop", "TaskCompleted", "SubagentStop",
-    "PreToolUse", "PostToolUse", "PostToolUseFailure",
-    "PreCompact", "Notification", "UserPromptSubmit",
-)
+BUILT_IN_HOOK_EVENTS = tuple(_HOOK_EVENTS["built_in_hook_events"])
+BUILT_IN_MATCHER_EVENTS = tuple(_HOOK_EVENTS["built_in_matcher_events"])
+CLAUDE_CODE_EVENTS = tuple(_HOOK_EVENTS["claude_code_events"])
 
 
 @dataclass(frozen=True)

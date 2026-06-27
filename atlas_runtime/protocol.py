@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from importlib.resources import files
+from string import Template
 
 READY = "READY_TO_SUBMIT"
 REPAIR = "REPAIR_REQUIRED"
@@ -38,29 +40,12 @@ def render_protocol(max_retries: int = 3) -> str:
     """Return the runtime text delivered beside the selected taxonomy."""
     if max_retries < 0:
         raise ValueError("max_retries must be non-negative")
-    return f"""# ATLAS pre-submission gate
-
-Before declaring the task complete, compare the full task trajectory and
-verification evidence against the active failure-mode taxonomy.
-
-Return one of:
-
-- `READY_TO_SUBMIT` when no unresolved taxonomy-relevant issue remains.
-- `REPAIR_REQUIRED` when one or more issues remain.
-
-If repair is required, address the highest-impact unresolved issue, verify the
-repair, and run this gate again. Perform at most {max_retries} repair attempts.
-After {max_retries} unsuccessful attempts, stop repairing and report the
-remaining issue honestly instead of claiming clean success.
-
-Final gate format:
-
-- `Final ATLAS status:` READY_TO_SUBMIT | REPAIR_REQUIRED
-- `Codes checked:` relevant taxonomy ids, or none
-- `Evidence:` concrete task or verification evidence
-- `Repair attempts used:` 0-{max_retries}
-- `Final decision:` submit | repair | report unresolved
-"""
+    template = (
+        files("atlas_runtime")
+        .joinpath("assets", "pre_submission_protocol.md")
+        .read_text(encoding="utf-8")
+    )
+    return Template(template).substitute(max_retries=max_retries)
 
 
 def evaluate_pre_submission(

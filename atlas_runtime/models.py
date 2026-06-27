@@ -2,7 +2,17 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from importlib.resources import files
+
+
+_MODEL_PROFILES = json.loads(
+    files(__package__).joinpath("assets", "model_profiles.json").read_text(
+        encoding="utf-8"
+    )
+)
+_REGION_PREFIXES = tuple(_MODEL_PROFILES["region_prefixes"])
 
 
 @dataclass(frozen=True)
@@ -25,17 +35,11 @@ def resolve_model_profile(model: str) -> ModelProfile:
     if not name:
         raise ValueError("atlas_model is required")
     if _is_anthropic_model(name):
-        return ModelProfile(context_tokens=200_000)
-    if name.startswith(("gpt-5", "o3", "o4")):
-        return ModelProfile(context_tokens=400_000)
-    if name.startswith(("gpt-4.1", "gpt-4o")):
-        return ModelProfile(context_tokens=128_000)
-    if name.startswith("gemini"):
-        return ModelProfile(context_tokens=1_000_000)
+        return ModelProfile(context_tokens=_MODEL_PROFILES["anthropic_context_tokens"])
+    for profile in _MODEL_PROFILES["prefix_profiles"]:
+        if name.startswith(tuple(profile["prefixes"])):
+            return ModelProfile(context_tokens=profile["context_tokens"])
     raise ValueError(f"unrecognized ATLAS model {model!r}")
-
-
-_REGION_PREFIXES = ("us.", "eu.", "apac.", "ap-", "global.")
 
 
 def _is_anthropic_model(name: str) -> bool:

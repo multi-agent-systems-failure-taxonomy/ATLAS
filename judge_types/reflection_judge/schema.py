@@ -5,89 +5,48 @@ Pure stdlib; no provider-specific imports.
 The output is a plain ``dict`` (JSON-roundtrippable). This module defines the
 enumerated values each field may take and a ``validate_output`` function that
 returns a list of human-readable error strings (empty list = valid). The
-validator runs on every LLM response — invalid responses trigger a one-shot
+validator runs on every LLM response; invalid responses trigger a one-shot
 retry, surfacing the validator's errors back to the LLM as the retry context.
 """
 
 from __future__ import annotations
 
+import json
+from importlib.resources import files
 from typing import Any, Mapping
 
-# ── Top-level required keys ──────────────────────────────────────────────
-REQUIRED_TOP_LEVEL = {
-    "candidate_id", "task_id", "run_id",
-    "judge_metadata", "trace_summary", "events",
-    "failure_points", "relations", "selection_summary", "reflection_summary",
-}
 
-# ── Event ────────────────────────────────────────────────────────────────
-REQUIRED_EVENT_FIELDS = {"event_id", "summary"}
-SUGGESTED_EVENT_STAGES = {
-    "planning", "decomposition", "execution", "tool_use", "tool_failure",
-    "verification", "subagent_handoff", "aggregation", "refinement",
-    "finalization", "post_error_recovery", "other",
-    "retrieval", "reasoning", "summarization", "query_generation",
-    "termination", "error_handling", "evaluation", "synthesis",
-    "final_output", "control_flow",
-}
+_SCHEMA_ENUMS = json.loads(
+    files(__package__).joinpath("assets", "schema_enums.json").read_text(
+        encoding="utf-8"
+    )
+)
 
-# ── Failure point ────────────────────────────────────────────────────────
-REQUIRED_FAILURE_POINT_FIELDS = {
-    "failure_point_id", "summary", "observed_evidence",
-    "reason_observed_or_inferred", "evidence_strength", "judge_confidence",
-    "causal_role", "recovery_status", "present_in_final_output",
-    "objective_relevance", "severity", "outcome_link",
-    "candidate_attribution", "external_attribution", "actionability",
-    "taxonomy_mappings",
-}
 
-REASON_OBSERVED_INFERRED = {"observed", "inferred", "mixed", "unclear"}
-EVIDENCE_STRENGTHS = {"low", "medium", "high", "direct"}
+def _enum_set(name: str) -> set[str]:
+    return set(_SCHEMA_ENUMS[name])
 
-CAUSAL_ROLES = {
-    "root_cause", "upstream_cause", "intermediate_cause",
-    "downstream_symptom", "terminal_symptom",
-    "recovered_failure",
-    "isolated_irrelevant", "isolated_terminal_root",
-    "external_condition", "unclear",
-}
 
-RECOVERY_STATUSES = {
-    "unrecovered", "partially_recovered", "fully_recovered",
-    "made_irrelevant", "unclear", "not_applicable",
-}
-RECOVERY_SOURCES = {
-    "same_agent", "checker", "refiner", "arbiter", "tool_result",
-    "external_feedback", "later_strategy_change", "none",
-    "unclear", "not_applicable",
-}
-
-PRESENT_IN_FINAL = {"yes", "no", "partial", "unclear", "not_applicable"}
-
-OBJECTIVE_RELEVANCE = {
-    "irrelevant", "peripheral", "subtask_relevant",
-    "main_objective_relevant", "final_output_relevant",
-}
-SEVERITIES = {"minor", "moderate", "major", "critical", "unclear"}
-OUTCOME_LINKS = {"none", "unlikely", "possible", "likely", "direct", "unclear"}
-ATTRIBUTIONS = {"none", "low", "medium", "high", "unclear"}
-ACTIONABILITIES = {"none", "low", "medium", "high", "very_high", "unclear"}
-
-# ── Taxonomy mapping ─────────────────────────────────────────────────────
-REQUIRED_MAPPING_FIELDS = {"code", "primary_or_secondary", "mapping_confidence"}
-PRIMARY_OR_SECONDARY = {"primary", "secondary"}
-
-# ── Relation ─────────────────────────────────────────────────────────────
-REQUIRED_RELATION_FIELDS = {
-    "source_failure_point_id", "target_failure_point_id", "relation_type", "confidence",
-}
-RELATION_TYPES = {
-    "caused", "contributed_to", "enabled", "amplified",
-    "masked", "recovered", "partially_recovered", "made_irrelevant",
-}
-
-# ── Overall judgment ─────────────────────────────────────────────────────
-OVERALL_JUDGMENTS = {"success", "failure", "partial", "unknown"}
+REQUIRED_TOP_LEVEL = _enum_set("required_top_level")
+REQUIRED_EVENT_FIELDS = _enum_set("required_event_fields")
+SUGGESTED_EVENT_STAGES = _enum_set("suggested_event_stages")
+REQUIRED_FAILURE_POINT_FIELDS = _enum_set("required_failure_point_fields")
+REASON_OBSERVED_INFERRED = _enum_set("reason_observed_inferred")
+EVIDENCE_STRENGTHS = _enum_set("evidence_strengths")
+CAUSAL_ROLES = _enum_set("causal_roles")
+RECOVERY_STATUSES = _enum_set("recovery_statuses")
+RECOVERY_SOURCES = _enum_set("recovery_sources")
+PRESENT_IN_FINAL = _enum_set("present_in_final")
+OBJECTIVE_RELEVANCE = _enum_set("objective_relevance")
+SEVERITIES = _enum_set("severities")
+OUTCOME_LINKS = _enum_set("outcome_links")
+ATTRIBUTIONS = _enum_set("attributions")
+ACTIONABILITIES = _enum_set("actionabilities")
+REQUIRED_MAPPING_FIELDS = _enum_set("required_mapping_fields")
+PRIMARY_OR_SECONDARY = _enum_set("primary_or_secondary")
+REQUIRED_RELATION_FIELDS = _enum_set("required_relation_fields")
+RELATION_TYPES = _enum_set("relation_types")
+OVERALL_JUDGMENTS = _enum_set("overall_judgments")
 
 
 def _err(errs: list, where: str, msg: str) -> None:
@@ -162,29 +121,32 @@ def validate_output(output: Mapping[str, Any]) -> list[str]:
             if isinstance(fpid, str):
                 fp_ids.add(fpid)
 
-            _check_in(errs, where, "reason_observed_or_inferred",
-                      fp.get("reason_observed_or_inferred"), REASON_OBSERVED_INFERRED)
-            _check_in(errs, where, "evidence_strength",
-                      fp.get("evidence_strength"), EVIDENCE_STRENGTHS)
+            _check_in(
+                errs,
+                where,
+                "reason_observed_or_inferred",
+                fp.get("reason_observed_or_inferred"),
+                REASON_OBSERVED_INFERRED,
+            )
+            _check_in(errs, where, "evidence_strength", fp.get("evidence_strength"), EVIDENCE_STRENGTHS)
             _check_float_0_1(errs, where, "judge_confidence", fp.get("judge_confidence"))
             _check_in(errs, where, "causal_role", fp.get("causal_role"), CAUSAL_ROLES)
-            _check_in(errs, where, "recovery_status",
-                      fp.get("recovery_status"), RECOVERY_STATUSES)
+            _check_in(errs, where, "recovery_status", fp.get("recovery_status"), RECOVERY_STATUSES)
             if "recovery_source" in fp:
-                _check_in(errs, where, "recovery_source",
-                          fp["recovery_source"], RECOVERY_SOURCES)
-            _check_in(errs, where, "present_in_final_output",
-                      fp.get("present_in_final_output"), PRESENT_IN_FINAL)
-            _check_in(errs, where, "objective_relevance",
-                      fp.get("objective_relevance"), OBJECTIVE_RELEVANCE)
+                _check_in(errs, where, "recovery_source", fp["recovery_source"], RECOVERY_SOURCES)
+            _check_in(
+                errs,
+                where,
+                "present_in_final_output",
+                fp.get("present_in_final_output"),
+                PRESENT_IN_FINAL,
+            )
+            _check_in(errs, where, "objective_relevance", fp.get("objective_relevance"), OBJECTIVE_RELEVANCE)
             _check_in(errs, where, "severity", fp.get("severity"), SEVERITIES)
             _check_in(errs, where, "outcome_link", fp.get("outcome_link"), OUTCOME_LINKS)
-            _check_in(errs, where, "candidate_attribution",
-                      fp.get("candidate_attribution"), ATTRIBUTIONS)
-            _check_in(errs, where, "external_attribution",
-                      fp.get("external_attribution"), ATTRIBUTIONS)
-            _check_in(errs, where, "actionability",
-                      fp.get("actionability"), ACTIONABILITIES)
+            _check_in(errs, where, "candidate_attribution", fp.get("candidate_attribution"), ATTRIBUTIONS)
+            _check_in(errs, where, "external_attribution", fp.get("external_attribution"), ATTRIBUTIONS)
+            _check_in(errs, where, "actionability", fp.get("actionability"), ACTIONABILITIES)
 
             for j, ev_id in enumerate(fp.get("event_ids") or []):
                 if ev_id not in event_ids:
@@ -197,9 +159,13 @@ def validate_output(output: Mapping[str, Any]) -> list[str]:
             if fp.get("causal_role") == "isolated_terminal_root":
                 rationale = fp.get("downstream_clean_rationale") or fp.get("inferred_mechanism")
                 if not isinstance(rationale, str) or not rationale.strip():
-                    _err(errs, where, "isolated_terminal_root requires "
-                                      "'downstream_clean_rationale' (or 'inferred_mechanism') "
-                                      "explaining why the trace looked clean after this failure")
+                    _err(
+                        errs,
+                        where,
+                        "isolated_terminal_root requires 'downstream_clean_rationale' "
+                        "(or 'inferred_mechanism') explaining why the trace looked "
+                        "clean after this failure",
+                    )
 
             mappings = fp.get("taxonomy_mappings") or []
             unmapped = bool(fp.get("unmapped", False))
@@ -214,30 +180,41 @@ def validate_output(output: Mapping[str, Any]) -> list[str]:
                     miss = REQUIRED_MAPPING_FIELDS - set(m.keys())
                     if miss:
                         _err(errs, mwhere, f"missing fields: {sorted(miss)}")
-                    _check_in(errs, mwhere, "primary_or_secondary",
-                              m.get("primary_or_secondary"), PRIMARY_OR_SECONDARY)
-                    _check_float_0_1(errs, mwhere, "mapping_confidence",
-                                     m.get("mapping_confidence"))
+                    _check_in(
+                        errs,
+                        mwhere,
+                        "primary_or_secondary",
+                        m.get("primary_or_secondary"),
+                        PRIMARY_OR_SECONDARY,
+                    )
+                    _check_float_0_1(errs, mwhere, "mapping_confidence", m.get("mapping_confidence"))
 
             if unmapped:
                 ruled = fp.get("ruled_out_codes") or []
                 if not isinstance(ruled, list) or len(ruled) < 1:
-                    _err(errs, where, "unmapped=true requires a non-empty "
-                                      "'ruled_out_codes' list (each entry: "
-                                      "{code, reason}) showing the closest "
-                                      "existing codes considered and why they "
-                                      "do not fit")
+                    _err(
+                        errs,
+                        where,
+                        "unmapped=true requires a non-empty 'ruled_out_codes' "
+                        "list (each entry: {code, reason}) showing the closest "
+                        "existing codes considered and why they do not fit",
+                    )
                 else:
                     for j, r in enumerate(ruled):
                         if not isinstance(r, Mapping) or not r.get("code") or not r.get("reason"):
-                            _err(errs, f"{where}.ruled_out_codes[{j}]",
-                                 "must be {code: str, reason: str}")
+                            _err(errs, f"{where}.ruled_out_codes[{j}]", "must be {code: str, reason: str}")
                 proposed = fp.get("proposed_failure_mode") or {}
-                if not isinstance(proposed, Mapping) or not proposed.get("name") \
-                        or not proposed.get("definition"):
-                    _err(errs, where, "unmapped=true requires "
-                                      "'proposed_failure_mode': {name, definition, "
-                                      "detection_heuristics?}")
+                if (
+                    not isinstance(proposed, Mapping)
+                    or not proposed.get("name")
+                    or not proposed.get("definition")
+                ):
+                    _err(
+                        errs,
+                        where,
+                        "unmapped=true requires 'proposed_failure_mode': "
+                        "{name, definition, detection_heuristics?}",
+                    )
 
     rels = output.get("relations") or []
     if not isinstance(rels, list):
@@ -251,13 +228,11 @@ def validate_output(output: Mapping[str, Any]) -> list[str]:
             miss = REQUIRED_RELATION_FIELDS - set(r.keys())
             if miss:
                 _err(errs, where, f"missing fields: {sorted(miss)}")
-            _check_in(errs, where, "relation_type",
-                      r.get("relation_type"), RELATION_TYPES)
+            _check_in(errs, where, "relation_type", r.get("relation_type"), RELATION_TYPES)
             _check_float_0_1(errs, where, "confidence", r.get("confidence"))
             for end in ("source_failure_point_id", "target_failure_point_id"):
                 fid = r.get(end)
                 if fid not in fp_ids:
-                    _err(errs, where,
-                         f"{end}={fid!r} not found in failure_points")
+                    _err(errs, where, f"{end}={fid!r} not found in failure_points")
 
     return errs

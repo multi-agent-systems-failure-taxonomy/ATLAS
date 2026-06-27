@@ -12,36 +12,14 @@ from importlib.resources import files
 from string import Template
 from typing import Any, Dict
 
-# Default role definitions used as hints when the LLM classifies agents.
-# The actual roles in a taxonomy are discovered dynamically from trace
-# content; this is just the seed vocabulary the LLM can choose from.
-DEFAULT_ROLE_DEFINITIONS: Dict[str, Dict[str, str]] = {
-    "solver": {
-        "definition": "Agent that generates solutions, answers, code, or content in response to a problem or task.",
-        "key_behavior": "Produces output that attempts to solve/answer the given problem.",
-        "purpose": "Generate solutions, code, or outputs",
-    },
-    "checker": {
-        "definition": "Agent that verifies, validates, or evaluates solutions produced by other agents.",
-        "key_behavior": "Assesses correctness and provides accept/reject judgment.",
-        "purpose": "Verify, review, or test solutions",
-    },
-    "refiner": {
-        "definition": "Agent that improves solutions based on feedback, critique, or failed verification.",
-        "key_behavior": "Takes existing output + feedback and produces improved version.",
-        "purpose": "Improve solutions based on feedback",
-    },
-    "coordinator": {
-        "definition": "Agent that orchestrates workflow, routes tasks, or makes selection decisions between multiple outputs.",
-        "key_behavior": "Controls flow, chooses between options, decides when to terminate.",
-        "purpose": "Orchestrate workflow and make decisions",
-    },
-}
-
-
 def load_prompt_asset(name: str) -> str:
     """Load a model-facing prompt asset bundled with the pipeline package."""
     return files(__package__).joinpath("assets", name).read_text(encoding="utf-8")
+
+
+def load_json_asset(name: str) -> Any:
+    """Load a structured pipeline asset bundled with the package."""
+    return json.loads(load_prompt_asset(name))
 
 
 def render_prompt_asset(name: str, **context: Any) -> str:
@@ -61,62 +39,24 @@ def _prompt_value(value: Any) -> str:
 
 
 A_FAILURE_CATEGORIES = load_prompt_asset("a_failure_categories.md").strip()
+DEFAULT_ROLE_DEFINITIONS: Dict[str, Dict[str, str]] = load_json_asset(
+    "role_definitions.json"
+)
+_CHECKER_TERMS = load_json_asset("checker_terms.json")
 
 
 # Keywords that indicate a B code is really an A code (system/output failure, not quality).
-B_CODE_A_TYPE_KEYWORDS = [
-    "no output", "empty output", "unable to provide", "placeholder",
-    "truncated", "incomplete output", "no response", "missing output",
-    "format violation", "malformed output", "unable to produce",
-    "failed to generate", "timed out", "crashed",
-]
+B_CODE_A_TYPE_KEYWORDS = _CHECKER_TERMS["b_code_a_type_keywords"]
 
 
 # Keywords used by TaxonomyChecker to verify category-A coverage.
-A_FAILURE_CATEGORY_KEYWORDS: Dict[str, list] = {
-    "output_issues": [
-        "output", "empty", "truncat", "malform", "no response", "garble",
-        "missing output", "partial output", "incomplete output",
-    ],
-    "context_memory": [
-        "context", "memory", "overflow", "forgot", "contradict",
-        "lost track", "window", "capacity", "re-deriv",
-    ],
-    "communication": [
-        "handoff", "communication", "passed", "routing", "downstream",
-        "upstream", "inter-agent", "misroute", "relay",
-    ],
-    "behavioral": [
-        "loop", "repetit", "refusal", "abandon", "circular",
-        "degrad", "stuck", "regress", "pathological",
-    ],
-    "execution": [
-        "timeout", "crash", "error", "exception", "rate limit",
-        "resource", "runtime", "api error", "fail",
-    ],
-    "instruction": [
-        "instruction", "compliance", "system prompt", "ignored constraint",
-        "wrong problem", "format requirement", "disobey", "non-compliance",
-    ],
-    "tool_api": [
-        "tool", "api", "function call", "tool call", "wrong tool",
-        "wrong argument", "tool error", "tool response", "tool fail",
-        "malformed argument", "invoke", "tool misuse",
-    ],
-}
+A_FAILURE_CATEGORY_KEYWORDS: Dict[str, list] = _CHECKER_TERMS[
+    "a_failure_category_keywords"
+]
 
 
 # Placeholder-quality regexes used by the checker to flag low-effort heuristics.
-PLACEHOLDER_PATTERNS = [
-    r"trace_field_\d",
-    r"trace_field\d",
-    r"field_\d+",
-    r"trace\.field",
-    r"\bTBD\b",
-    r"\bTODO\b",
-    r"\bplaceholder\b",
-    r"\.{3,}",
-]
+PLACEHOLDER_PATTERNS = _CHECKER_TERMS["placeholder_patterns"]
 
 
 def build_b_role_guidance(role_details: Dict[str, Dict[str, Any]]) -> str:

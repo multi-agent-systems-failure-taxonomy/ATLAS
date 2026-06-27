@@ -13,7 +13,9 @@ import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from importlib.resources import files
 from pathlib import Path
+from string import Template
 from typing import Any, Callable
 
 from finding import store
@@ -504,24 +506,13 @@ def _model_refinement_judge(
     traces: list[dict[str, Any]],
     model: str,
 ) -> Any:
-    prompt = f"""Review the proposed refined taxonomy against the same frozen
-program traces. Report only concrete support, coverage, overlap, or clarity
-issues that should be repaired. Do not assign lifecycle tiers or maturity.
-Return only JSON as {{"issues": [...]}}. Return an empty list when no repair is
-needed.
-
-CURRENT TAXONOMY
-{json.dumps(current, ensure_ascii=False)}
-
-PROPOSED TAXONOMY
-{json.dumps(candidate, ensure_ascii=False)}
-
-STRUCTURAL DIFF
-{json.dumps(diff, ensure_ascii=False)}
-
-FROZEN TRACES
-{format_refinement_traces(traces)}
-"""
+    prompt = _render_refinement_asset(
+        "refinement_support_judge.md",
+        current=json.dumps(current, ensure_ascii=False),
+        candidate=json.dumps(candidate, ensure_ascii=False),
+        diff=json.dumps(diff, ensure_ascii=False),
+        traces=format_refinement_traces(traces),
+    )
     return _model_json(prompt, model, "refinement judge")
 
 
@@ -533,27 +524,24 @@ def _model_refinement_repairer(
     issues: list[Any],
     model: str,
 ) -> dict[str, Any]:
-    prompt = f"""Repair the proposed refined taxonomy once using the judge
-findings. Return one complete replacement taxonomy as JSON with exactly repo,
-domain, and codes. Do not allocate a taxonomy_id. This repaired result will be
-structurally validated and accepted without a second judgment.
-
-CURRENT TAXONOMY
-{json.dumps(current, ensure_ascii=False)}
-
-PROPOSED TAXONOMY
-{json.dumps(candidate, ensure_ascii=False)}
-
-STRUCTURAL DIFF
-{json.dumps(diff, ensure_ascii=False)}
-
-JUDGE FINDINGS
-{json.dumps(issues, ensure_ascii=False)}
-
-FROZEN TRACES
-{format_refinement_traces(traces)}
-"""
+    prompt = _render_refinement_asset(
+        "refinement_repair.md",
+        current=json.dumps(current, ensure_ascii=False),
+        candidate=json.dumps(candidate, ensure_ascii=False),
+        diff=json.dumps(diff, ensure_ascii=False),
+        issues=json.dumps(issues, ensure_ascii=False),
+        traces=format_refinement_traces(traces),
+    )
     return _model_json(prompt, model, "refinement repair model")
+
+
+def _render_refinement_asset(name: str, **context: str) -> str:
+    template = (
+        files("atlas_runtime")
+        .joinpath("assets", name)
+        .read_text(encoding="utf-8")
+    )
+    return Template(template).substitute(context)
 
 
 def _model_json(prompt: str, model: str, role: str) -> dict[str, Any]:
