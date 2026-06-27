@@ -8,10 +8,8 @@ import unittest
 
 import judge_types
 from judge_types import (
-    calibration_judge,
-    coverage_judge,
-    mapping_judge,
-    quality_judge,
+    SIMPLE_JUDGE_TYPES,
+    load_judge_definition,
     selection_summary_judge,
 )
 from judge_types.reflection_judge import (
@@ -33,12 +31,22 @@ class RegistryTests(unittest.TestCase):
         # After the implementation pass, every judge has a working
         # implementation; PLACEHOLDER is empty.
         for name in (
-            "selection_judge", "reflection_judge", "mapping_judge",
-            "coverage_judge", "quality_judge", "calibration_judge",
+            "selection", "reflection_judge", "mapping",
+            "coverage", "quality", "calibration",
             "selection_summary_judge",
         ):
             self.assertIn(name, judge_types.REAL, f"{name} should be REAL")
         self.assertEqual(judge_types.PLACEHOLDER, ())
+
+    def test_simple_judge_assets_are_loadable(self) -> None:
+        self.assertEqual(
+            set(SIMPLE_JUDGE_TYPES),
+            {"selection", "mapping", "coverage", "quality", "calibration"},
+        )
+        for judge_type in SIMPLE_JUDGE_TYPES:
+            definition = load_judge_definition(judge_type)
+            self.assertIn("You are", definition["system"])
+            self.assertIn("OUTPUT (JSON only)", definition["user_template"])
 
 
 class SelectionSummaryJudgeTests(unittest.TestCase):

@@ -62,7 +62,12 @@ include = [
 exclude = ["examples*", "tests*"]
 
 [tool.setuptools.package-data]
-finding = ["mast.json"]
+finding = ["mast.json", "assets/*.html"]
+atlas_runtime = ["assets/*.md", "assets/*.html"]
+"atlas_integration.claude_code" = ["assets/*.md"]
+"atlas_integration.single_llm" = ["assets/*.md"]
+judge_types = ["assets/*/*.md"]
+"judge_types.reflection_judge" = ["assets/*.md"]
 vendor = ["atlas/LICENSE", "atlas/VENDORED.md"]
 
 [tool.setuptools.data-files]

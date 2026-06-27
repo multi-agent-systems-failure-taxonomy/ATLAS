@@ -16,7 +16,7 @@ fixtures (under [`fixtures/`](fixtures/)) — no live LLM calls.
 | [`test_doctor.py`](test_doctor.py) | `atlas-doctor` health checks for storage, model recognition, JSON output, and error status |
 | [`test_generation_lifecycle.py`](test_generation_lifecycle.py) | MAST → generated-taxonomy lifecycle: warm-up threshold, blocking vs background, rejection paths |
 | [`test_import_generation.py`](test_import_generation.py) | `atlas-import-traces` flow: trace loading, refinement-based registration, atomic rollback on failure |
-| [`test_judge_types.py`](test_judge_types.py) | `judge_types/` registry: REAL vs PLACEHOLDER lists, placeholder NotImplementedError contract, selection-summary bucket completeness, Reflection Judge construction |
+| [`test_judge_types.py`](test_judge_types.py) | `judge_types/` registry, natural-language simple-judge asset loading, selection-summary bucket completeness, Reflection Judge construction |
 | [`test_learning_calls.py`](test_learning_calls.py) | LLM-transport boundaries (Anthropic / OpenAI / Gemini), JSON repair-retry, prompt formatters |
 | [`test_lifecycle.py`](test_lifecycle.py) | Agent- and model-agnostic lifecycle (start/record/pre_submission/end), idempotency, error paths |
 | [`test_mast.py`](test_mast.py) | Built-in MAST floor: 14 known modes, category mapping, fixture-immutability |

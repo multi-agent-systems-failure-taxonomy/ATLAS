@@ -16,6 +16,7 @@ taxonomy_id, or "none".
 from __future__ import annotations
 
 import html
+from importlib import resources
 import threading
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -29,33 +30,15 @@ NONE_SENTINEL = "__none__"  # query value meaning "start from 0"
 # on a code is still shown generically ("all fields").
 _CODE_PRIMARY = ("id", "name", "description", "category")
 
-_PAGE = """<!doctype html>
-<html lang="en"><head><meta charset="utf-8">
-<title>{title}</title>
-<style>
-  body {{ font: 15px/1.5 system-ui, sans-serif; margin: 2rem auto; max-width: 60rem;
-         color: #1c2128; padding: 0 1rem; }}
-  h1 {{ font-size: 1.4rem; }}
-  table {{ border-collapse: collapse; width: 100%; margin-top: 1rem; }}
-  th, td {{ text-align: left; padding: .55rem .75rem; border-bottom: 1px solid #d0d7de; }}
-  th {{ background: #f6f8fa; font-size: .8rem; text-transform: uppercase;
-        letter-spacing: .03em; color: #57606a; }}
-  tr.row:hover {{ background: #f0f6ff; cursor: pointer; }}
-  a {{ color: #0969da; text-decoration: none; }}
-  a:hover {{ text-decoration: underline; }}
-  code {{ background: #eff1f3; padding: .1rem .35rem; border-radius: 4px; }}
-  .none {{ display: inline-block; margin-top: 1.5rem; padding: .5rem .9rem;
-           background: #1c2128; color: #fff; border-radius: 6px; }}
-  .code-block {{ border: 1px solid #d0d7de; border-radius: 8px; padding: 1rem;
-                 margin: 1rem 0; }}
-  .code-num {{ display: inline-block; min-width: 1.6rem; height: 1.6rem;
-               line-height: 1.6rem; text-align: center; background: #0969da;
-               color: #fff; border-radius: 50%; font-size: .85rem; }}
-  .extra {{ color: #57606a; font-size: .9rem; margin-top: .4rem; }}
-  .meta {{ color: #57606a; }}
-</style></head><body>
-{body}
-</body></html>"""
+
+def _text_asset(name: str) -> str:
+    return (
+        resources.files("finding")
+        .joinpath("assets", name)
+        .read_text(encoding="utf-8")
+    )
+
+_PAGE = _text_asset("webview.html")
 
 
 def _render_table(store_dir) -> str:

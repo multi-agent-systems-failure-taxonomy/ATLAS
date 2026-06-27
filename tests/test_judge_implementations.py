@@ -15,11 +15,12 @@ import unittest
 
 from atlas_runtime.taxonomy_data import Taxonomy
 from judge_types import (
-    calibration_judge,
-    coverage_judge,
-    mapping_judge,
-    quality_judge,
-    selection_judge,
+    CalibrationJudge,
+    CoverageJudge,
+    JudgeController,
+    MappingJudge,
+    QualityJudge,
+    SelectionJudge,
 )
 
 
@@ -67,7 +68,7 @@ class SelectionJudgeTests(unittest.TestCase):
             ],
             "none_apply": False,
         })
-        judge = selection_judge.SelectionJudge(self.tax, judge_model="m", llm_call=llm)
+        judge = SelectionJudge(self.tax, judge_model="m", llm_call=llm)
         result = judge.run("trace")
         self.assertEqual(result.code_ids(), ["A.1"])
         self.assertFalse(result.none_apply)
@@ -75,7 +76,7 @@ class SelectionJudgeTests(unittest.TestCase):
 
     def test_none_apply_path(self):
         llm = stub_llm({"failure_modes": [], "none_apply": True})
-        judge = selection_judge.SelectionJudge(self.tax, judge_model="m", llm_call=llm)
+        judge = SelectionJudge(self.tax, judge_model="m", llm_call=llm)
         result = judge.run("trace")
         self.assertEqual(result.code_ids(), [])
         self.assertTrue(result.none_apply)
@@ -88,7 +89,7 @@ class SelectionJudgeTests(unittest.TestCase):
             ],
             "none_apply": False,
         })
-        judge = selection_judge.SelectionJudge(self.tax, judge_model="m", llm_call=llm)
+        judge = SelectionJudge(self.tax, judge_model="m", llm_call=llm)
         result = judge.run("trace")
         self.assertEqual(result.code_ids(), [])
         joined = " | ".join(result.judge_metadata["warnings"])
@@ -96,13 +97,20 @@ class SelectionJudgeTests(unittest.TestCase):
 
     def test_run_many_returns_one_result_per_input(self):
         llm = stub_llm({"failure_modes": [], "none_apply": True})
-        judge = selection_judge.SelectionJudge(self.tax, judge_model="m", llm_call=llm)
+        judge = SelectionJudge(self.tax, judge_model="m", llm_call=llm)
         results = judge.run_many(["t1", "t2", "t3"])
         self.assertEqual(len(results), 3)
 
     def test_requires_judge_model(self):
         with self.assertRaises(ValueError):
-            selection_judge.SelectionJudge(self.tax, judge_model="")
+            SelectionJudge(self.tax, judge_model="")
+
+    def test_general_controller_can_run_selection_asset(self):
+        llm = stub_llm({"failure_modes": [], "none_apply": True})
+        result = JudgeController(
+            "selection", self.tax, judge_model="m", llm_call=llm
+        ).run("trace")
+        self.assertTrue(result.none_apply)
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -125,8 +133,8 @@ class MappingJudgeTests(unittest.TestCase):
             "mapping_confidence": 0.85, "unmapped": False,
             "ruled_out_codes": [], "proposed_failure_mode": None,
         })
-        result = mapping_judge.MappingJudge(self.tax, judge_model="m",
-                                            llm_call=llm).run(self.fp)
+        result = MappingJudge(self.tax, judge_model="m",
+                              llm_call=llm).run(self.fp)
         self.assertEqual(result.primary_code, "A.1")
         self.assertEqual(result.secondary_codes, ["C.1"])
         self.assertAlmostEqual(result.mapping_confidence, 0.85)
@@ -139,8 +147,8 @@ class MappingJudgeTests(unittest.TestCase):
             "ruled_out_codes": [{"code": "A.1", "reason": "wrong shape"}],
             "proposed_failure_mode": {"name": "NewMode", "definition": "..."},
         })
-        result = mapping_judge.MappingJudge(self.tax, judge_model="m",
-                                            llm_call=llm).run(self.fp)
+        result = MappingJudge(self.tax, judge_model="m",
+                              llm_call=llm).run(self.fp)
         self.assertTrue(result.unmapped)
         self.assertIsNone(result.primary_code)
         self.assertEqual(result.proposed_failure_mode["name"], "NewMode")
@@ -152,8 +160,8 @@ class MappingJudgeTests(unittest.TestCase):
             "mapping_confidence": 0.5, "unmapped": False,
             "ruled_out_codes": [], "proposed_failure_mode": None,
         })
-        result = mapping_judge.MappingJudge(self.tax, judge_model="m",
-                                            llm_call=llm).run(self.fp)
+        result = MappingJudge(self.tax, judge_model="m",
+                              llm_call=llm).run(self.fp)
         self.assertIsNone(result.primary_code)
         self.assertIn("A.1", result.secondary_codes)
 
@@ -176,8 +184,8 @@ class CoverageJudgeTests(unittest.TestCase):
             "proposed_failure_mode": {"name": "QuotaRecoveryGap",
                                       "definition": "no fallback after quota"},
         })
-        r = coverage_judge.CoverageJudge(self.tax, judge_model="m",
-                                         llm_call=llm).run({"trace": "Agent hit quota."})
+        r = CoverageJudge(self.tax, judge_model="m",
+                          llm_call=llm).run({"trace": "Agent hit quota."})
         self.assertEqual(r.coverage_status, "partially_covered")
         self.assertEqual(r.closest_codes, ["A.1"])
         self.assertTrue(r.suggest_new_code)
@@ -191,8 +199,8 @@ class CoverageJudgeTests(unittest.TestCase):
             "suggest_new_code": False,
             "proposed_failure_mode": None,
         })
-        r = coverage_judge.CoverageJudge(self.tax, judge_model="m",
-                                         llm_call=llm).run({"trace": "looped"})
+        r = CoverageJudge(self.tax, judge_model="m",
+                          llm_call=llm).run({"trace": "looped"})
         self.assertEqual(r.coverage_status, "covered")
         self.assertIsNone(r.proposed_failure_mode)
         self.assertFalse(r.suggest_new_code)
@@ -202,8 +210,8 @@ class CoverageJudgeTests(unittest.TestCase):
                         "missing_failure_pattern": None,
                         "suggest_new_code": False, "proposed_failure_mode": None})
         with self.assertRaises(ValueError):
-            coverage_judge.CoverageJudge(self.tax, judge_model="m",
-                                         llm_call=llm).run({})
+            CoverageJudge(self.tax, judge_model="m",
+                          llm_call=llm).run({})
 
     def test_suggest_without_proposal_is_demoted(self):
         # LLM violation: claims a new code is needed but doesn't propose one.
@@ -214,8 +222,8 @@ class CoverageJudgeTests(unittest.TestCase):
             "suggest_new_code": True,
             "proposed_failure_mode": None,
         })
-        r = coverage_judge.CoverageJudge(self.tax, judge_model="m",
-                                         llm_call=llm).run({"trace": "x"})
+        r = CoverageJudge(self.tax, judge_model="m",
+                          llm_call=llm).run({"trace": "x"})
         # Salvage logic forces suggest_new_code=False when no proposal.
         self.assertFalse(r.suggest_new_code)
         self.assertIsNone(r.proposed_failure_mode)
@@ -240,8 +248,8 @@ class QualityJudgeTests(unittest.TestCase):
             "overall_quality": "needs_refinement",
             "overall_summary": "One vague code; rest are fine.",
         })
-        r = quality_judge.QualityJudge(self.tax, judge_model="m",
-                                       llm_call=llm).run()
+        r = QualityJudge(self.tax, judge_model="m",
+                         llm_call=llm).run()
         self.assertEqual(len(r.code_quality), 1)
         self.assertEqual(r.code_quality[0]["code"], "A.1")
         self.assertEqual(r.overall_quality, "needs_refinement")
@@ -255,8 +263,8 @@ class QualityJudgeTests(unittest.TestCase):
             "overall_quality": "good",
             "overall_summary": "ok",
         })
-        r = quality_judge.QualityJudge(self.tax, judge_model="m",
-                                       llm_call=llm).run()
+        r = QualityJudge(self.tax, judge_model="m",
+                         llm_call=llm).run()
         # Z.99 dropped; A.1 kept.
         kept_codes = [item["code"] for item in r.code_quality]
         self.assertEqual(kept_codes, ["A.1"])
@@ -269,8 +277,8 @@ class QualityJudgeTests(unittest.TestCase):
             return json.dumps({"code_quality": [], "overall_quality": "good",
                                "overall_summary": "fine"})
 
-        quality_judge.QualityJudge(self.tax, judge_model="m",
-                                   llm_call=cap_llm).run(
+        QualityJudge(self.tax, judge_model="m",
+                     llm_call=cap_llm).run(
             support_traces=["the agent looped here", "and then halted"])
         self.assertIn("support trace 1", captured["prompt"])
         self.assertIn("the agent looped here", captured["prompt"])
@@ -291,8 +299,8 @@ class CalibrationJudgeTests(unittest.TestCase):
             "possible_overtrigger": False, "conflicting_codes": [],
             "rationale": "evidence clearly satisfies the looping definition",
         })
-        r = calibration_judge.CalibrationJudge(self.tax, judge_model="m",
-                                               llm_call=llm).run({
+        r = CalibrationJudge(self.tax, judge_model="m",
+                             llm_call=llm).run({
             "annotation": {"code": "A.1", "confidence": "high"},
             "evidence": "three identical Bash calls",
         })
@@ -305,8 +313,8 @@ class CalibrationJudgeTests(unittest.TestCase):
             "possible_overtrigger": False, "conflicting_codes": ["C.1"],
             "rationale": "stretched fit",
         })
-        r = calibration_judge.CalibrationJudge(self.tax, judge_model="m",
-                                               llm_call=llm).run({
+        r = CalibrationJudge(self.tax, judge_model="m",
+                             llm_call=llm).run({
             "annotation": {"code": "A.1", "confidence": "low"},
             "evidence": "one Bash call",
         })
@@ -318,8 +326,8 @@ class CalibrationJudgeTests(unittest.TestCase):
     def test_rejects_unknown_annotated_code(self):
         llm = stub_llm({})
         with self.assertRaises(ValueError):
-            calibration_judge.CalibrationJudge(self.tax, judge_model="m",
-                                               llm_call=llm).run({
+            CalibrationJudge(self.tax, judge_model="m",
+                             llm_call=llm).run({
                 "annotation": {"code": "Z.99"},
                 "evidence": "ok",
             })
@@ -327,8 +335,8 @@ class CalibrationJudgeTests(unittest.TestCase):
     def test_rejects_missing_evidence(self):
         llm = stub_llm({})
         with self.assertRaises(ValueError):
-            calibration_judge.CalibrationJudge(self.tax, judge_model="m",
-                                               llm_call=llm).run({
+            CalibrationJudge(self.tax, judge_model="m",
+                             llm_call=llm).run({
                 "annotation": {"code": "A.1"},
                 "evidence": "",
             })
@@ -340,8 +348,8 @@ class CalibrationJudgeTests(unittest.TestCase):
             "conflicting_codes": ["A.1", "C.1", "Z.99"],  # A.1 is self; Z.99 not in catalog
             "rationale": "could also fit C.1",
         })
-        r = calibration_judge.CalibrationJudge(self.tax, judge_model="m",
-                                               llm_call=llm).run({
+        r = CalibrationJudge(self.tax, judge_model="m",
+                             llm_call=llm).run({
             "annotation": {"code": "A.1", "confidence": "medium"},
             "evidence": "Bash retries with subtle variation",
         })

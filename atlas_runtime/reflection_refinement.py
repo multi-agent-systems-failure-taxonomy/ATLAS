@@ -41,6 +41,8 @@ import random
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from importlib import resources
+from string import Template
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from . import ProjectFn
@@ -53,6 +55,14 @@ RefinerCallable = Callable[..., dict | None]
 DEFAULT_N_TRACES = 30
 DEFAULT_WEAK_MAPPING_THRESHOLD = 0.65
 DEFAULT_MAX_WORKERS = 4
+
+
+def _text_asset(name: str) -> str:
+    return (
+        resources.files("atlas_runtime")
+        .joinpath("assets", name)
+        .read_text(encoding="utf-8")
+    )
 
 
 @dataclass(frozen=True)
@@ -354,22 +364,7 @@ def _build_utilization(codes: Sequence[Code], results: Iterable[Mapping[str, Any
 # ──────────────────────────────────────────────────────────────────────────
 
 
-REFINER_SYSTEM = (
-    "You curate a failure-mode taxonomy. You are given (1) the current "
-    "taxonomy and (2) all signals from a Reflection Judge that has been run "
-    "on a sample of traces. YOU decide which signals justify which taxonomy "
-    "changes.\n"
-    "\n"
-    "PRIORITY: quality over coverage. A taxonomy with 25 well-defined, "
-    "non-overlapping codes is more useful than one with 50 codes where many "
-    "are duplicates, over-specific, or unused. BE AGGRESSIVE about RETIRING "
-    "bloat: codes that are never mapped, codes that are specific-instance "
-    "duplicates of a more general code, and codes that the judge keeps "
-    "forcing at low confidence.\n"
-    "\n"
-    "Decide each action based on the evidence; use empty lists for actions "
-    "you don't take."
-)
+REFINER_SYSTEM = _text_asset("reflection_refiner_system.md")
 
 
 def _refiner_user_prompt(
@@ -398,44 +393,11 @@ def _refiner_user_prompt(
         }
         for code, wms in weak.items()
     ]
-    return (
-        "## CURRENT TAXONOMY\n"
-        + catalog
-        + "\n\n## SIGNALS FROM REFLECTION JUDGE\n\n"
-        "### Proposed new codes (from unmapped failure points — judge had no "
-        "existing code that fit)\n"
-        "Each carries: proposed_name, support_count (how many of the sampled "
-        "traces proposed this), sample_definitions, ruled_out_against (existing "
-        "codes the judge considered and ruled out, with reasons).\n"
-        + json.dumps(add_signals, indent=2)
-        + "\n\n### Weak-mapped existing codes (judge mapped these with low "
-        "confidence — the definition may be too narrow, too broad, or "
-        "covering two distinct patterns that should be split)\n"
-        + json.dumps(edit_signals, indent=2)
-        + "\n\n### Code utilization across the sample (retirement signal)\n"
-        "For each existing code in the current taxonomy: times_mapped, avg/max "
-        "confidence when mapped, and frequently_co_mapped_with (codes that "
-        "appear in >= 50% of this code's uses — strong duplicate signal).\n"
-        "- times_mapped = 0          -> NEVER USED in the sampled traces\n"
-        "- max_confidence < 0.5      -> judge always forced this code\n"
-        "- frequently_co_mapped_with -> likely duplicate / near-duplicate\n"
-        + json.dumps(utilization, indent=2)
-        + "\n\n## TASK\n"
-        "Review the signals and decide which taxonomy changes to apply.\n"
-        "- ADD a new code only when a proposed_name describes a genuinely "
-        "uncovered failure mode (not a near-duplicate of an existing code).\n"
-        "- EDIT an existing code's name/definition when its weak mappings "
-        "reveal what the current definition is missing or over-claiming.\n"
-        "- SPLIT an existing code when its weak mappings cluster into TWO or "
-        "more distinct patterns that deserve separate codes.\n"
-        "- RETIRE existing codes that are bloating the taxonomy (never used, "
-        "near-duplicate, persistently weak-fit).\n\n"
-        'Return ONLY JSON: {"add": [{"category":"A|C","name":"...","definition":"...",'
-        '"detection_heuristics":["..."],"gap":"..."}],'
-        '"edit": [{"code":"C.3","name":"optional","definition":"optional","reason":"..."}],'
-        '"split": [{"code":"C.4","reason":"...","into":'
-        '[{"name":"...","definition":"...","detection_heuristics":["..."]}]}],'
-        '"retire": [{"code":"C.14","reason":"specific-instance duplicate of C.4"}]}'
+    return Template(_text_asset("reflection_refiner_user.md")).substitute(
+        catalog=catalog,
+        add_signals=json.dumps(add_signals, indent=2),
+        edit_signals=json.dumps(edit_signals, indent=2),
+        utilization=json.dumps(utilization, indent=2),
     )
 
 

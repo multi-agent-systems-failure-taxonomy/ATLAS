@@ -6,6 +6,7 @@ import json
 import re
 import uuid
 from dataclasses import dataclass
+from importlib import resources
 from pathlib import Path
 from typing import Callable
 
@@ -31,22 +32,11 @@ CHECKPOINT_REQUEST = re.compile(
     re.IGNORECASE,
 )
 
-STANDING_PROMPT = """ATLAS runtime interaction is active.
-
-Work on the user's task normally. Do not request or load the taxonomy at task
-start. Whenever you finish a sub-task or major task segment and want to
-continue, end your response with:
-
-ATLAS checkpoint request: <one-sentence segment summary>
-
-Stop at that marker. The caller will inject the active taxonomy, collect a
-reflection over only the work since the previous checkpoint, and then ask you
-to continue. Do not manufacture checkpoints for trivial actions.
-
-When the task itself is complete, return the proposed final answer without a
-checkpoint marker. The caller will run the mandatory final ATLAS gate before
-releasing that answer.
-"""
+STANDING_PROMPT = (
+    resources.files("atlas_integration.single_llm")
+    .joinpath("assets", "standing_prompt.md")
+    .read_text(encoding="utf-8")
+)
 
 
 @dataclass(frozen=True)

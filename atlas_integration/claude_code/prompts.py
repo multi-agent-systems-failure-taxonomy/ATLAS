@@ -2,25 +2,22 @@
 
 from __future__ import annotations
 
+from importlib import resources
+from string import Template
 from typing import Any
 
 from atlas_runtime.checkpoint_prompt import render_reflection_prompt
 
-STANDING_PROMPT = """ATLAS runtime interaction is active for this session.
 
-Do not ask for or load the taxonomy at task start. Continue normal work.
-After completing a sub-task or a major part of the task, request an ATLAS
-checkpoint by ending that segment with:
+def _text_asset(name: str) -> str:
+    return (
+        resources.files("atlas_integration.claude_code")
+        .joinpath("assets", name)
+        .read_text(encoding="utf-8")
+    )
 
-`ATLAS checkpoint request: <one-sentence segment summary>`
 
-Claude Code task completions, subagent completions, observable tool failures,
-and final completion can also trigger ATLAS automatically. At a trigger, the
-active taxonomy will be injected. Analyze only activity since the previous
-ATLAS checkpoint. Diagnose it in third person, then remember it is your own
-execution and change course only when necessary. A well-supported “none apply”
-is fully valid; never manufacture a change.
-"""
+STANDING_PROMPT = _text_asset("standing_prompt.md")
 
 
 def reflection_prompt(
@@ -33,34 +30,9 @@ def reflection_prompt(
     repair_attempts_used: int = 0,
 ) -> str:
     gate_tail = (
-        f"""
-
-Your earlier task answer is PROVISIONAL. It has not been released or scored.
-This Stop hook exists so you can still repair the work before submission.
-
-If Decide says `change:`:
-1. emit `Final ATLAS status: REPAIR_REQUIRED`;
-2. set `Final decision: repair`;
-3. after this hook blocks, perform the change and verify it;
-4. then provide a corrected `<FINAL_ANSWER>` and run the reflection again.
-
-Never say the answer was already submitted, never treat this as a post-hoc
-audit, and never use statuses such as PASS, conditional pass, complete, or
-accept with caveat.
-
-If no change is needed, emit `Final ATLAS status: READY_TO_SUBMIT` and
-`Final decision: submit`.
-
-After the reflection, emit exactly these five plain-text fields:
-- `Final ATLAS status:` READY_TO_SUBMIT or REPAIR_REQUIRED
-- `Codes checked:` <codes or none>
-- `Evidence:` <concrete evidence>
-- `Repair attempts used:` {repair_attempts_used}
-- `Final decision:` submit or repair
-
-The hook owns this counter. Emit exactly
-`Repair attempts used: {repair_attempts_used}` for this checkpoint.
-"""
+        Template(_text_asset("final_gate_tail.md")).substitute(
+            repair_attempts_used=repair_attempts_used
+        )
         if full else ""
     )
     return render_reflection_prompt(
