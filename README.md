@@ -46,11 +46,10 @@ required shape; it cannot guarantee that the reflection is insightful.
 
 | Stage | What happens |
 |---|---|
-| 🟦 **Start** | Resolve a stored taxonomy or begin with built-in MAST. |
-| 🟨 **Runtime** | Surface taxonomy codes only when a checkpoint fires—never dump them into context at startup. |
-| 🟥 **Gate** | Block completion until a valid reflection and final-gate decision exist. |
-| 🟩 **Evidence** | Record fired codes, task IDs, reasoning, and evidence for the live dashboard. |
-| 🟪 **Learning** | Capture one canonical trace and trigger generation or refinement at configured thresholds. |
+| **1. Agent progresses** | The agent works on the task with the currently active taxonomy. |
+| **2. Gate fires** | A checkpoint or final gate asks for an ATLAS reflection at a meaningful boundary. |
+| **3. Taxonomy-guided self-reflection** | The agent checks its recent work against active failure modes and cites evidence. |
+| **4. Self-refinement** | Reflection results guide repair, retry, or honest release before the loop continues. |
 
 ---
 
