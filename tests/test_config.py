@@ -9,14 +9,22 @@ import sys
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from importlib.resources import files
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from atlas_runtime.config import config_value, load_atlas_config
+from atlas_runtime.config import ALL_FIELDS, config_value, load_atlas_config
 
 
 class AtlasConfigTests(unittest.TestCase):
+    def test_published_schema_matches_loader_fields(self):
+        schema_path = files("atlas_runtime").joinpath("assets", "atlas_config.schema.json")
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        self.assertEqual(schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
+        self.assertFalse(schema["additionalProperties"])
+        self.assertEqual(set(schema["properties"]) - {"version"}, ALL_FIELDS)
+
     def test_loads_and_normalizes_relative_paths(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

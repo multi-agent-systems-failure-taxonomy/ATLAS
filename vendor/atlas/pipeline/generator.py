@@ -1,27 +1,10 @@
-"""Steps 3-5: CategoryGenerator (A, B, C).
+"""Category A/B/C taxonomy generation orchestration.
 
-Each category is built by two LLM "agents" running in parallel:
-
-- **Category A** (system failures, agent-independent):
-  - Architectural: pure risk analysis from the topology, no traces.
-  - Empirical: behavioral anomalies grounded in observed traces + signals.
-
-- **Category B** (role-specific quality failures):
-  - Theoretical: derived from architecture + role definitions.
-  - Empirical: derived from observed trace content.
-
-- **Category C** (domain reasoning failures):
-  - Domain-Seeded: built from the domain analyzer's error patterns.
-  - Trace-Grounded: built from observed reasoning flaws in traces.
-
-The two stages are then merged and deduplicated via the LLM, and
-A-specific sanitization removes any codes that turned out to be role-
-specific (which means they belong in B, not A).
+Model-facing generation instructions live in ``vendor/atlas/pipeline/assets``.
 """
 
 from __future__ import annotations
 
-import json
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional
 
@@ -30,6 +13,7 @@ from vendor.atlas.llm import LLMClient, extract_json
 from vendor.atlas.pipeline.prompts import (
     A_FAILURE_CATEGORIES,
     build_b_role_guidance,
+    render_prompt_asset,
 )
 from vendor.atlas.traces.signals import SignalExtractor
 from vendor.atlas.utils import (
@@ -352,75 +336,30 @@ class CategoryGenerator:
             domain_lite = self._lightweight_domain_context()
             signal_ctx = self._signal_context()
 
-            common_header = f"""CATEGORY A - System Failures (Agent-Independent)
-
-These are failures that can happen to ANY agent regardless of role.
-NOT about correctness — about system-level issues that prevent agents from
-functioning properly or producing usable output.
-
-NAMING RULE: A-codes must NEVER contain agent role names ({role_str}).
-ROLE-NEUTRALITY RULE: A-codes must describe GENERIC system failures, not failures specific to
-one agent's purpose. Apply the "swap test": if replacing the agent with a different-role agent
-would make the code inapplicable, it belongs in B, not A. For example:
-  - GOOD A code: "Output truncation" — any agent can produce truncated output
-  - GOOD A code: "Inter-agent information loss" — any handoff can lose information
-  - BAD A code: "Verdict misreporting" — only a checker produces verdicts -> this is B
-  - BAD A code: "Refinement inconsistency" — only a refiner refines -> this is B
-"""
+            common_header = render_prompt_asset(
+                "category_a_common_header.md",
+                role_str=role_str,
+            )
 
             if stage_name == "Architectural":
-                return f"""{common_header}
-
-YOUR TASK (Architectural Risk Analysis):
-Given the system architecture below, identify ALL plausible system-level failure
-modes that could occur in this pipeline. Think about:
-- What happens at each handoff point? What can go wrong?
-- What happens if an agent runs too long, or its context fills up?
-- What happens if an agent produces no output, or garbled output?
-- What if an agent contradicts itself or loops?
-- What if an agent refuses to engage or abandons the task?
-- What if the pipeline terminates prematurely?
-
-You do NOT need to see traces for this — reason purely from the architecture.
-Generate codes for failures that are PLAUSIBLE based on how this system is designed.
-
-For each code, set "evidence": "theoretical" since these come from architectural
-reasoning rather than observed trace data.
-
-{A_FAILURE_CATEGORIES}
-
-{arch_ctx}
-{caps_ctx}
-{domain_lite}
-
-{signal_ctx}
-"""
-            return f"""{common_header}
-
-YOUR TASK (Empirical Behavioral Analysis):
-Analyze the BEHAVIORAL SIGNALS extracted from all traces (below) and the
-SAMPLE TRACES to identify system failures that ACTUALLY OCCURRED.
-
-Focus on:
-- Behavioral anomalies: looping, repetition, refusal, degrading quality
-- Output issues: truncation, empty output, malformed responses
-- Communication issues: information lost between agents, handoff failures
-- Any system-level problems visible in the trace content
-
-Do NOT generate codes for trace FORMAT validation rules (e.g., "missing tag X"
-or "wrong delimiter Y"). Focus on the underlying system failures, not their
-surface-level formatting symptoms.
-
-For each code, set "evidence": "observed" since these come from actual trace data.
-
-{A_FAILURE_CATEGORIES}
-
-{signal_ctx}
-
-{arch_ctx}
-{caps_ctx}
-{domain_lite}
-"""
+                return render_prompt_asset(
+                    "category_a_architectural.md",
+                    common_header=common_header,
+                    a_failure_categories=A_FAILURE_CATEGORIES,
+                    arch_ctx=arch_ctx,
+                    caps_ctx=caps_ctx,
+                    domain_lite=domain_lite,
+                    signal_ctx=signal_ctx,
+                )
+            return render_prompt_asset(
+                "category_a_empirical.md",
+                common_header=common_header,
+                a_failure_categories=A_FAILURE_CATEGORIES,
+                signal_ctx=signal_ctx,
+                arch_ctx=arch_ctx,
+                caps_ctx=caps_ctx,
+                domain_lite=domain_lite,
+            )
 
         if self.category == "B":
             arch_ctx = self._architecture_context()
@@ -441,101 +380,47 @@ For each code, set "evidence": "observed" since these come from actual trace dat
             role_name_prefixes = ", ".join(f"{r.capitalize()}_" for r in active_roles)
             b_guidance = build_b_role_guidance(role_details)
 
-            return f"""CATEGORY B - Role-Specific Quality Failures
-
-NAMING RULE: B-codes MUST contain role name prefix ({role_name_prefixes})
-
-ROLE DEFINITIONS:
-{role_defs_text}
-
-ACTIVE ROLES (only generate for these): {active_roles}
-
-DISCOVERED AGENTS PER ROLE:
-{json.dumps(agents_per_role, indent=2)}
-
-{b_guidance}
-
-YOUR TASK ({stage_name} Stage):
-{"Analyze the system ARCHITECTURE and identify role-specific quality failures based on how agents interact and what decisions they make." if stage_name == "Theoretical" else "Analyze ACTUAL TRACE CONTENT and find role-specific quality failures that occurred."}
-
-Generate codes for complete coverage of all distinct quality failure modes per active role.
-Each code must represent a genuinely distinct failure — do NOT create multiple codes
-for variants of the same quality problem.
-
-{caps_ctx}
-{arch_ctx}
-{trace_ctx}
-"""
+            stage_task = (
+                "Analyze the system ARCHITECTURE and identify role-specific quality "
+                "failures based on how agents interact and what decisions they make."
+                if stage_name == "Theoretical"
+                else "Analyze ACTUAL TRACE CONTENT and find role-specific quality failures that occurred."
+            )
+            return render_prompt_asset(
+                "category_b_stage.md",
+                role_name_prefixes=role_name_prefixes,
+                role_defs_text=role_defs_text,
+                active_roles=active_roles,
+                agents_per_role=agents_per_role,
+                b_guidance=b_guidance,
+                stage_name=stage_name,
+                stage_task=stage_task,
+                caps_ctx=caps_ctx,
+                arch_ctx=arch_ctx,
+                trace_ctx=trace_ctx,
+            )
 
         # Category C
         domain_error_ctx = self._domain_error_seed_context()
         domain_ctx = self._domain_context()
-        common_header = f"""CATEGORY C - Domain Reasoning Failures
-
-These are failures in the REASONING PROCESS itself, specific to the problem domain.
-C codes describe WHAT went wrong in the reasoning — not WHO made the error or WHETHER
-the system broke. A judge should be able to identify these by reading the reasoning
-in a trace, WITHOUT needing to independently solve the problem or know the correct answer.
-
-NAMING RULE: C-codes must NEVER contain agent role names ({role_str}).
-A valid C code applies equally whether the flawed reasoning appeared in any agent's output.
-"""
+        common_header = render_prompt_asset(
+            "category_c_common_header.md",
+            role_str=role_str,
+        )
 
         if stage_name == "Domain-Seeded":
-            return f"""{common_header}
-
-YOUR TASK (Domain-Seeded Stage):
-Using the domain error patterns, subdomains, and terminology pitfalls below as scaffolding,
-generate categories of reasoning failure that:
-1. Are DETECTABLE from the trace alone — a judge reading the reasoning can spot the flaw
-   without solving the problem independently
-2. Describe ERROR TYPES, not error instances — each code should apply across many problems,
-   not just one specific scenario
-3. Are at the right GRANULARITY — not too broad ("mathematical error") and not too narrow
-   ("forgot to check n=0 in induction")
-4. COVER ALL SUBDOMAINS — ensure each subdomain's characteristic reasoning failures are
-   represented. Don't cluster all codes around one subdomain while ignoring others.
-
-COVERAGE CHECK: After generating codes, verify you have at least one code relevant to
-each subdomain listed below. If a subdomain has no coverage, add a code for its most
-common reasoning failure type.
-
-For each code, provide a concrete example of when it applies vs when it does NOT,
-to ensure the code is operationally distinguishable from other codes.
-
-DISTINGUISHABILITY RULE: If two codes cannot be told apart by a judge reading a trace,
-they must be merged into one code.
-
-{domain_error_ctx}
-{domain_ctx}
-"""
-        return f"""{common_header}
-
-YOUR TASK (Trace-Grounded Stage):
-Analyze the SAMPLE TRACES below. For each trace where reasoning appears flawed,
-identify WHAT TYPE of reasoning error is present. Then cluster these into distinct
-categories of reasoning failure.
-
-Focus on patterns of flawed reasoning that are DETECTABLE from the trace content:
-- Internal contradictions within the reasoning
-- Unjustified logical leaps or unsupported claims
-- Misapplication of domain concepts or techniques
-- Gaps in case analysis or missing considerations
-- Incorrect manipulation of domain-specific objects (formulas, data structures, etc.)
-- Errors in algebraic or symbolic transformations (sign errors, invalid cancellations)
-- Wrong direction of inequalities or estimates
-- Geometric/spatial reasoning errors (wrong angle relations, invalid similarity claims)
-- Proof structure errors (proving only one direction, assuming the conclusion)
-- Logical errors (quantifier confusion, affirming the consequent)
-
-Do NOT generate codes for:
-- System-level failures (timeouts, crashes, truncation) — those are A codes
-- Agent role failures (weak validation, wrong routing) — those are B codes
-- Outcome-level judgments ("answer is wrong") — C codes describe the PROCESS flaw
-
-{domain_error_ctx}
-{domain_ctx}
-"""
+            return render_prompt_asset(
+                "category_c_domain_seeded.md",
+                common_header=common_header,
+                domain_error_ctx=domain_error_ctx,
+                domain_ctx=domain_ctx,
+            )
+        return render_prompt_asset(
+            "category_c_trace_grounded.md",
+            common_header=common_header,
+            domain_error_ctx=domain_error_ctx,
+            domain_ctx=domain_ctx,
+        )
 
     # ───── Stage execution ─────
 
@@ -567,29 +452,12 @@ Do NOT generate codes for:
         evidence_field = ', "evidence": "theoretical|observed"' if self.category == "A" else ""
 
         if self.category == "C":
-            requirements = f"""REQUIREMENTS:
-1. Each code describes an ERROR TYPE (not an error instance) — it should apply across
-   many problems, not just one specific scenario
-2. Each code must be DETECTABLE by a judge reading the trace — the judge should NOT need
-   to solve the problem independently or know the correct answer
-3. Each code must be DISTINGUISHABLE from every other code — if two codes cannot be told
-   apart by a judge, merge them
-4. Do NOT include system failures (A codes) or role-specific failures (B codes)
-5. C codes must NEVER reference agent roles ({', '.join(self._active_roles())})
-6. detection_heuristics must describe what a judge would look for in the trace text
-7. Definitions should be concise and clear
-8. Prioritize clarity over quantity — fewer clear codes is better than many overlapping ones"""
+            requirements = render_prompt_asset(
+                "category_c_requirements.md",
+                active_roles=", ".join(self._active_roles()),
+            )
         else:
-            requirements = """REQUIREMENTS:
-1. Generate codes for complete coverage of all distinct system failure modes
-2. Each code must represent a genuinely distinct failure — do NOT create multiple
-   codes for variants of the same problem (e.g., do not have separate codes for
-   "output missing" and "output empty" — those are the same failure)
-3. Prefer CAUSAL codes over SYMPTOM codes. "Token limit caused truncation" is one
-   code, not two separate codes for "token limit hit" and "output truncated"
-4. Each code needs detection_heuristics grounded in observable signals
-5. Definitions should be concise and clear
-6. Follow naming rules strictly"""
+            requirements = render_prompt_asset("category_ab_requirements.md")
 
         traces_section = f"\nSAMPLE TRACES:\n{traces_text}" if traces_text else ""
 
@@ -601,28 +469,17 @@ Do NOT generate codes for:
                 f'"agent_heuristics": {{"AgentName": ["agent-specific signal"]}}'
             )
 
-        prompt = f"""You are the {stage_name} Agent generating Category {self.category} codes.
-
-{self._stage_prompt(stage_name)}
-{existing_str}
-{traces_section}
-
-{requirements}
-
-OUTPUT JSON:
-{{
-  "codes": [
-    {{
-      "code": "{self.category}.X",
-      "name": "Descriptive_Name",
-      "definition": "Concise definition.",
-      "when_to_use": "When to apply",
-      "when_not_to_use": "When NOT to apply",
-      "detection_heuristics": ["observable signal from trace content", "..."],
-      "severity": "critical|major|minor"{evidence_field}{b_extra}
-    }}
-  ]
-}}"""
+        prompt = render_prompt_asset(
+            "category_stage_execution.md",
+            stage_name=stage_name,
+            category=self.category,
+            stage_prompt=self._stage_prompt(stage_name),
+            existing_str=existing_str,
+            traces_section=traces_section,
+            requirements=requirements,
+            evidence_field=evidence_field,
+            b_extra=b_extra,
+        )
 
         try:
             response = self.client.chat(prompt)
@@ -656,27 +513,11 @@ OUTPUT JSON:
                 "evidence": c.get("evidence", ""),
             } for c in codes]
 
-        prompt = f"""Deduplicate these Category {self.category} codes.
-
-ALL GENERATED CODES (from two analysis stages):
-{json.dumps(summarize(all_codes), indent=2)}
-
-DEDUPLICATION RULES:
-1. Two codes are duplicates if they describe the SAME underlying failure, even if
-   worded differently. E.g., "output missing" and "no output produced" are duplicates.
-2. If one code describes a CAUSE and another describes its SYMPTOM, keep the CAUSAL
-   code and remove the symptom code. E.g., keep "token limit exhaustion" over
-   "output truncated mid-sentence" — the truncation is a symptom of the token limit.
-3. When merging duplicates, prefer the code with more specific detection_heuristics
-   or the one with "evidence": "observed" over "evidence": "theoretical".
-4. Be aggressive about merging — it is better to have fewer distinct codes than
-   many overlapping ones.
-
-OUTPUT JSON:
-{{
-  "kept_codes": [{{"name": "...", "definition": "..."}}],
-  "removed": [{{"name": "...", "reason": "Duplicate of / symptom of ..."}}]
-}}"""
+        prompt = render_prompt_asset(
+            "category_merge.md",
+            category=self.category,
+            all_codes=summarize(all_codes),
+        )
 
         try:
             result = extract_json(self.client.chat(prompt))

@@ -19,6 +19,7 @@ from vendor.atlas.pipeline.check import TaxonomyChecker
 from vendor.atlas.pipeline.dedup import CrossCategoryDeduplicator
 from vendor.atlas.pipeline.domain import SystemDomainAnalyzer
 from vendor.atlas.pipeline.generator import CategoryGenerator
+from vendor.atlas.pipeline.prompts import render_prompt_asset
 from vendor.atlas.pipeline.structure import TraceStructureExtractor
 from vendor.atlas.pipeline.validate import CrossCategoryValidator
 from vendor.atlas.traces.signals import SignalExtractor
@@ -163,22 +164,12 @@ class TaxonomyPipeline:
             for c in all_codes
         )
 
-        prompt = f"""You are evaluating a failure-mode taxonomy.
-There are {len(all_codes)} codes but we need to keep only the {max_codes} most important ones.
-
-Rank these failure modes by importance for evaluating the multi-agent system.
-Prioritize codes that:
-1. Represent distinct, commonly-occurring failure modes
-2. Provide actionable signal to diagnose failures
-3. Cover different categories (A=system, B=role-quality, C=domain-reasoning)
-
-CODES:
-{summary}
-
-Return ONLY a JSON object:
-{{"keep": ["A.1", "B.2", ...]}}
-
-List exactly {max_codes} code IDs to keep, ordered by importance."""
+        prompt = render_prompt_asset(
+            "max_codes_cap.md",
+            code_count=len(all_codes),
+            max_codes=max_codes,
+            summary=summary,
+        )
 
         try:
             result = extract_json(self.client.chat(prompt))

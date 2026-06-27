@@ -7,6 +7,9 @@ means lives in one place and can be reviewed independently.
 
 from __future__ import annotations
 
+import json
+from importlib.resources import files
+from string import Template
 from typing import Any, Dict
 
 # Default role definitions used as hints when the LLM classifies agents.
@@ -36,57 +39,28 @@ DEFAULT_ROLE_DEFINITIONS: Dict[str, Dict[str, str]] = {
 }
 
 
-A_FAILURE_CATEGORIES = """
-When generating Category A (System Failure) codes, consider these failure categories.
-Not all categories will apply to every system — generate codes only for categories
-that are relevant based on the architecture and trace evidence.
+def load_prompt_asset(name: str) -> str:
+    """Load a model-facing prompt asset bundled with the pipeline package."""
+    return files(__package__).joinpath("assets", name).read_text(encoding="utf-8")
 
-1. OUTPUT ISSUES: Agent produces no output, partial output, garbled output, or
-   output that cannot be used by downstream agents. Consider: empty responses,
-   truncated mid-sentence, malformed structure, output that doesn't match
-   expected format for the system.
 
-2. CONTEXT / MEMORY ISSUES: Agent loses track of prior information, contradicts
-   its own earlier reasoning, forgets constraints, or cannot process all input
-   because it exceeds capacity. Consider: context window overflow, information
-   loss across long traces, re-deriving already established facts.
+def render_prompt_asset(name: str, **context: Any) -> str:
+    """Render a prompt asset with string.Template placeholders.
 
-3. INTER-AGENT COMMUNICATION ISSUES: Information is lost, corrupted, or
-   misrouted between agents. Consider: handoff failures, information not
-   properly passed to next stage, downstream agent missing upstream context,
-   miscommunication between agents.
+    ``string.Template`` keeps JSON examples readable in the assets because
+    braces do not need escaping.
+    """
+    rendered_context = {key: _prompt_value(value) for key, value in context.items()}
+    return Template(load_prompt_asset(name)).safe_substitute(rendered_context)
 
-4. BEHAVIORAL ANOMALIES: Agent exhibits pathological behavior patterns.
-   Consider: repetitive/looping output, circular reasoning, refusal to engage,
-   abandonment mid-task, degrading output quality over the course of the trace.
 
-5. EXECUTION ERRORS: System-level failures during agent execution. Consider:
-   timeouts, crashes, API errors, rate limiting, resource exhaustion, runtime
-   exceptions visible in the trace.
+def _prompt_value(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    return json.dumps(value, indent=2)
 
-6. INSTRUCTION COMPLIANCE: Agent fails to follow its system prompt or task
-   instructions. Consider: ignoring constraints, responding to a different
-   problem than asked, not adhering to output format requirements specified
-   in the prompt.
 
-7. TOOL / API INTERACTION ISSUES: Agent fails when invoking external tools,
-   APIs, or function calls. Consider: calling wrong tool for the task,
-   passing incorrect or malformed arguments, misinterpreting tool response
-   data, tool returning errors that agent doesn't handle, agent retrying
-   failed tool calls without adjusting, agent ignoring tool results.
-   This applies to any system where agents interact with external tools,
-   databases, or APIs as part of their workflow.
-
-IMPORTANT GUIDELINES:
-- Generate codes that describe CAUSES, not just symptoms. "Token limit caused
-  truncation" is better than "output is missing its ending."
-- Keep codes format-agnostic — they should apply regardless of specific trace
-  delimiters or markers used by this particular system.
-- Each code should represent a genuinely distinct failure mode. Do NOT generate
-  multiple codes that describe variants of the same underlying problem.
-- If a failure mode is plausible based on the architecture but not observed in
-  traces, include it and mark evidence as "theoretical".
-"""
+A_FAILURE_CATEGORIES = load_prompt_asset("a_failure_categories.md").strip()
 
 
 # Keywords that indicate a B code is really an A code (system/output failure, not quality).

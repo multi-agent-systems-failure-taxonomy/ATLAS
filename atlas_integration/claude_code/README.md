@@ -5,6 +5,27 @@ gates, records live firing evidence, and captures one canonical learning trace
 when the Claude session ends. Taxonomy generation, refinement, and storage
 remain engine-owned and are invoked through the public lifecycle API.
 
+## Natural-language assets
+
+Claude Code can run ATLAS through the installed Python hooks, or a harness can
+read the natural-language assets directly and supply its own execution layer:
+
+- `atlas_integration/claude_code/assets/standing_prompt.md` — standing session
+  instruction delivered at `SessionStart`.
+- `atlas_runtime/assets/checkpoint_reflection.md` — shared checkpoint
+  reflection contract used by blocking/advisory gates.
+- `atlas_integration/claude_code/assets/final_gate_tail.md` — Claude-specific
+  final submission tail appended to the shared checkpoint prompt.
+- `judge_types/assets/<judge>/system.md` and `user.md` — simple judge prompts
+  for Selection, Mapping, Coverage, Quality, Calibration.
+- `judge_types/reflection_judge/assets/*.md` — Reflection Judge staged prompts.
+- `vendor/atlas/pipeline/assets/*.md` — taxonomy-generation prompts.
+
+The Python modules remain useful as controllers: they load context, render
+assets, validate JSON, record traces, and call the lifecycle API. Direct
+natural-language import is for harnesses that want to own those mechanics
+themselves.
+
 Install the package, then install project-local hooks:
 
 ```powershell

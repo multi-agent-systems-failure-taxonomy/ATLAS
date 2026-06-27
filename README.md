@@ -6,7 +6,7 @@
 [![Claude Code](https://img.shields.io/badge/Claude_Code-blocking_hooks-D97757)](atlas_integration/claude_code/README.md)
 [![Runtime](https://img.shields.io/badge/runtime-harness_neutral-7C3AED)](atlas_runtime/)
 [![Taxonomy](https://img.shields.io/badge/taxonomy-dynamic_at_checkpoints-0EA5E9)](finding/mast.json)
-[![Tests](https://img.shields.io/badge/tests-271_passing-16A34A)](tests/)
+[![Tests](https://img.shields.io/badge/tests-272_passing-16A34A)](tests/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 ---
@@ -42,22 +42,7 @@ required shape; it cannot guarantee that the reflection is insightful.
 
 ## 🔄 How it works
 
-```mermaid
-flowchart LR
-    A["Agent works"] --> B{"Meaningful boundary"}
-    B -->|"sub-task / subagent"| C["Checkpoint reflection"]
-    B -->|"tool failure"| D["Advisory nudge"]
-    B -->|"completion"| E["Blocking final gate"]
-    C --> A
-    D --> A
-    E -->|"repair required"| A
-    E -->|"ready"| F["Trace captured"]
-    F --> G{"Enough traces?"}
-    G -->|"No"| H["Keep active taxonomy"]
-    G -->|"Yes"| I["Generate + validate taxonomy"]
-    I --> J["Activate on the next task"]
-    J --> K["Refine as more traces arrive"]
-```
+![ATLAS runtime loop](docs/atlas_runtime_loop.png)
 
 | Stage | What happens |
 |---|---|
@@ -484,6 +469,10 @@ rejected so typos do not silently change a run. These commands currently read
 `--config`: `atlas-claude-install`, `atlas-single-run`,
 `atlas-import-traces`, `atlas-register-taxonomy`, `atlas-doctor`, and
 `atlas-traces`.
+
+A JSON Schema is bundled at
+`atlas_runtime/assets/atlas_config.schema.json` for editor validation and
+pipeline templates.
 
 Claude Code also exposes the main lifecycle controls directly:
 

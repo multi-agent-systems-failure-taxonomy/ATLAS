@@ -1,26 +1,17 @@
-"""Step 2: TraceStructureExtractor.
+"""Trace structure extraction orchestration.
 
-Discovers what *kind* of system produced these traces:
-- Which agents appear in the trajectories
-- What functional role each agent plays (solver/checker/refiner/...)
-- The system's topology (sequential, hierarchical, debate, ...)
-- What capabilities agents have (tool calls, code execution, etc.)
-- What format the trace itself uses (markers, key fields)
-
-Agents are extracted via regex (reliable), then their roles are
-classified by the LLM based on observed behavior. The LLM-discovered
-role names are free-form — they're not limited to the seed defaults.
+Model-facing structure and role-classification instructions live in
+``vendor/atlas/pipeline/assets``.
 """
 
 from __future__ import annotations
 
-import json
 import re
 from typing import Any, Dict, List, Set, Tuple
 
 from vendor.atlas.config import PipelineConfig
 from vendor.atlas.llm import LLMClient, extract_json
-from vendor.atlas.pipeline.prompts import DEFAULT_ROLE_DEFINITIONS
+from vendor.atlas.pipeline.prompts import DEFAULT_ROLE_DEFINITIONS, render_prompt_asset
 from vendor.atlas.utils import format_trace_for_prompt, progress, stratified_sample, get_trajectory_text
 
 
@@ -102,60 +93,13 @@ class TraceStructureExtractor:
             if details.get("agents")
         )
 
-        prompt = f"""Analyze these system traces to extract TRACE FORMAT and ARCHITECTURE.
-
-PRE-EXTRACTED AGENTS (found via pattern matching):
-{json.dumps(agents_list, indent=2)}
-
-AGENT ROLE CLASSIFICATION (LLM-assigned based on trace behavior):
-{json.dumps(agent_to_role, indent=2)}
-
-DISCOVERED ROLE DEFINITIONS:
-{role_defs_text}
-
-SAMPLE TRACES:
-{traces_text}
-
-Analyze the ACTUAL trace content (not our wrapper format). Look for:
-1. How agents communicate (markers, formatting)
-2. Key fields in the ACTUAL trace (not [TASK], [META] - those are our wrapper)
-3. Architecture patterns
-
-OUTPUT JSON:
-{{
-  "trace_format": {{
-    "agent_markers": ["Actual patterns used to mark agents in traces"],
-    "key_fields": [
-      {{
-        "field_name": "actual_field_name",
-        "description": "What this field contains",
-        "location": "Where to find it in the trace"
-      }}
-    ],
-    "output_structure": "How traces are actually structured",
-    "example_patterns": [
-      "Regex or text pattern to find important content"
-    ]
-  }},
-  "architecture": {{
-    "topology": "sequential | parallel | hierarchical | debate | hybrid",
-    "topology_details": "How agents actually interact based on trace evidence",
-    "verification_pattern": "self-verify | peer-verify | dedicated-checker | consensus | none",
-    "verification_details": "Who verifies what (based on observed agent interactions)",
-    "termination_owner": "Who decides when workflow ends",
-    "critical_handoffs": [
-      {{
-        "from_agent": "ActualAgentName",
-        "to_agent": "ActualAgentName",
-        "what_is_passed": "solution/feedback/verdict",
-        "failure_risk": "What can go wrong"
-      }}
-    ]
-  }},
-  "agent_role_corrections": {{
-    "AgentName": "corrected_role if my auto-classification was wrong"
-  }}
-}}"""
+        prompt = render_prompt_asset(
+            "trace_structure.md",
+            agents_list=agents_list,
+            agent_to_role=agent_to_role,
+            role_defs_text=role_defs_text,
+            traces_text=traces_text,
+        )
 
         llm_result = extract_json(self.client.chat(prompt))
 
@@ -259,30 +203,11 @@ OUTPUT JSON:
             for role, info in DEFAULT_ROLE_DEFINITIONS.items()
         )
 
-        prompt = f"""Classify these agents into functional roles based on what they DO in the traces.
-
-AGENTS AND THEIR BEHAVIOR:
-{agents_with_samples}
-
-COMMON ROLE TYPES (use these if they fit, but you may create new role names if needed):
-{default_hint}
-
-For each agent, determine its functional role based on its ACTUAL BEHAVIOR in the traces,
-not just its name. If an agent doesn't fit any common role, create a descriptive role name
-(e.g., "translator", "reasoner", "aggregator", "verifier", "planner").
-
-Role names should be lowercase single words.
-
-OUTPUT JSON:
-{{
-  "agent_roles": {{
-    "AgentName": {{
-      "role": "role_name",
-      "definition": "What this agent does based on trace evidence",
-      "purpose": "Short purpose phrase (5-10 words)"
-    }}
-  }}
-}}"""
+        prompt = render_prompt_asset(
+            "role_classification.md",
+            agents_with_samples=agents_with_samples,
+            default_hint=default_hint,
+        )
 
         try:
             agent_roles = extract_json(self.client.chat(prompt)).get("agent_roles", {})

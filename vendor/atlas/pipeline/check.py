@@ -20,6 +20,7 @@ from vendor.atlas.pipeline.prompts import (
     A_FAILURE_CATEGORY_KEYWORDS,
     B_CODE_A_TYPE_KEYWORDS,
     PLACEHOLDER_PATTERNS,
+    render_prompt_asset,
 )
 from vendor.atlas.utils import normalize_code_ids, progress, truncate_text
 
@@ -314,28 +315,12 @@ class TaxonomyChecker:
             "C": "Category C (Domain Reasoning Failure) codes — the test: can you describe a concrete scenario where code X applies but code Y does NOT? If you cannot, they overlap",
         }[category]
 
-        prompt = f"""Analyze these {category_context} for semantic overlaps.
-
-Two codes OVERLAP if they describe the same underlying failure mode, even if
-worded differently. Also flag cases where one code is a SYMPTOM of another.
-
-CODES:
-{json.dumps(summarize(codes), indent=2)}
-
-For each overlap pair, explain why they overlap and which should be kept.
-If no overlaps exist, return an empty list.
-
-OUTPUT JSON:
-{{
-  "overlaps": [
-    {{
-      "code1": "{category}.X",
-      "code2": "{category}.Y",
-      "reason": "Both describe the same failure: ...",
-      "recommendation": "Keep {category}.X, merge {category}.Y into it"
-    }}
-  ]
-}}"""
+        prompt = render_prompt_asset(
+            "check_overlaps.md",
+            category_context=category_context,
+            codes=summarize(codes),
+            category=category,
+        )
 
         try:
             return extract_json(self.client.chat(prompt)).get("overlaps", [])
@@ -381,26 +366,14 @@ OUTPUT JSON:
             naming_rule = f"- Names MUST contain role type ({role_prefix})"
         applies_rule = "- Must have applies_to_role field" if category == "B" else ""
 
-        prompt = f"""Fix these Category {category} codes that have validation issues.
-
-CATEGORY {category} RULES:
-{naming_rule}
-{applies_rule}
-- Definition: concise and clear
-- detection_heuristics: required (as many as needed for clarity)
-- when_to_use and when_not_to_use: required
-
-TRACE FIELDS TO REFERENCE: {fields_str}
-
-CODES TO FIX:
-{json.dumps(codes_to_fix, indent=2)}
-
-Fix all issues. Keep code IDs the same.
-
-OUTPUT JSON:
-{{
-  "fixed_codes": [...]
-}}"""
+        prompt = render_prompt_asset(
+            "fix_validation_issues.md",
+            category=category,
+            naming_rule=naming_rule,
+            applies_rule=applies_rule,
+            fields_str=fields_str,
+            codes_to_fix=codes_to_fix,
+        )
 
         try:
             result = extract_json(self.client.chat(prompt))
@@ -482,37 +455,15 @@ OUTPUT JSON:
             )
 
         role_str = ", ".join(r.capitalize() for r in role_details.keys())
-        prompt = f"""Fix Category A codes: fill coverage gaps and resolve overlaps.
-
-CURRENT A CODES:
-{json.dumps(self._summarize_basic(a_codes), indent=2)}
-
-ARCHITECTURE: {arch_summary}
-ROLES: {roles_summary}
-
-{gap_section}
-{overlap_section}
-
-NAMING RULE: A-codes must NEVER contain agent role names ({role_str})
-
-Return the COMPLETE updated list of A codes (existing + new, with overlaps merged).
-
-OUTPUT JSON:
-{{
-  "codes": [
-    {{
-      "code": "A.X",
-      "name": "Descriptive_Name",
-      "definition": "Concise definition.",
-      "when_to_use": "When to apply",
-      "when_not_to_use": "When NOT to apply",
-      "detection_heuristics": ["observable signal", "..."],
-      "severity": "critical|major|minor",
-      "evidence": "theoretical|observed"
-    }}
-  ],
-  "changes_made": ["Merged A.2 and A.5 into ...", "Added code for ..."]
-}}"""
+        prompt = render_prompt_asset(
+            "fix_category_a.md",
+            a_codes=self._summarize_basic(a_codes),
+            arch_summary=arch_summary,
+            roles_summary=roles_summary,
+            gap_section=gap_section,
+            overlap_section=overlap_section,
+            role_str=role_str,
+        )
 
         try:
             result = extract_json(self.client.chat(prompt))
@@ -562,40 +513,18 @@ OUTPUT JSON:
                 "For each overlap, merge the two codes into one stronger code."
             )
 
-        prompt = f"""Fix Category B codes: fill role coverage gaps and resolve overlaps.
-
-CURRENT B CODES:
-{json.dumps([{
-    "code": c.get("code", ""),
-    "name": c.get("name", "")[:60],
-    "definition": truncate_text(c.get("definition", ""), 150),
-    "applies_to_role": c.get("applies_to_role", ""),
-} for c in b_codes], indent=2)}
-
-{gap_section}
-{overlap_section}
-
-NAMING RULE: B-code names MUST start with the role type ({', '.join(r.capitalize() + '_' for r in role_details.keys())})
-A/B BOUNDARY: B codes describe quality of work ONLY. Never describe system failures (no output, timeout, crash).
-
-Return the COMPLETE updated list of B codes (existing + new, with overlaps merged).
-
-OUTPUT JSON:
-{{
-  "codes": [
-    {{
-      "code": "B.X",
-      "name": "Role_Descriptive_Name",
-      "definition": "Concise definition about quality of work.",
-      "when_to_use": "When to apply",
-      "when_not_to_use": "When NOT to apply",
-      "detection_heuristics": ["observable quality signal", "..."],
-      "severity": "critical|major|minor",
-      "applies_to_role": "one of the active roles"
-    }}
-  ],
-  "changes_made": ["Added RoleName_X for ...", "Merged B.2 and B.5 into ..."]
-}}"""
+        prompt = render_prompt_asset(
+            "fix_category_b.md",
+            b_codes=[{
+                "code": c.get("code", ""),
+                "name": c.get("name", "")[:60],
+                "definition": truncate_text(c.get("definition", ""), 150),
+                "applies_to_role": c.get("applies_to_role", ""),
+            } for c in b_codes],
+            gap_section=gap_section,
+            overlap_section=overlap_section,
+            role_prefixes=", ".join(r.capitalize() + "_" for r in role_details.keys()),
+        )
 
         try:
             result = extract_json(self.client.chat(prompt))
@@ -632,40 +561,13 @@ OUTPUT JSON:
         if overlaps:
             overlaps_str = f"\nOVERLAPS DETECTED — merge these:\n{json.dumps(overlaps, indent=2)}\n"
 
-        prompt = f"""Fix Category C (Domain Reasoning Failure) codes.
-
-Domain: {domain_name}
-
-CURRENT C CODES:
-{json.dumps(self._summarize_basic(c_codes), indent=2)}
-{gaps_str}{overlaps_str}
-Return the complete list of C codes after fixes. Include:
-- All existing codes (unchanged unless merged)
-- Merged codes (combining overlapping pairs)
-- New codes for coverage gaps
-
-Each code needs: code, name, definition, when_to_use, when_not_to_use,
-detection_heuristics (list of strings), severity (critical/major/minor).
-
-RULES:
-- C codes must NOT contain agent role names
-- Each code must describe a reasoning flaw detectable from the trace alone
-- Each code must be distinguishable from every other code
-
-OUTPUT JSON:
-{{
-  "codes": [
-    {{
-      "code": "C.N",
-      "name": "...",
-      "definition": "...",
-      "when_to_use": "...",
-      "when_not_to_use": "...",
-      "detection_heuristics": ["..."],
-      "severity": "major"
-    }}
-  ]
-}}"""
+        prompt = render_prompt_asset(
+            "fix_category_c.md",
+            domain_name=domain_name,
+            c_codes=self._summarize_basic(c_codes),
+            gaps_str=gaps_str,
+            overlaps_str=overlaps_str,
+        )
 
         try:
             result = extract_json(self.client.chat(prompt))

@@ -41,6 +41,10 @@ All Python-run simple judges route their LLM call through
 repair-retry and routes to Anthropic (incl. Bedrock) / OpenAI / Gemini based
 on the model id.
 
+The Selection-Summary judge is intentionally the exception: it has no prompt
+asset because it is deterministic Python compression of Reflection Judge output,
+not an LLM call.
+
 ## Real implementations
 
 - **Selection Judge** — shallow per-trace classifier for scalable

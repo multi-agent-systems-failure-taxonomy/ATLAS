@@ -1,25 +1,7 @@
-"""Selection-Summary Judge — labeled failures -> compressed selection signal.
+"""Standalone deterministic Selection-Summary judge wrapper.
 
-Not a true LLM judge — a deterministic compression of the Reflection Judge's
-rich output into the buckets a search or optimization algorithm can use for
-candidate selection:
-
-  - root_failure_modes
-  - candidate_attributable_failure_modes
-  - external_or_environmental_failure_modes
-  - unrecovered_failure_modes / recovered_failure_modes
-  - terminal_symptom_modes / isolated_failure_modes
-  - actionable_failure_modes / high_severity_failure_modes
-  - outcome_linked_failure_modes
-  - unmapped_failure_points / weak_taxonomy_matches  (refinement signals)
-
-The Reflection Judge already calls this function internally; this module
-exposes it as a standalone judge so callers can re-derive the summary from a
-stored Reflection Judge output (or from any compatible failure_points +
-relations payload) without re-running the LLM.
-
-Underlying implementation:
-    judge_types.reflection_judge.selection.derive_selection_summary
+This module exposes the Reflection Judge's selection-summary derivation as a
+public judge entrypoint without re-running an LLM.
 """
 
 from __future__ import annotations

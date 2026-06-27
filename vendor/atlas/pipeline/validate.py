@@ -7,10 +7,10 @@ violations — including moving misplaced codes into the correct category.
 
 from __future__ import annotations
 
-import json
 from typing import Any, Dict, List
 
 from vendor.atlas.llm import LLMClient, extract_json
+from vendor.atlas.pipeline.prompts import render_prompt_asset
 from vendor.atlas.utils import progress, truncate_text
 
 
@@ -45,40 +45,14 @@ class CrossCategoryValidator:
                 "applies_to_role": c.get("applies_to_role", ""),
             } for c in codes]
 
-        prompt = f"""Validate codes against strict category rules.
-
-DISCOVERED AGENTS: {agent_names}
-ROLE TYPES: {role_names}
-
-VALIDATION RULES:
-A: System failures - NO role names in code name, about mechanical failures
-B: Role quality failures - MUST have role name in code name, about incorrect work
-C: Reasoning failures - NO role names, about domain-specific logic errors
-
-CATEGORY A:
-{json.dumps(summarize(a_codes), indent=2)}
-
-CATEGORY B:
-{json.dumps(summarize(b_codes), indent=2)}
-
-CATEGORY C:
-{json.dumps(summarize(c_codes), indent=2)}
-
-Fix any violations. Move misplaced codes to correct category.
-
-OUTPUT JSON:
-{{
-  "violations_fixed": [
-    {{
-      "code": "X.Y",
-      "issue": "description of the problem",
-      "action": "what was done",
-      "move_to": "a|b|c or null if no move needed",
-      "new_name": "updated name or null if unchanged",
-      "applies_to_role": "role name or null if unchanged"
-    }}
-  ]
-}}"""
+        prompt = render_prompt_asset(
+            "cross_category_validate.md",
+            agent_names=agent_names,
+            role_names=role_names,
+            a_codes=summarize(a_codes),
+            b_codes=summarize(b_codes),
+            c_codes=summarize(c_codes),
+        )
 
         try:
             result = extract_json(self.client.chat(prompt))

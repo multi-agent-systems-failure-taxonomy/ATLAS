@@ -5,8 +5,10 @@ recursive-include finding *.json
 recursive-include finding/assets *.html
 recursive-include atlas_runtime/assets *.md
 recursive-include atlas_runtime/assets *.html
+recursive-include atlas_runtime/assets *.json
 recursive-include atlas_integration/claude_code/assets *.md
 recursive-include atlas_integration/single_llm/assets *.md
 recursive-include judge_types/assets *.md
 recursive-include judge_types/reflection_judge/assets *.md
+recursive-include vendor/atlas/pipeline/assets *.md
 recursive-include vendor/atlas LICENSE VENDORED.md
