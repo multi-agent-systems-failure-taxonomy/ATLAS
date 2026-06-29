@@ -1,6 +1,8 @@
 include README.md
 include SKILL.md
 include LICENSE
+recursive-include docs *.md
+recursive-include docs *.png
 recursive-include finding *.json
 recursive-include finding/assets *.html
 recursive-include atlas_runtime/assets *.md

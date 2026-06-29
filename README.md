@@ -63,11 +63,13 @@ reflection is insightful.
 
 | I want to… | Start here |
 |---|---|
+| Get running quickly | [ATLAS 5-minute start](docs/GETTING_STARTED.md) |
 | Use ATLAS with **Claude Code** | [Claude Code quick start](#-claude-code-quick-start) |
 | Wrap a **single LLM call** without a harness | [Single-LLM quick start](#-single-llm-quick-start) |
 | Generate a taxonomy from **my existing traces** | [Import your own traces](#-bring-your-own-traces) |
 | Pick a stored taxonomy interactively | [Taxonomy inheritance](#-taxonomy-inheritance) |
 | Watch codes fire live | [Dashboard](#-live-dashboard) |
+| Customize hooks, prompts, judges, or model profiles | [Customization guide](docs/CUSTOMIZATION.md) |
 | Integrate another harness | [Pipeline integration guide](INTEGRATION.md) |
 
 ---
@@ -479,6 +481,11 @@ A JSON Schema is bundled at
 `atlas_runtime/assets/atlas_config.schema.json` for editor validation and
 pipeline templates.
 
+For a shorter setup recipe, see [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md).
+For hook filters, natural-language assets, judge prompts, model profiles, and
+other safe customization points, see
+[`docs/CUSTOMIZATION.md`](docs/CUSTOMIZATION.md).
+
 Claude Code also exposes the main lifecycle controls directly:
 
 | Option | Default | Effect |
@@ -684,6 +691,8 @@ it does and what each sub-folder is for.
 
 | Path | Purpose |
 |---|---|
+| [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) | Pasteable first-run setup for Claude Code, single-LLM, dashboard, and trace checks |
+| [`docs/CUSTOMIZATION.md`](docs/CUSTOMIZATION.md) | Where to edit Markdown/JSON behavior safely, and what Python should remain behavioral |
 | [`atlas_runtime/`](atlas_runtime/README.md) | Harness-neutral lifecycle, generation, refinement, LLM transports, dashboard |
 | [`atlas_integration/`](atlas_integration/README.md) | Harness-specific skins (Claude Code, single-LLM) on top of the runtime |
 | [`atlas_integration/claude_code/`](atlas_integration/claude_code/README.md) | Claude Code runtime skin (dispatcher + hooks + transcript + state) |
