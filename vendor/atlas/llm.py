@@ -1,4 +1,4 @@
-"""Unified LLM client wrapper for OpenAI- and Anthropic-compatible backends.
+"""Unified LLM client wrapper for OpenAI-, Anthropic-, and Bedrock-compatible backends.
 
 Both backends are addressed through a single ``LLMClient`` so the pipeline
 does not have to branch on provider at every call site. JSON extraction is
@@ -39,7 +39,9 @@ class LLMClient:
         self._openai = None
 
         use_openai_endpoint = bool(os.environ.get("OPENAI_BASE_URL"))
-        if (
+        if _is_bedrock_model(model) and not use_openai_endpoint:
+            pass
+        elif (
             model.startswith("claude")
             and _anthropic_module is not None
             and not use_openai_endpoint
@@ -56,9 +58,42 @@ class LLMClient:
         gracefully rather than raising — the pipeline is built to tolerate
         an occasional empty response from any individual LLM call.
         """
+        if _is_bedrock_model(self.model) and not os.environ.get("OPENAI_BASE_URL"):
+            return self._call_bedrock(prompt, system)
         if self._anthropic is not None:
             return self._call_anthropic(prompt, system)
         return self._call_openai(prompt, system)
+
+    def _call_bedrock(self, prompt: str, system: str) -> str:
+        try:
+            import boto3
+        except ImportError:
+            logger.warning(
+                "boto3 is required for Bedrock bearer-token auth; install with "
+                "pip install -U boto3"
+            )
+            return "{}"
+
+        region = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION")
+        if not region:
+            logger.warning("AWS_REGION or AWS_DEFAULT_REGION is required for Bedrock")
+            return "{}"
+
+        try:
+            client = boto3.client("bedrock-runtime", region_name=region)
+            kwargs: Dict[str, Any] = {
+                "modelId": _bedrock_model_id(self.model),
+                "messages": [{"role": "user", "content": [{"text": prompt}]}],
+                "inferenceConfig": {"maxTokens": 8192},
+            }
+            if system:
+                kwargs["system"] = [{"text": system}]
+            response = client.converse(**kwargs)
+            content = response["output"]["message"]["content"]
+            return "".join(block.get("text", "") for block in content).strip() or "{}"
+        except Exception as e:
+            logger.warning("Bedrock LLM call failed: %s", e)
+            return "{}"
 
     def _call_anthropic(self, prompt: str, system: str) -> str:
         try:
@@ -159,3 +194,15 @@ def extract_json_list(text: str, key: str = "codes") -> List[Dict[str, Any]]:
     if not isinstance(items, list):
         return []
     return [item for item in items if isinstance(item, dict)]
+
+
+def _is_bedrock_model(model: str) -> bool:
+    name = (model or "").strip().lower()
+    if name.startswith("bedrock/") or name.startswith("anthropic."):
+        return True
+    return name.startswith(("us.", "eu.", "apac.", "ap-", "global.")) and "anthropic" in name
+
+
+def _bedrock_model_id(model: str) -> str:
+    name = (model or "").strip()
+    return name.split("/", 1)[1] if name.lower().startswith("bedrock/") else name

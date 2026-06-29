@@ -33,7 +33,7 @@ STRING_FIELDS = {
     "openai_api_key_env",
     "model",
 }
-RAW_FIELDS = {"built_in_hooks"}
+RAW_FIELDS = {"built_in_hooks", "codex_hooks"}
 ALL_FIELDS = PATH_FIELDS | INT_FIELDS | BOOL_FIELDS | STRING_FIELDS | RAW_FIELDS
 
 

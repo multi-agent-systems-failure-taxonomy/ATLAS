@@ -31,6 +31,7 @@ dependencies = ["openai>=1.40"]
 
 [project.optional-dependencies]
 anthropic = ["anthropic>=0.40"]
+bedrock = ["boto3>=1.43"]
 test = ["pytest>=7"]
 
 [project.scripts]
@@ -45,6 +46,8 @@ atlas-claude-uninstall = "atlas_integration.claude_code.uninstall:main"
 atlas-claude-add-hook = "atlas_integration.claude_code.manage_hooks:add_main"
 atlas-claude-remove-hook = "atlas_integration.claude_code.manage_hooks:remove_main"
 atlas-claude-list-hooks = "atlas_integration.claude_code.manage_hooks:list_main"
+atlas-codex-install = "atlas_integration.codex.install:main"
+atlas-codex-uninstall = "atlas_integration.codex.uninstall:main"
 atlas-single-run = "atlas_integration.single_llm.cli:main"
 
 [tool.setuptools]
@@ -65,6 +68,7 @@ exclude = ["examples*", "tests*"]
 finding = ["mast.json", "assets/*.html"]
 atlas_runtime = ["assets/*.md", "assets/*.html", "assets/*.json"]
 "atlas_integration.claude_code" = ["assets/*.md", "assets/*.json"]
+"atlas_integration.codex" = ["assets/*.md", "assets/*.yaml"]
 "atlas_integration.single_llm" = ["assets/*.md"]
 judge_types = ["assets/*/*.md"]
 "judge_types.reflection_judge" = ["assets/*.md", "assets/*.json"]

@@ -26,6 +26,16 @@ Optional Anthropic SDK support:
 python -m pip install "atlas-skill[anthropic] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git@ATLAS_SKILL"
 ```
 
+Optional AWS Bedrock bearer-token support:
+
+```bash
+python -m pip install "atlas-skill[bedrock] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git@ATLAS_SKILL"
+```
+
+For Bedrock, set `AWS_BEARER_TOKEN_BEDROCK` and `AWS_REGION` /
+`AWS_DEFAULT_REGION` in your shell. ATLAS uses boto3's Bedrock Converse API
+for this credential form.
+
 ATLAS never stores credential values. Set provider keys in your environment
 instead.
 
@@ -68,6 +78,12 @@ For Claude Code projects:
 
 ```bash
 atlas-doctor --config atlas.json --claude-code
+```
+
+For Codex projects:
+
+```bash
+atlas-doctor --config atlas.json --codex
 ```
 
 Warnings usually mean "ATLAS can run, but a useful optional capability may be
@@ -114,7 +130,37 @@ Remove ATLAS hooks without deleting learned traces or taxonomies:
 atlas-claude-uninstall --project-dir .
 ```
 
-## 4B. Use ATLAS around one LLM call
+## 4B. Use ATLAS with Codex hooks
+
+Install project-local Codex hooks:
+
+```bash
+atlas-codex-install --project-dir . --config atlas.json
+```
+
+This writes `.codex/hooks.json` and `.codex/atlas-skill.json`. Open `/hooks`
+inside Codex and trust the ATLAS hooks before relying on them.
+
+Default Codex events:
+
+1. `SessionStart`: deliver standing ATLAS context.
+2. `Stop`: block final completion until the ATLAS final gate passes.
+3. `SubagentStop`: checkpoint subagent trajectories.
+4. `PostToolUse`: add advisory nudges after selected failed tool outputs.
+
+Optional skill guidance:
+
+```bash
+atlas-codex-install --project-dir . --config atlas.json --install-skill
+```
+
+Remove it with:
+
+```bash
+atlas-codex-uninstall
+```
+
+## 4C. Use ATLAS around one LLM call
 
 This path is for scripts, notebooks, benchmarks, or any application where you
 own the model call.

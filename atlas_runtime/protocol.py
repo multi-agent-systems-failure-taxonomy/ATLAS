@@ -15,12 +15,37 @@ from string import Template
 READY = "READY_TO_SUBMIT"
 REPAIR = "REPAIR_REQUIRED"
 
+_LINE_PREFIX = r"^[ \t]*(?:[-*]\s*)?(?:[#>]+\s*)?(?:\*\*)?[ \t]*"
 _STATUS_RE = re.compile(
-    r"Final\s+ATLAS\s+status\s*:\s*(READY_TO_SUBMIT|REPAIR_REQUIRED)",
+    rf"(?im){_LINE_PREFIX}Final\s+ATLAS\s+status"
+    r"\s*(?:\*\*)?\s*[:\-]\s*(?:\*\*)?\s*([^\r\n]+)",
+    re.IGNORECASE,
+)
+_STATUS_FIELD_RE = re.compile(
+    rf"(?im){_LINE_PREFIX}Status\s*(?:\*\*)?\s*[:\-]\s*(?:\*\*)?\s*([^\r\n]+)",
+    re.IGNORECASE,
+)
+_FINAL_DECISION_RE = re.compile(
+    rf"(?im){_LINE_PREFIX}Final\s+decision"
+    r"\s*(?:\*\*)?\s*[:\-]\s*(?:\*\*)?\s*([^\r\n]+)",
+    re.IGNORECASE,
+)
+_GATE_OUTCOME_RE = re.compile(
+    rf"(?im){_LINE_PREFIX}Gate\s+outcome"
+    r"\s*(?:\*\*)?\s*[:\-]\s*(?:\*\*)?\s*([^\r\n]+)",
+    re.IGNORECASE,
+)
+_FINAL_STATUS_HEADING_RE = re.compile(
+    rf"(?im){_LINE_PREFIX}Final\s+ATLAS\s+status\s*(?:\*\*)?\s*:?\s*$",
+    re.IGNORECASE,
+)
+_DECIDE_RE = re.compile(
+    rf"(?im){_LINE_PREFIX}Decide\s*(?:\*\*)?\s*[:\-]\s*(?:\*\*)?\s*"
+    r"((?:no\s+change\s+needed)|(?:change\s*:))",
     re.IGNORECASE,
 )
 _ATTEMPTS_RE = re.compile(
-    r"Repair\s+attempts\s+used\s*:\s*(\d+)",
+    r"Repair\s+attempts\s+used\s*(?:\*\*)?\s*[:\-]\s*(?:\*\*)?\s*(\d+)",
     re.IGNORECASE,
 )
 
@@ -61,7 +86,7 @@ def evaluate_pre_submission(
     if max_retries < 0:
         raise ValueError("max_retries must be non-negative")
 
-    statuses = _STATUS_RE.findall(gate_text or "")
+    statuses = _extract_statuses(gate_text or "")
     attempts = _ATTEMPTS_RE.findall(gate_text or "")
     if not statuses:
         return GateDecision(
@@ -72,7 +97,7 @@ def evaluate_pre_submission(
             repair_attempts_used=0,
         )
 
-    status = statuses[-1].upper()
+    status = statuses[-1]
     used = int(attempts[-1]) if attempts else 0
 
     if status == READY:
@@ -100,3 +125,119 @@ def evaluate_pre_submission(
         status=REPAIR,
         repair_attempts_used=used,
     )
+
+
+def _extract_statuses(text: str) -> list[str]:
+    """Return normalized final-gate statuses in document order.
+
+    Agents often render the final report as Markdown headings or a small status
+    table rather than the exact canonical line. Keep the accepted vocabulary
+    narrow, but tolerate harmless formatting variants.
+    """
+    candidates: list[tuple[int, str]] = []
+    for pattern in (
+        _STATUS_RE,
+        _STATUS_FIELD_RE,
+        _FINAL_DECISION_RE,
+        _GATE_OUTCOME_RE,
+    ):
+        for match in pattern.finditer(text):
+            normalized = _normalize_status(match.group(1))
+            if normalized:
+                candidates.append((match.start(), normalized))
+    for match in _DECIDE_RE.finditer(text):
+        value = "ready" if "no change needed" in match.group(1).lower() else "repair"
+        candidates.append((match.start(), _normalize_status(value) or REPAIR))
+    for match in _FINAL_STATUS_HEADING_RE.finditer(text):
+        for value in _status_lines_after_heading(text, match.end()):
+            normalized = _normalize_status(value)
+            if normalized:
+                candidates.append((match.start(), normalized))
+                break
+    return [status for _, status in sorted(candidates)]
+
+
+def _status_lines_after_heading(text: str, start: int) -> list[str]:
+    lines: list[str] = []
+    for raw_line in text[start:].splitlines()[:8]:
+        line = raw_line.strip()
+        if not line:
+            continue
+        if re.match(r"^[#>]+|\w.+:\s*$", line):
+            break
+        lines.append(line)
+        if len(lines) >= 4:
+            break
+    return lines
+
+
+def _normalize_status(value: str) -> str | None:
+    normalized = " ".join(
+        str(value)
+        .strip()
+        .lower()
+        .replace("_", " ")
+        .replace("*", " ")
+        .replace("`", " ")
+        .split()
+    )
+    normalized = normalized.strip(" .:;,-")
+    if any(
+        phrase in normalized
+        for phrase in (
+            "repair required",
+            "requires repair",
+            "needs repair",
+            "need repair",
+            "report unresolved",
+            "unresolved",
+            "not ready",
+            "not complete",
+            "verification failed",
+            "failed verification",
+        )
+    ):
+        return REPAIR
+    if normalized in {"repair", "fail", "failed", "failure"}:
+        return REPAIR
+    if normalized in {
+        "ready to submit",
+        "ready for release",
+        "ready for submission",
+        "ready for final answer",
+        "ready",
+        "task complete",
+        "computation verified",
+        "complete",
+        "verified",
+        "pass",
+        "success",
+        "successful",
+        "approve",
+        "approved",
+        "accept",
+        "accepted",
+        "submit",
+    }:
+        return READY
+    if any(
+        phrase in normalized
+        for phrase in (
+            "ready",
+            "task complete",
+            "complete",
+            "verified",
+            "pass",
+            "success",
+            "approved",
+            "accepted",
+            "submit",
+            "submission",
+            "compliant",
+            "clearance",
+            "satisfied",
+            "no change needed",
+        )
+    ):
+        return READY
+    return None

@@ -10,6 +10,8 @@ recursive-include atlas_runtime/assets *.html
 recursive-include atlas_runtime/assets *.json
 recursive-include atlas_integration/claude_code/assets *.md
 recursive-include atlas_integration/claude_code/assets *.json
+recursive-include atlas_integration/codex/assets *.md
+recursive-include atlas_integration/codex/assets *.yaml
 recursive-include atlas_integration/single_llm/assets *.md
 recursive-include judge_types/assets *.md
 recursive-include judge_types/reflection_judge/assets *.md

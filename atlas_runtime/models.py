@@ -62,8 +62,9 @@ def is_anthropic_model(model: str) -> bool:
 def is_bedrock_model(model: str) -> bool:
     """True iff the model id looks like an AWS Bedrock inference profile.
 
-    Used by the LLM transport to choose ``AnthropicBedrock()`` over the
-    vanilla ``Anthropic()`` client.
+    Used by the LLM transport to choose Bedrock-specific handling over the
+    vanilla ``Anthropic()`` client. Bearer-token Bedrock auth routes through
+    boto3 Converse; standard AWS credentials/profile may use the provider SDK.
     """
     name = (model or "").strip().lower()
     if not name:

@@ -5,7 +5,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import socket
+import subprocess
 import sys
 import tempfile
 from dataclasses import asdict, dataclass
@@ -37,6 +39,7 @@ def run_checks(
     trace_output: Path | str | None = None,
     atlas_model: str | None = None,
     claude_code: bool = False,
+    codex: bool = False,
     dashboard_port: int | None = None,
 ) -> list[DoctorCheck]:
     """Return a readably ordered list of health checks.
@@ -61,6 +64,8 @@ def run_checks(
         ))
     if claude_code:
         checks.append(_claude_code_check())
+    if codex:
+        checks.extend(_codex_checks())
     if dashboard_port is not None:
         checks.append(_dashboard_port_check(dashboard_port))
     return checks
@@ -136,8 +141,24 @@ def _model_checks(model: str) -> list[DoctorCheck]:
 def _credential_check(model: str) -> DoctorCheck:
     if is_anthropic_model(model) and not os.environ.get("OPENAI_BASE_URL"):
         if is_bedrock_model(model):
+            if os.environ.get("AWS_BEARER_TOKEN_BEDROCK"):
+                try:
+                    __import__("boto3")
+                except Exception as exc:  # noqa: BLE001
+                    return DoctorCheck(
+                        "model credentials",
+                        WARN,
+                        (
+                            "AWS_BEARER_TOKEN_BEDROCK is present, but boto3 "
+                            f"could not be imported: {exc}"
+                        ),
+                    )
+                return DoctorCheck(
+                    "model credentials",
+                    OK,
+                    "Bedrock bearer-token environment is present and boto3 imports",
+                )
             candidates = (
-                "AWS_BEARER_TOKEN_BEDROCK",
                 "AWS_PROFILE",
                 "AWS_ACCESS_KEY_ID",
             )
@@ -196,6 +217,76 @@ def _claude_code_check() -> DoctorCheck:
     return DoctorCheck("claude code", OK, f"hook contract verified: {version}")
 
 
+def _codex_checks() -> list[DoctorCheck]:
+    return [_codex_cli_check(), _codex_hooks_feature_check()]
+
+
+def _codex_cli_check() -> DoctorCheck:
+    executable = shutil.which("codex")
+    if not executable:
+        return DoctorCheck(
+            "codex cli",
+            WARN,
+            "codex executable was not found on PATH; app-managed Codex may still work",
+        )
+    try:
+        result = subprocess.run(
+            [executable, "--version"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return DoctorCheck(
+            "codex cli",
+            WARN,
+            f"found {executable}, but could not run --version: {exc}",
+        )
+    version = (result.stdout or result.stderr).strip()
+    if result.returncode == 0:
+        return DoctorCheck(
+            "codex cli",
+            OK,
+            f"found {executable}: {version or 'version command succeeded'}",
+        )
+    return DoctorCheck(
+        "codex cli",
+        WARN,
+        f"found {executable}, but --version exited {result.returncode}: {version}",
+    )
+
+
+def _codex_hooks_feature_check() -> DoctorCheck:
+    disabled_locations = []
+    for path in (
+        Path.home() / ".codex" / "config.toml",
+        Path.cwd() / ".codex" / "config.toml",
+    ):
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8").lower()
+        except OSError:
+            continue
+        compact = "".join(text.split())
+        if "[features]" in compact and (
+            "hooks=false" in compact or "codex_hooks=false" in compact
+        ):
+            disabled_locations.append(str(path))
+    if disabled_locations:
+        return DoctorCheck(
+            "codex hooks",
+            WARN,
+            "hooks appear disabled in " + ", ".join(disabled_locations),
+        )
+    return DoctorCheck(
+        "codex hooks",
+        OK,
+        "no local config disabling Codex hooks was found; review/trust with /hooks after install",
+    )
+
+
 def _dashboard_port_check(port: int) -> DoctorCheck:
     if port < 0 or port > 65_535:
         return DoctorCheck("dashboard port", ERROR, f"invalid port: {port}")
@@ -239,6 +330,11 @@ def main(argv=None) -> int:
         help="also verify the installed Claude Code hook contract",
     )
     parser.add_argument(
+        "--codex",
+        action="store_true",
+        help="also check Codex CLI/hook availability",
+    )
+    parser.add_argument(
         "--dashboard-port",
         type=int,
         help="check whether a dashboard port is currently bindable",
@@ -257,6 +353,7 @@ def main(argv=None) -> int:
         trace_output=config_value(args, config, "trace_output"),
         atlas_model=config_value(args, config, "atlas_model"),
         claude_code=args.claude_code,
+        codex=args.codex,
         dashboard_port=args.dashboard_port,
     )
     if args.json:

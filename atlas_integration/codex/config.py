@@ -1,0 +1,225 @@
+"""Configuration for the Codex hook integration."""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from finding import store
+from atlas_runtime.traces import DEFAULT_TRACE_ROOT
+
+CODEX_HOOK_EVENTS = (
+    "SessionStart",
+    "Stop",
+    "SubagentStop",
+    "PostToolUse",
+)
+MATCHER_EVENTS = {"SessionStart", "SubagentStop", "PostToolUse"}
+
+
+@dataclass(frozen=True)
+class CodexHookSpec:
+    """Registration policy for one Codex hook event."""
+
+    event: str
+    enabled: bool = True
+    matchers: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.event not in CODEX_HOOK_EVENTS:
+            raise ValueError(
+                f"Codex hook event {self.event!r} must be one of "
+                f"{CODEX_HOOK_EVENTS}"
+            )
+        if self.matchers and self.event not in MATCHER_EVENTS:
+            raise ValueError(f"Codex hook event {self.event!r} has no matcher")
+        normalized = tuple(str(item).strip() for item in self.matchers)
+        if any(not item for item in normalized):
+            raise ValueError("Codex hook matcher cannot be empty")
+        if len(set(normalized)) != len(normalized):
+            raise ValueError("Codex hook matchers must be unique per event")
+        object.__setattr__(self, "matchers", normalized)
+
+    def to_dict(self) -> dict:
+        data = {"enabled": self.enabled}
+        if self.event in MATCHER_EVENTS:
+            data["matchers"] = list(self.matchers)
+        return data
+
+    @classmethod
+    def from_value(
+        cls,
+        event: str,
+        value,
+        *,
+        default: "CodexHookSpec | None" = None,
+    ) -> "CodexHookSpec":
+        default = default or default_hook(event)
+        if isinstance(value, bool):
+            return cls(event=event, enabled=value, matchers=default.matchers)
+        if isinstance(value, list | tuple | str):
+            return cls(event=event, enabled=True, matchers=_matchers(value))
+        if isinstance(value, dict):
+            return cls(
+                event=event,
+                enabled=bool(value.get("enabled", default.enabled)),
+                matchers=_matchers(value.get("matchers", default.matchers)),
+            )
+        raise ValueError(f"codex_hooks.{event} must be a bool, list, or object")
+
+
+def default_hook(event: str) -> CodexHookSpec:
+    matcher = {
+        "SessionStart": ("startup|resume",),
+        "SubagentStop": ("*",),
+        "PostToolUse": ("Bash|Edit|Write|apply_patch",),
+    }.get(event, ())
+    return CodexHookSpec(event=event, enabled=True, matchers=matcher)
+
+
+def default_hooks() -> tuple[CodexHookSpec, ...]:
+    return tuple(default_hook(event) for event in CODEX_HOOK_EVENTS)
+
+
+def parse_codex_hooks(value=None) -> tuple[CodexHookSpec, ...]:
+    defaults = {spec.event: spec for spec in default_hooks()}
+    if value is None:
+        return tuple(defaults[event] for event in CODEX_HOOK_EVENTS)
+    if isinstance(value, dict):
+        unknown = set(value) - set(CODEX_HOOK_EVENTS)
+        if unknown:
+            raise ValueError(f"unknown codex_hooks event(s): {sorted(unknown)}")
+        merged = dict(defaults)
+        for event, event_value in value.items():
+            merged[event] = CodexHookSpec.from_value(
+                event,
+                event_value,
+                default=defaults[event],
+            )
+        return tuple(merged[event] for event in CODEX_HOOK_EVENTS)
+    if isinstance(value, list | tuple):
+        merged = dict(defaults)
+        for item in value:
+            if not isinstance(item, dict) or "event" not in item:
+                raise ValueError("codex_hooks list entries need an event")
+            event = str(item["event"])
+            merged[event] = CodexHookSpec.from_value(
+                event,
+                item,
+                default=defaults.get(event),
+            )
+        return tuple(merged[event] for event in CODEX_HOOK_EVENTS)
+    raise ValueError("codex_hooks must be an object or list")
+
+
+def _matchers(value) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if isinstance(value, str):
+        return tuple(part.strip() for part in value.split(",") if part.strip())
+    if isinstance(value, list | tuple):
+        return tuple(str(item).strip() for item in value)
+    raise ValueError("Codex hook matchers must be a string or list")
+
+
+@dataclass(frozen=True)
+class CodexConfig:
+    trace_output: Path
+    atlas_model: str
+    store_dir: Path = store.DEFAULT_STORE_DIR
+    trace_root: Path = DEFAULT_TRACE_ROOT
+    inherit: str | None = None
+    dashboard: bool = True
+    openai_base_url: str | None = None
+    openai_api_key_env: str | None = None
+    max_retries: int = 3
+    generation_threshold: int = 5
+    generation_stops: bool = False
+    skip_judge: bool = False
+    k_init: int = 10
+    k: int = 20
+    refinement_stops: bool = False
+    advanced_refinement: bool = False
+    hooks: tuple[CodexHookSpec, ...] = field(default_factory=default_hooks)
+
+    def __post_init__(self) -> None:
+        if not str(self.trace_output).strip():
+            raise ValueError("Codex integration requires trace_output")
+        if not str(self.atlas_model).strip():
+            raise ValueError("Codex integration requires atlas_model")
+        for name, value in (
+            ("max_retries", self.max_retries),
+            ("generation_threshold", self.generation_threshold),
+            ("k_init", self.k_init),
+            ("k", self.k),
+        ):
+            if value <= 0:
+                raise ValueError(f"{name} must be positive")
+        seen: set[str] = set()
+        for spec in self.hooks:
+            if not isinstance(spec, CodexHookSpec):
+                raise TypeError("hooks entries must be CodexHookSpec instances")
+            if spec.event in seen:
+                raise ValueError(f"duplicate Codex hook event {spec.event!r}")
+            seen.add(spec.event)
+
+    @classmethod
+    def load(cls, path: Path | str) -> "CodexConfig":
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        inherit = data.get("inherit")
+        if inherit in ("", "none"):
+            inherit = None
+        return cls(
+            trace_output=Path(str(data["trace_output"])).expanduser().resolve(),
+            atlas_model=str(data["atlas_model"]).strip(),
+            store_dir=Path(
+                data.get("store_dir", store.DEFAULT_STORE_DIR)
+            ).expanduser().resolve(),
+            trace_root=Path(
+                data.get("trace_root", DEFAULT_TRACE_ROOT)
+            ).expanduser().resolve(),
+            inherit=str(inherit) if inherit is not None else None,
+            dashboard=bool(data.get("dashboard", True)),
+            openai_base_url=(
+                str(data["openai_base_url"]).strip()
+                if data.get("openai_base_url")
+                else None
+            ),
+            openai_api_key_env=(
+                str(data["openai_api_key_env"]).strip()
+                if data.get("openai_api_key_env")
+                else None
+            ),
+            max_retries=max(1, int(data.get("max_retries", 3))),
+            generation_threshold=max(1, int(data.get("generation_threshold", 5))),
+            generation_stops=bool(data.get("generation_stops", False)),
+            skip_judge=bool(data.get("skip_judge", False)),
+            k_init=max(1, int(data.get("k_init", 10))),
+            k=max(1, int(data.get("k", 20))),
+            refinement_stops=bool(data.get("refinement_stops", False)),
+            advanced_refinement=bool(data.get("advanced_refinement", False)),
+            hooks=parse_codex_hooks(data.get("codex_hooks")),
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "version": 1,
+            "trace_output": str(self.trace_output),
+            "atlas_model": self.atlas_model,
+            "store_dir": str(self.store_dir),
+            "trace_root": str(self.trace_root),
+            "inherit": self.inherit or "none",
+            "dashboard": self.dashboard,
+            "openai_base_url": self.openai_base_url,
+            "openai_api_key_env": self.openai_api_key_env,
+            "max_retries": self.max_retries,
+            "generation_threshold": self.generation_threshold,
+            "generation_stops": self.generation_stops,
+            "skip_judge": self.skip_judge,
+            "k_init": self.k_init,
+            "k": self.k,
+            "refinement_stops": self.refinement_stops,
+            "advanced_refinement": self.advanced_refinement,
+            "codex_hooks": {spec.event: spec.to_dict() for spec in self.hooks},
+        }

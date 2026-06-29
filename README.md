@@ -6,7 +6,7 @@
 [![Claude Code](https://img.shields.io/badge/Claude_Code-blocking_hooks-D97757)](atlas_integration/claude_code/README.md)
 [![Runtime](https://img.shields.io/badge/runtime-harness_neutral-7C3AED)](atlas_runtime/)
 [![Taxonomy](https://img.shields.io/badge/taxonomy-dynamic_at_checkpoints-0EA5E9)](finding/mast.json)
-[![Tests](https://img.shields.io/badge/tests-272_passing-16A34A)](tests/)
+[![Tests](https://img.shields.io/badge/tests-295_passing-16A34A)](tests/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 ---
@@ -65,6 +65,7 @@ reflection is insightful.
 |---|---|
 | Get running quickly | [ATLAS 5-minute start](docs/GETTING_STARTED.md) |
 | Use ATLAS with **Claude Code** | [Claude Code quick start](#-claude-code-quick-start) |
+| Use ATLAS with **Codex hooks** | [Codex quick start](#-codex-quick-start) |
 | Wrap a **single LLM call** without a harness | [Single-LLM quick start](#-single-llm-quick-start) |
 | Generate a taxonomy from **my existing traces** | [Import your own traces](#-bring-your-own-traces) |
 | Pick a stored taxonomy interactively | [Taxonomy inheritance](#-taxonomy-inheritance) |
@@ -96,6 +97,19 @@ python -m pip install .
 python -m pip install "atlas-skill[anthropic] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git@ATLAS_SKILL"
 ```
 
+### AWS Bedrock bearer-token support
+
+For Bedrock inference-profile model IDs such as
+`us.anthropic.claude-haiku-4-5-20251001-v1:0`, install boto3 support:
+
+```bash
+python -m pip install "atlas-skill[bedrock] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git@ATLAS_SKILL"
+```
+
+ATLAS reads `AWS_BEARER_TOKEN_BEDROCK` and `AWS_REGION` /
+`AWS_DEFAULT_REGION` from the environment through boto3. It never writes token
+values to config files.
+
 The installation provides:
 
 | Command | Purpose |
@@ -103,6 +117,7 @@ The installation provides:
 | `atlas-claude-install` | Register project-local Claude Code hooks |
 | `atlas-claude-uninstall` | Remove ATLAS hooks without disturbing unrelated settings |
 | `atlas-claude-add-hook` / `remove-hook` / `list-hooks` | Bind the reflection<->refinement loop to **any** Claude Code event (e.g. `PreToolUse`) without writing Python — see [custom hooks](atlas_integration/claude_code/README.md#custom-hooks) |
+| `atlas-codex-install` / `atlas-codex-uninstall` | Register or remove project-local Codex hooks; optionally install the ATLAS Codex skill |
 | `atlas-single-run` | Run one no-harness model task through ATLAS |
 | `atlas-import-traces` | **Generate** a stored taxonomy from existing traces (runs the full 8-step ATLAS pipeline) |
 | `atlas-register-taxonomy` | **Register** a pre-generated taxonomy.json file as-is (no judging, no generation) |
@@ -193,7 +208,56 @@ single source of truth for install options:
 
 ---
 
-## 🔵 Single-LLM quick start
+## Codex quick start
+
+Install ATLAS hooks into one Codex project:
+
+```bash
+atlas-codex-install \
+  --project-dir /path/to/project \
+  --trace-output /path/to/atlas-program \
+  --atlas-model gpt-5
+```
+
+This writes project-local `.codex/hooks.json` and `.codex/atlas-skill.json`.
+Codex requires hook trust review, so open `/hooks` in Codex and trust the new
+ATLAS hooks before relying on them.
+
+Optional preflight:
+
+```bash
+atlas-doctor \
+  --trace-output /path/to/atlas-program \
+  --atlas-model gpt-5 \
+  --codex
+```
+
+To also install the optional Codex skill guidance package:
+
+```bash
+atlas-codex-install \
+  --project-dir /path/to/project \
+  --trace-output /path/to/atlas-program \
+  --atlas-model gpt-5 \
+  --install-skill
+```
+
+The installed hooks use Codex's lifecycle events: `SessionStart` for standing
+context, `Stop` for the blocking final gate, `SubagentStop` for checkpoint
+reflection, and `PostToolUse` for advisory failure nudges.
+
+Remove it with:
+
+```bash
+atlas-codex-uninstall
+```
+
+See [`atlas_integration/codex/README.md`](atlas_integration/codex/README.md)
+for the exact boundary.
+
+---
+
+## Single-LLM quick start
 
 Use this path when your application owns the model call and there is no agent
 harness.

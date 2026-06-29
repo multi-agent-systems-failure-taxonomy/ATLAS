@@ -195,18 +195,77 @@ def _anthropic_client(model: str):
     return Anthropic()
 
 
+def _bedrock_converse_call(
+    prompt: str,
+    model: str,
+    *,
+    max_tokens: int,
+    temperature: float,
+    system: str | None = None,
+) -> str | None:
+    """Call AWS Bedrock Converse through boto3.
+
+    boto3/botocore can read ``AWS_BEARER_TOKEN_BEDROCK`` directly from the
+    environment, which is the credential form Claude Code's Bedrock mode uses.
+    The dependency is imported lazily so non-Bedrock users do not need boto3.
+    """
+    try:
+        import boto3
+    except ImportError:
+        logger.error(
+            "boto3 package not installed (required for AWS_BEARER_TOKEN_BEDROCK "
+            "Bedrock auth). Install with: pip install -U boto3"
+        )
+        return None
+    region = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION")
+    if not region:
+        logger.error("AWS_REGION or AWS_DEFAULT_REGION is required for Bedrock")
+        return None
+    try:
+        client = boto3.client("bedrock-runtime", region_name=region)
+        kwargs: dict[str, Any] = {
+            "modelId": _bedrock_model_id(model),
+            "messages": [{"role": "user", "content": [{"text": prompt}]}],
+            "inferenceConfig": {
+                "maxTokens": max_tokens,
+                "temperature": temperature,
+            },
+        }
+        if system:
+            kwargs["system"] = [{"text": system}]
+        response = client.converse(**kwargs)
+        content = response["output"]["message"]["content"]
+        return "".join(block.get("text", "") for block in content)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("bedrock converse call failed: %s", exc)
+        return None
+
+
+def _bedrock_model_id(model: str) -> str:
+    name = (model or "").strip()
+    return name.split("/", 1)[1] if name.lower().startswith("bedrock/") else name
+
+
 def support_model_call(prompt: str, model: str) -> str | None:
     """Corrected support-judge transport with explicit output caps.
 
-    Routes Claude / Anthropic / Bedrock model ids through the Anthropic
-    SDK (vanilla or Bedrock client), Gemini ids through the Google REST
-    API, everything else through the OpenAI client (which honors
+    Routes Claude / Anthropic model ids through the Anthropic SDK, bearer-token
+    Bedrock model ids through boto3 Converse, Gemini ids through the Google
+    REST API, everything else through the OpenAI client (which honors
     ``OPENAI_BASE_URL`` for OpenAI-compatible local endpoints).
     """
-    from .models import is_anthropic_model
+    from .models import is_anthropic_model, is_bedrock_model
 
     use_openai_endpoint = bool(os.environ.get("OPENAI_BASE_URL"))
     if is_anthropic_model(model) and not use_openai_endpoint:
+        if is_bedrock_model(model) and os.environ.get("AWS_BEARER_TOKEN_BEDROCK"):
+            return _bedrock_converse_call(
+                prompt,
+                model,
+                max_tokens=ANTHROPIC_OPENAI_MAX_TOKENS,
+                temperature=0.0,
+                system="Output ONLY valid JSON. No markdown.",
+            )
         client = _anthropic_client(model)
         if client is None:
             return None
@@ -310,14 +369,21 @@ def judge_json(
 def refinement_model_call(prompt: str, model: str) -> str | None:
     """Corrected refiner transport with explicit output caps.
 
-    Routes Claude / Anthropic / Bedrock model ids through the Anthropic
-    SDK (vanilla or Bedrock client). See ``_anthropic_client`` for the
-    Bedrock detection rules.
+    Routes Claude / Anthropic model ids through the Anthropic SDK and
+    bearer-token Bedrock model ids through boto3 Converse.
     """
-    from .models import is_anthropic_model
+    from .models import is_anthropic_model, is_bedrock_model
 
     use_openai_endpoint = bool(os.environ.get("OPENAI_BASE_URL"))
     if is_anthropic_model(model) and not use_openai_endpoint:
+        if is_bedrock_model(model) and os.environ.get("AWS_BEARER_TOKEN_BEDROCK"):
+            return _bedrock_converse_call(
+                prompt,
+                model,
+                max_tokens=ANTHROPIC_OPENAI_MAX_TOKENS,
+                temperature=0.3,
+                system="Output ONLY valid JSON. No markdown fences.",
+            )
         client = _anthropic_client(model)
         if client is None:
             return None

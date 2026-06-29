@@ -14,12 +14,56 @@ from atlas_runtime.config import (
     load_atlas_config,
     require_config_value,
 )
+from atlas_runtime.models import is_bedrock_model
 from finding import resolver, store, webview
 
 from .runtime import SingleLLMConfig, run_single_llm
 
 
 def provider_call(model: str):
+    if is_bedrock_model(model) and not os.environ.get("OPENAI_BASE_URL"):
+        try:
+            import boto3
+        except ImportError as exc:
+            raise RuntimeError(
+                "Bedrock models with AWS_BEARER_TOKEN_BEDROCK require "
+                "`pip install atlas-skill[bedrock]`"
+            ) from exc
+        region = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION")
+        if not region:
+            raise RuntimeError(
+                "Bedrock models require AWS_REGION or AWS_DEFAULT_REGION"
+            )
+        client = boto3.client("bedrock-runtime", region_name=region)
+        model_id = model.split("/", 1)[1] if model.lower().startswith("bedrock/") else model
+
+        def call(messages):
+            system = [
+                {"text": item["content"]}
+                for item in messages
+                if item["role"] == "system"
+            ]
+            turns = [
+                {
+                    "role": item["role"],
+                    "content": [{"text": item["content"]}],
+                }
+                for item in messages
+                if item["role"] in {"user", "assistant"}
+            ]
+            kwargs = {
+                "modelId": model_id,
+                "messages": turns,
+                "inferenceConfig": {"maxTokens": 8192},
+            }
+            if system:
+                kwargs["system"] = system
+            response = client.converse(**kwargs)
+            content = response["output"]["message"]["content"]
+            return "".join(block.get("text", "") for block in content)
+
+        return call
+
     if model.startswith(("claude", "anthropic")):
         try:
             from anthropic import Anthropic
@@ -70,6 +114,7 @@ def provider_call(model: str):
 
 
 def main(argv=None) -> int:
+    _configure_stdio()
     parser = argparse.ArgumentParser(
         description="Run one LLM agent task through ATLAS without a harness."
     )
@@ -162,6 +207,13 @@ def main(argv=None) -> int:
         return 1
     print(result.answer)
     return 0
+
+
+def _configure_stdio() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="replace")
 
 
 if __name__ == "__main__":

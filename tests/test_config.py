@@ -194,6 +194,49 @@ class AtlasConfigTests(unittest.TestCase):
         self.assertFalse(hooks["SubagentStop"].enabled)
         self.assertEqual(hooks["PostToolUse"].matchers, ("Bash", "Edit"))
 
+    def test_codex_install_cli_can_take_required_values_from_config(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            config_path = root / "atlas.json"
+            config_path.write_text(
+                json.dumps({
+                    "project_dir": "project",
+                    "atlas_model": "gpt-5",
+                    "trace_output": "program",
+                    "store_dir": "taxonomies",
+                    "dashboard": False,
+                    "generation_threshold": 7,
+                    "codex_hooks": {
+                        "SubagentStop": False,
+                        "PostToolUse": ["Bash", "Edit|Write"],
+                    },
+                }),
+                encoding="utf-8",
+            )
+            captured = {}
+
+            def fake_install(project_dir, config, **_kwargs):
+                captured["project_dir"] = Path(project_dir)
+                captured["config"] = config
+                return {}
+
+            with patch(
+                "atlas_integration.codex.install.install",
+                side_effect=fake_install,
+            ):
+                from atlas_integration.codex.install import main
+
+                with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                    code = main(["--config", str(config_path)])
+        self.assertEqual(code, 0)
+        self.assertEqual(captured["project_dir"], (root / "project").resolve())
+        self.assertEqual(captured["config"].trace_output, (root / "program").resolve())
+        self.assertEqual(captured["config"].generation_threshold, 7)
+        self.assertFalse(captured["config"].dashboard)
+        hooks = {spec.event: spec for spec in captured["config"].hooks}
+        self.assertFalse(hooks["SubagentStop"].enabled)
+        self.assertEqual(hooks["PostToolUse"].matchers, ("Bash", "Edit|Write"))
+
     def test_import_traces_cli_uses_config_for_model_and_storage(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

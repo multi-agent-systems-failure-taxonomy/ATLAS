@@ -3,6 +3,7 @@
 import ast
 import json
 import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -296,6 +297,49 @@ class LearningCallTests(unittest.TestCase):
             GEMINI_MAX_OUTPUT_TOKENS,
         )
 
+    def test_support_transport_uses_boto3_for_bedrock_bearer_token(self):
+        captured = {}
+
+        class Client:
+            def converse(self, **kwargs):
+                captured.update(kwargs)
+                return {
+                    "output": {
+                        "message": {
+                            "content": [{"text": '{"bedrock": true}'}],
+                        }
+                    }
+                }
+
+        fake_boto3 = SimpleNamespace(
+            client=lambda service, region_name=None: captured.update(
+                {"service": service, "region_name": region_name}
+            ) or Client()
+        )
+        with patch.dict(
+            os.environ,
+            {
+                "AWS_BEARER_TOKEN_BEDROCK": "token",
+                "AWS_REGION": "us-east-1",
+                "OPENAI_BASE_URL": "",
+            },
+            clear=False,
+        ):
+            with patch.dict(sys.modules, {"boto3": fake_boto3}):
+                result = support_model_call(
+                    "prompt",
+                    "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+                )
+
+        self.assertEqual(result, '{"bedrock": true}')
+        self.assertEqual(captured["service"], "bedrock-runtime")
+        self.assertEqual(captured["region_name"], "us-east-1")
+        self.assertEqual(
+            captured["inferenceConfig"]["maxTokens"],
+            ANTHROPIC_OPENAI_MAX_TOKENS,
+        )
+        self.assertEqual(captured["system"][0]["text"], "Output ONLY valid JSON. No markdown.")
+
     def test_refinement_transport_caps_all_providers(self):
         anthropic_create = unittest.mock.Mock(
             return_value=SimpleNamespace(content=[SimpleNamespace(text="{}")])
@@ -376,6 +420,46 @@ class LearningCallTests(unittest.TestCase):
             [call.kwargs["model"] for call in create.call_args_list],
             ["claude-sonnet-4-5", "claude-sonnet-4-5"],
         )
+
+    def test_vendored_client_uses_boto3_for_bedrock_bearer_token(self):
+        from vendor.atlas.llm import LLMClient
+
+        captured = {}
+
+        class Client:
+            def converse(self, **kwargs):
+                captured.update(kwargs)
+                return {
+                    "output": {
+                        "message": {
+                            "content": [{"text": '{"generated": true}'}],
+                        }
+                    }
+                }
+
+        fake_boto3 = SimpleNamespace(
+            client=lambda service, region_name=None: captured.update(
+                {"service": service, "region_name": region_name}
+            ) or Client()
+        )
+        with patch.dict(
+            os.environ,
+            {
+                "AWS_BEARER_TOKEN_BEDROCK": "token",
+                "AWS_REGION": "us-east-1",
+                "OPENAI_BASE_URL": "",
+            },
+            clear=False,
+        ):
+            with patch.dict(sys.modules, {"boto3": fake_boto3}):
+                result = LLMClient(
+                    "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+                ).chat("prompt", system="system prompt")
+
+        self.assertEqual(result, '{"generated": true}')
+        self.assertEqual(captured["service"], "bedrock-runtime")
+        self.assertEqual(captured["region_name"], "us-east-1")
+        self.assertEqual(captured["system"][0]["text"], "system prompt")
 
     def test_vendored_client_preserves_claude_id_through_proxy(self):
         from vendor.atlas.llm import LLMClient

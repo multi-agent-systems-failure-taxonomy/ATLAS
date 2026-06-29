@@ -4,11 +4,16 @@ from __future__ import annotations
 
 import json
 import re
+import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from atlas_integration.single_llm import SingleLLMConfig, run_single_llm
+from atlas_integration.single_llm.cli import provider_call
 from atlas_runtime.evidence import EVIDENCE_FILE
 from atlas_runtime.program import ProgramWorkspace
 
@@ -147,6 +152,51 @@ Final decision: repair
             self.assertEqual(result.answer, "Verified corrected answer: 42.")
             self.assertEqual(answers, 2)
             self.assertEqual(final_gates, 2)
+
+    def test_cli_provider_call_uses_boto3_for_bedrock_model(self):
+        captured = {}
+
+        class Client:
+            def converse(self, **kwargs):
+                captured.update(kwargs)
+                return {
+                    "output": {
+                        "message": {
+                            "content": [{"text": "bedrock answer"}],
+                        }
+                    }
+                }
+
+        fake_boto3 = SimpleNamespace(
+            client=lambda service, region_name=None: captured.update(
+                {"service": service, "region_name": region_name}
+            ) or Client()
+        )
+        with patch.dict(
+            os.environ,
+            {
+                "AWS_BEARER_TOKEN_BEDROCK": "token",
+                "AWS_REGION": "us-east-1",
+                "OPENAI_BASE_URL": "",
+            },
+            clear=False,
+        ):
+            with patch.dict(sys.modules, {"boto3": fake_boto3}):
+                call = provider_call(
+                    "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+                )
+                result = call(
+                    [
+                        {"role": "system", "content": "system"},
+                        {"role": "user", "content": "hello"},
+                    ]
+                )
+
+        self.assertEqual(result, "bedrock answer")
+        self.assertEqual(captured["service"], "bedrock-runtime")
+        self.assertEqual(captured["region_name"], "us-east-1")
+        self.assertEqual(captured["system"][0]["text"], "system")
+        self.assertEqual(captured["messages"][0]["content"][0]["text"], "hello")
 
 
 if __name__ == "__main__":

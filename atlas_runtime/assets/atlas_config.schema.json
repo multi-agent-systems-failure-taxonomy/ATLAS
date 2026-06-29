@@ -140,6 +140,28 @@
           }
         }
       ]
+    },
+    "codex_hooks": {
+      "description": "Codex hook configuration. Values can be booleans, matcher lists, or objects with enabled/matchers.",
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": {"$ref": "#/$defs/builtInHookValue"}
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["event"],
+            "properties": {
+              "event": {"type": "string"},
+              "enabled": {"type": "boolean"},
+              "matchers": {"$ref": "#/$defs/matchers"}
+            },
+            "additionalProperties": false
+          }
+        }
+      ]
     }
   },
   "$defs": {

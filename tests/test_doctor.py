@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from atlas_runtime.doctor import ERROR, WARN, has_errors, run_checks
 
@@ -106,6 +107,43 @@ class DoctorCheckTests(unittest.TestCase):
             )
         dashboard = [check for check in checks if check.name == "dashboard port"]
         self.assertEqual(dashboard[0].status, "ok")
+
+    def test_codex_checks_warn_when_cli_missing_but_do_not_error(self):
+        with (
+            tempfile.TemporaryDirectory() as td,
+            patch("atlas_runtime.doctor.shutil.which", return_value=None),
+        ):
+            checks = run_checks(
+                store_dir=Path(td) / "taxonomies",
+                trace_root=Path(td) / "traces",
+                codex=True,
+            )
+        by_name = {check.name: check for check in checks}
+        self.assertEqual(by_name["codex cli"].status, WARN)
+        self.assertEqual(by_name["codex hooks"].status, "ok")
+        self.assertFalse(has_errors(checks))
+
+    def test_codex_cli_ok_when_version_command_succeeds(self):
+        completed = subprocess.CompletedProcess(
+            args=["codex", "--version"],
+            returncode=0,
+            stdout="codex 1.2.3\n",
+            stderr="",
+        )
+        with (
+            tempfile.TemporaryDirectory() as td,
+            patch("atlas_runtime.doctor.shutil.which", return_value="codex"),
+            patch("atlas_runtime.doctor.subprocess.run", return_value=completed),
+        ):
+            checks = run_checks(
+                store_dir=Path(td) / "taxonomies",
+                trace_root=Path(td) / "traces",
+                codex=True,
+            )
+        self.assertEqual(
+            [check for check in checks if check.name == "codex cli"][0].status,
+            "ok",
+        )
 
 
 if __name__ == "__main__":
