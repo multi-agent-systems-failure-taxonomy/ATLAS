@@ -153,6 +153,79 @@ Final decision: repair
             self.assertEqual(answers, 2)
             self.assertEqual(final_gates, 2)
 
+    def test_release_policy_returns_best_answer_after_gate_cap(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            final_gates = 0
+
+            def call(messages):
+                nonlocal final_gates
+                prompt = messages[-1]["content"]
+                if "final submission gate" in prompt:
+                    final_gates += 1
+                    cid = checkpoint_id(messages)
+                    return f"""ATLAS reflection:
+- Checkpoint ID: {cid}
+- Observe: The answer still lacks verification.
+- Map:
+  - MAST-12 | evidence: "verification was not shown"
+- Correlate: The model is guessing.
+- Decide: change: verify before release
+
+Final ATLAS status: REPAIR_REQUIRED
+Codes checked: MAST-12
+Evidence: Verification was not shown.
+Repair attempts used: 0
+Final decision: repair
+"""
+                return "Best available answer."
+
+            result = run_single_llm(
+                "Calculate the answer.",
+                call,
+                SingleLLMConfig(
+                    trace_output=root / "program",
+                    atlas_model="gpt-5",
+                    store_dir=STORE_DIR,
+                    trace_root=root / "traces",
+                    dashboard=False,
+                    max_retries=1,
+                    gate_exhaustion_policy="release",
+                ),
+            )
+            self.assertEqual(result.answer, "Best available answer.")
+            self.assertFalse(result.gate_allowed)
+            self.assertEqual(final_gates, 2)
+
+    def test_recent_activity_window_bounds_final_gate_prompt(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            seen_prompt = {}
+
+            def call(messages):
+                prompt = messages[-1]["content"]
+                if "final submission gate" in prompt:
+                    seen_prompt["text"] = prompt
+                    return clean_reflection(messages, status="READY_TO_SUBMIT")
+                return "x" * 2000
+
+            run_single_llm(
+                "Important task prompt.",
+                call,
+                SingleLLMConfig(
+                    trace_output=root / "program",
+                    atlas_model="gpt-5",
+                    store_dir=STORE_DIR,
+                    trace_root=root / "traces",
+                    dashboard=False,
+                    recent_activity_messages=1,
+                    recent_activity_chars=500,
+                ),
+            )
+            prompt = seen_prompt["text"]
+            self.assertIn("Important task prompt", prompt)
+            self.assertLess(len(prompt), 8000)
+
     def test_cli_provider_call_uses_boto3_for_bedrock_model(self):
         captured = {}
 

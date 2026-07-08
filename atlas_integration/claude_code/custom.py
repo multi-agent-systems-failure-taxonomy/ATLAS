@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from typing import Any
 
 from atlas_runtime.evidence import record_reflection
@@ -42,6 +43,8 @@ def custom_blocking_checkpoint(
     )
 
     state = _state(event, config)
+    if not _matches_command_pattern(event, spec):
+        return 0, ""
     transcript_path = event.get("transcript_path")
     key = _custom_checkpoint_key(event, spec)
     pending = state.setdefault("pending", {}).get(key)
@@ -129,6 +132,8 @@ def custom_advisory(
     """
     from .runtime import _checkpoint_id, _context, _state
 
+    if not _matches_command_pattern(event, spec):
+        return None
     state = _state(event, config)
     checkpoint_id = _checkpoint_id(f"custom-{spec.name}")
     transcript_path = event.get("transcript_path")
@@ -157,23 +162,58 @@ def custom_advisory(
 def _custom_checkpoint_key(
     event: dict[str, Any], spec: CustomHookSpec
 ) -> str:
+    if spec.checkpoint_key == "fixed":
+        return f"custom:{spec.name}:fixed"
     tool_use_id = str(event.get("tool_use_id") or "").strip()
-    if tool_use_id:
+    if spec.checkpoint_key == "tool_use_id" and tool_use_id:
         return f"custom:{spec.name}:{tool_use_id}"
-    payload = json.dumps(
-        {
-            "tool_name": event.get("tool_name"),
-            "tool_input": event.get("tool_input"),
-            "prompt": event.get("prompt"),
-            "message": event.get("message"),
-        },
-        sort_keys=True,
-        ensure_ascii=False,
-    )
+    if spec.checkpoint_key == "command":
+        payload = _tool_input_text(event) or _event_summary(event)
+    else:
+        payload = json.dumps(
+            {
+                "tool_name": event.get("tool_name"),
+                "tool_input": event.get("tool_input"),
+                "prompt": event.get("prompt"),
+                "message": event.get("message"),
+            },
+            sort_keys=True,
+            ensure_ascii=False,
+        )
     digest = hashlib.sha256(
         payload.encode("utf-8", "replace")
     ).hexdigest()[:12]
     return f"custom:{spec.name}:{digest}"
+
+
+def _matches_command_pattern(event: dict[str, Any], spec: CustomHookSpec) -> bool:
+    if not spec.command_pattern:
+        return True
+    text = _tool_input_text(event)
+    if not text:
+        return False
+    return re.search(spec.command_pattern, text, re.S) is not None
+
+
+def _tool_input_text(event: dict[str, Any]) -> str:
+    tool_input = event.get("tool_input")
+    if isinstance(tool_input, dict):
+        preferred = (
+            tool_input.get("command")
+            or tool_input.get("cmd")
+            or tool_input.get("input")
+            or tool_input.get("text")
+        )
+        if preferred is not None:
+            return str(preferred)
+    if isinstance(tool_input, str):
+        return tool_input
+    payload = json.dumps(
+        tool_input if tool_input is not None else {},
+        sort_keys=True,
+        ensure_ascii=False,
+    )
+    return payload
 
 
 def _recent_context(

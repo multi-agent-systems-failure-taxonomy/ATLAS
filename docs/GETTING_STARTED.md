@@ -218,6 +218,7 @@ after acceptance.
 | `refinement_stops` | `false` | Turn on if the current task must wait for refinement. |
 | `advanced_refinement` | `false` | Turn on for one support-judge repair pass during refinement. |
 | `max_retries` | `3` | Final-gate repair opportunities before honest unresolved release. |
+| `gate_exhaustion_policy` | `raise` | For single-LLM benchmark wrappers, use `release` to return the best answer after the retry cap while recording `gate_allowed=false`. |
 
 ## 8. Where to customize
 

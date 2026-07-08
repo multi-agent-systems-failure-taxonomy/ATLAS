@@ -55,6 +55,17 @@ class SingleLLMConfig:
     skip_judge: bool = False
     refinement_stops: bool = False
     advanced_refinement: bool = False
+    gate_exhaustion_policy: str = "raise"
+    recent_activity_messages: int = 8
+    recent_activity_chars: int = 12000
+
+    def __post_init__(self) -> None:
+        if self.gate_exhaustion_policy not in {"raise", "release"}:
+            raise ValueError("gate_exhaustion_policy must be 'raise' or 'release'")
+        if self.recent_activity_messages <= 0:
+            raise ValueError("recent_activity_messages must be positive")
+        if self.recent_activity_chars <= 0:
+            raise ValueError("recent_activity_chars must be positive")
 
 
 @dataclass(frozen=True)
@@ -64,6 +75,7 @@ class SingleLLMResult:
     checkpoint_count: int
     messages: tuple[dict[str, str], ...]
     session_end: SessionEndResult
+    gate_allowed: bool = True
 
 
 def run_single_llm(
@@ -115,7 +127,11 @@ def run_single_llm(
                         f"single-LLM checkpoint limit exceeded "
                         f"({config.max_checkpoints})"
                     )
-                recent = _render_messages(messages[segment_start:])
+                recent = _render_recent_messages(
+                    messages[segment_start:],
+                    max_messages=config.recent_activity_messages,
+                    max_chars=config.recent_activity_chars,
+                )
                 reflection = _collect_reflection(
                     call,
                     messages,
@@ -152,6 +168,8 @@ def run_single_llm(
                 session,
                 max_retries=config.max_retries,
                 repair_attempts_used=repair_attempts,
+                recent_activity_messages=config.recent_activity_messages,
+                recent_activity_chars=config.recent_activity_chars,
             )
             _record(
                 config,
@@ -165,7 +183,9 @@ def run_single_llm(
                 break
             repair_attempts += 1
             if repair_attempts > config.max_retries:
-                raise RuntimeError("ATLAS final repair limit exceeded")
+                if config.gate_exhaustion_policy == "raise":
+                    raise RuntimeError("ATLAS final repair limit exceeded")
+                break
             messages.append(
                 {
                     "role": "user",
@@ -197,6 +217,7 @@ def run_single_llm(
             checkpoint_count=checkpoint_count,
             messages=tuple(messages),
             session_end=ended,
+            gate_allowed=decision.allow,
         )
     except Exception:
         if not session._ended:
@@ -212,13 +233,19 @@ def _collect_final_gate(
     *,
     max_retries,
     repair_attempts_used,
+    recent_activity_messages,
+    recent_activity_chars,
 ):
     return _collect_reflection(
         call,
         messages,
         session.delivery.taxonomy_id,
         session.delivery.taxonomy,
-        recent_activity=_render_messages(messages),
+        recent_activity=_render_recent_messages(
+            messages,
+            max_messages=recent_activity_messages,
+            max_chars=recent_activity_chars,
+        ),
         gate_label="final submission gate",
         full=True,
         max_retries=max_retries,
@@ -309,3 +336,28 @@ def _render_messages(messages: list[dict[str, str]]) -> str:
         f"[{message['role'].upper()}]\n{message['content']}"
         for message in messages
     )
+
+
+def _render_recent_messages(
+    messages: list[dict[str, str]],
+    *,
+    max_messages: int,
+    max_chars: int,
+) -> str:
+    if not messages:
+        return ""
+    selected = messages[-max_messages:]
+    # Preserve the original task prompt when the window would otherwise lose it.
+    first_user = next((m for m in messages if m.get("role") == "user"), None)
+    if first_user is not None and first_user not in selected:
+        selected = [first_user, *selected]
+    rendered = _render_messages(selected)
+    if len(rendered) <= max_chars:
+        return rendered
+    if first_user is not None:
+        task_prefix = _render_messages([first_user])
+        if len(task_prefix) < max_chars:
+            tail_budget = max_chars - len(task_prefix) - 24
+            if tail_budget > 0:
+                return task_prefix + "\n\n[...]\n" + rendered[-tail_budget:]
+    return rendered[-max_chars:]

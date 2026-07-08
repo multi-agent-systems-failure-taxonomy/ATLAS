@@ -26,6 +26,8 @@ from atlas_runtime.evidence import record_reflection
 from atlas_runtime.reflection import ReflectionResult, parse_reflection
 from finding import resolver
 
+from atlas_integration.shared import build_session_state
+
 from .config import ClaudeCodeConfig
 from .prompts import STANDING_PROMPT, failure_nudge, reflection_prompt
 from .state import load_state, save_state
@@ -75,39 +77,19 @@ def session_start(event: dict[str, Any], config: ClaudeCodeConfig) -> dict:
         refinement_stops=config.refinement_stops,
         advanced_refinement=config.advanced_refinement,
     )
-    state = {
-        "version": 1,
-        "session_id": session_id,
-        "runtime_session_id": session.session_id,
-        "program_id": session.program_id,
-        "cwd": str(event.get("cwd") or ""),
-        "taxonomy_id": session.delivery.taxonomy_id,
-        "taxonomy": session.delivery.taxonomy,
-        "dashboard_url": session.delivery.dashboard_url,
-        "max_retries": config.max_retries,
-        "lifecycle": {
-            "store_dir": str(session.store_dir),
-            "trace_root": str(session.trace_root),
-            "generation_threshold": session.generation_threshold,
-            "generation_stops": session.generation_stops,
-            "skip_judge": session.skip_judge,
-            "k_init": session.k_init,
-            "k": session.k,
-            "refinement_stops": session.refinement_stops,
-            "advanced_refinement": session.advanced_refinement,
-            "runtime_protocol": session.delivery.runtime_protocol,
-        },
-        "main_cursor": transcript_size(event.get("transcript_path")),
-        "pending": {},
-        "failure": {
+    state = build_session_state(
+        session_id=session_id,
+        session=session,
+        cwd=str(event.get("cwd") or ""),
+        max_retries=config.max_retries,
+        main_cursor=transcript_size(event.get("transcript_path")),
+        failure={
             "call_index": 0,
             "last_fired_call": -10**9,
             "last_hash": "",
             "last_fired_at": 0.0,
         },
-        "finished": False,
-        "trace_captured": False,
-    }
+    )
     save_state(config.trace_output, session_id, state)
     context = STANDING_PROMPT
     if session.delivery.dashboard_url:
@@ -201,26 +183,6 @@ def blocking_checkpoint(
                 recent, max_retries=int(state["max_retries"])
             )
             repairs_completed = int(pending.get("repairs_completed", 0))
-            if decision.repair_attempts_used != repairs_completed:
-                pending["guard_failures"] = int(
-                    pending.get("guard_failures", 0)
-                ) + 1
-                reason = (
-                    "`Repair attempts used:` must match the hook-owned "
-                    f"counter ({repairs_completed}), not "
-                    f"{decision.repair_attempts_used}"
-                )
-                if _retry_limit_reached(pending, state):
-                    return _release_retry_guard(
-                        config,
-                        state,
-                        key=key,
-                        gate=gate,
-                        transcript_path=transcript_path,
-                        detail=reason,
-                    )
-                save_state(config.trace_output, state["session_id"], state)
-                return 2, _repair_feedback(reason, pending["prompt"])
             reflection_requires_change = bool(
                 re.search(r"\bchange\s*:", reflection.decide, re.I)
             )

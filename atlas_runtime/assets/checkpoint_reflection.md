@@ -43,4 +43,10 @@ matches. A better result than before is not evidence that nothing is failing:
 improving work can still have weak spots, skipped steps, or better directions
 not yet tried. Judge the activity on its own terms. A well-supported
 `none apply` is still valid; never manufacture a failure or a change merely to
-satisfy the checkpoint.$final_instructions
+satisfy the checkpoint.
+
+Format guardrail: emit one complete `ATLAS reflection:` block. Keep the
+Checkpoint ID line exactly identifiable, even if you use Markdown headings.
+For fired codes, each code line must contain a known code id plus an
+`evidence:` phrase; for clean checkpoints, write `none apply` plus considered
+code ids and evidence.$final_instructions

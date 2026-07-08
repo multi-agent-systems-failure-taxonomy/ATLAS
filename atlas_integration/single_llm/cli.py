@@ -141,6 +141,12 @@ def main(argv=None) -> int:
         help="open the local taxonomy picker before running the task",
     )
     parser.add_argument("--problem-id")
+    parser.add_argument(
+        "--gate-exhaustion-policy",
+        choices=("raise", "release"),
+    )
+    parser.add_argument("--recent-activity-messages", type=int)
+    parser.add_argument("--recent-activity-chars", type=int)
     parser.add_argument("--dashboard", dest="dashboard", action="store_true", default=None)
     parser.add_argument("--no-dashboard", dest="dashboard", action="store_false")
     args = parser.parse_args(argv)
@@ -189,6 +195,15 @@ def main(argv=None) -> int:
         "atlas_model": config_value(args, config, "atlas_model", model),
         "inherit": inherit,
         "dashboard": bool_config_value(args, config, "dashboard", True),
+        "gate_exhaustion_policy": config_value(
+            args, config, "gate_exhaustion_policy", "raise"
+        ),
+        "recent_activity_messages": config_value(
+            args, config, "recent_activity_messages", 8
+        ),
+        "recent_activity_chars": config_value(
+            args, config, "recent_activity_chars", 12000
+        ),
     }
     if store_dir:
         fields["store_dir"] = Path(store_dir).resolve()

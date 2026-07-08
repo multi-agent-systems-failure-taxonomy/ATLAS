@@ -379,7 +379,7 @@ Run the missing verification before proceeding.
             4,
         )
 
-    def test_reported_repair_count_must_match_hook_counter(self):
+    def test_reported_repair_count_mismatch_does_not_block(self):
         event = {
             **self.base,
             "hook_event_name": "Stop",
@@ -397,8 +397,8 @@ Run the missing verification before proceeding.
             {**event, "stop_hook_active": True},
             self.config,
         )
-        self.assertEqual(code, 2)
-        self.assertIn("hook-owned counter (0), not 1", message)
+        self.assertEqual(code, 0)
+        self.assertIn("accepted", message)
 
     def test_change_decision_cannot_claim_ready_to_submit(self):
         event = {

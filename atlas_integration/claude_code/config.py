@@ -18,6 +18,7 @@ _HOOK_EVENTS = json.loads(
 )
 
 CUSTOM_HOOK_MODES = tuple(_HOOK_EVENTS["custom_hook_modes"])
+CUSTOM_HOOK_CHECKPOINT_KEYS = tuple(_HOOK_EVENTS["custom_hook_checkpoint_keys"])
 CUSTOM_HOOK_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 BUILT_IN_HOOK_EVENTS = tuple(_HOOK_EVENTS["built_in_hook_events"])
 BUILT_IN_MATCHER_EVENTS = tuple(_HOOK_EVENTS["built_in_matcher_events"])
@@ -39,6 +40,8 @@ class CustomHookSpec:
     event: str
     mode: str = "blocking"
     matcher: str | None = None
+    command_pattern: str | None = None
+    checkpoint_key: str = "tool_use_id"
 
     def __post_init__(self) -> None:
         if not CUSTOM_HOOK_NAME_RE.match(self.name):
@@ -58,6 +61,22 @@ class CustomHookSpec:
             )
         if self.matcher is not None and not str(self.matcher).strip():
             raise ValueError("custom hook matcher cannot be empty string")
+        if self.command_pattern is not None:
+            pattern = str(self.command_pattern).strip()
+            if not pattern:
+                raise ValueError("custom hook command_pattern cannot be empty string")
+            try:
+                re.compile(pattern)
+            except re.error as exc:
+                raise ValueError(
+                    f"custom hook command_pattern is invalid regex: {exc}"
+                ) from exc
+            object.__setattr__(self, "command_pattern", pattern)
+        if self.checkpoint_key not in CUSTOM_HOOK_CHECKPOINT_KEYS:
+            raise ValueError(
+                f"custom hook checkpoint_key {self.checkpoint_key!r} must "
+                f"be one of {CUSTOM_HOOK_CHECKPOINT_KEYS}"
+            )
 
     def to_dict(self) -> dict:
         return {
@@ -65,6 +84,8 @@ class CustomHookSpec:
             "event": self.event,
             "mode": self.mode,
             "matcher": self.matcher,
+            "command_pattern": self.command_pattern,
+            "checkpoint_key": self.checkpoint_key,
         }
 
     @classmethod
@@ -75,6 +96,12 @@ class CustomHookSpec:
             event=str(data["event"]),
             mode=str(data.get("mode", "blocking")),
             matcher=str(matcher) if matcher else None,
+            command_pattern=(
+                str(data["command_pattern"])
+                if data.get("command_pattern")
+                else None
+            ),
+            checkpoint_key=str(data.get("checkpoint_key", "tool_use_id")),
         )
 
 
@@ -264,6 +291,7 @@ class ClaudeCodeConfig:
     @classmethod
     def load(cls, path: Path | str) -> "ClaudeCodeConfig":
         data = json.loads(Path(path).read_text(encoding="utf-8"))
+        scoped = data.get("claude_code") if isinstance(data.get("claude_code"), dict) else {}
         trace_output = str(data.get("trace_output", "")).strip()
         atlas_model = str(data.get("atlas_model", "")).strip()
         if not trace_output:
@@ -278,13 +306,15 @@ class ClaudeCodeConfig:
         inherit = data.get("inherit")
         if inherit in ("", "none"):
             inherit = None
-        raw_hooks = data.get("custom_hooks") or ()
+        raw_hooks = scoped.get("custom_hooks", data.get("custom_hooks")) or ()
         if not isinstance(raw_hooks, list | tuple):
             raise ValueError("custom_hooks must be a list")
         custom_hooks = tuple(
             CustomHookSpec.from_dict(entry) for entry in raw_hooks
         )
-        built_in_hooks = parse_built_in_hooks(data.get("built_in_hooks"))
+        built_in_hooks = parse_built_in_hooks(
+            scoped.get("built_in_hooks", data.get("built_in_hooks"))
+        )
         return cls(
             trace_output=Path(trace_output).expanduser().resolve(),
             atlas_model=atlas_model,
@@ -349,8 +379,10 @@ class ClaudeCodeConfig:
             "advanced_refinement": self.advanced_refinement,
             "failure_throttle_calls": self.failure_throttle_calls,
             "failure_recency_seconds": self.failure_recency_seconds,
-            "built_in_hooks": {
-                spec.event: spec.to_dict() for spec in self.built_in_hooks
+            "claude_code": {
+                "built_in_hooks": {
+                    spec.event: spec.to_dict() for spec in self.built_in_hooks
+                },
+                "custom_hooks": [spec.to_dict() for spec in self.custom_hooks],
             },
-            "custom_hooks": [spec.to_dict() for spec in self.custom_hooks],
         }

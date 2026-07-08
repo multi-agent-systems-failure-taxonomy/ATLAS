@@ -19,6 +19,7 @@ from pathlib import Path
 from .config import (
     CLAUDE_CODE_EVENTS,
     CUSTOM_HOOK_MODES,
+    CUSTOM_HOOK_CHECKPOINT_KEYS,
     ClaudeCodeConfig,
     CustomHookSpec,
 )
@@ -120,6 +121,23 @@ def add_main(argv=None) -> int:
         help="tool-name pattern for PreToolUse/PostToolUse (e.g. \"Bash\")",
     )
     parser.add_argument(
+        "--command-pattern",
+        default=None,
+        help=(
+            "optional regex against tool_input/command; useful for narrowing "
+            "a Bash hook to one recurring command"
+        ),
+    )
+    parser.add_argument(
+        "--checkpoint-key",
+        default="tool_use_id",
+        choices=CUSTOM_HOOK_CHECKPOINT_KEYS,
+        help=(
+            "how recurring custom hooks identify an in-flight checkpoint: "
+            "tool_use_id, command, or fixed"
+        ),
+    )
+    parser.add_argument(
         "--overwrite",
         action="store_true",
         help="replace an existing custom hook with the same --name",
@@ -130,6 +148,8 @@ def add_main(argv=None) -> int:
         event=args.event,
         mode=args.mode,
         matcher=args.matcher,
+        command_pattern=args.command_pattern,
+        checkpoint_key=args.checkpoint_key,
     )
     try:
         result = add_hook(args.project_dir, spec, overwrite=args.overwrite)

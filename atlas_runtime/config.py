@@ -17,6 +17,8 @@ INT_FIELDS = {
     "k",
     "failure_throttle_calls",
     "failure_recency_seconds",
+    "recent_activity_messages",
+    "recent_activity_chars",
 }
 BOOL_FIELDS = {
     "generation_stops",
@@ -32,8 +34,15 @@ STRING_FIELDS = {
     "openai_base_url",
     "openai_api_key_env",
     "model",
+    "gate_exhaustion_policy",
 }
-RAW_FIELDS = {"built_in_hooks", "codex_hooks"}
+RAW_FIELDS = {
+    "built_in_hooks",  # legacy Claude Code scope
+    "custom_hooks",  # legacy Claude Code scope
+    "codex_hooks",  # legacy Codex scope
+    "claude_code",
+    "codex",
+}
 ALL_FIELDS = PATH_FIELDS | INT_FIELDS | BOOL_FIELDS | STRING_FIELDS | RAW_FIELDS
 
 

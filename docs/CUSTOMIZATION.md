@@ -44,13 +44,15 @@ than long command lines:
   "generation_stops": false,
   "k_init": 10,
   "k": 20,
-  "built_in_hooks": {
-    "SubagentStop": false,
-    "PostToolUse": {
-      "enabled": true,
-      "matchers": ["Bash", "Edit", "Write"]
-    },
-    "PostToolUseFailure": ["Bash"]
+  "claude_code": {
+    "built_in_hooks": {
+      "SubagentStop": false,
+      "PostToolUse": {
+        "enabled": true,
+        "matchers": ["Bash", "Edit", "Write"]
+      },
+      "PostToolUseFailure": ["Bash"]
+    }
   }
 }
 ```
@@ -62,20 +64,22 @@ so misspellings do not silently change behavior.
 
 Claude Code has two hook layers:
 
-1. built-in hooks, configured with `built_in_hooks`;
+1. built-in hooks, configured with `claude_code.built_in_hooks`;
 2. custom hooks, configured with `atlas-claude-add-hook` or the
-   `custom_hooks` array in `.claude/atlas-skill.json`.
+   `claude_code.custom_hooks` array in `atlas.json`.
 
 Built-in hook policy belongs in project config:
 
 ```json
 {
-  "built_in_hooks": {
-    "SubagentStop": false,
-    "PostToolUse": ["Bash", "Edit", "Write"],
-    "PostToolUseFailure": {
-      "enabled": true,
-      "matchers": ["Bash"]
+  "claude_code": {
+    "built_in_hooks": {
+      "SubagentStop": false,
+      "PostToolUse": ["Bash", "Edit", "Write"],
+      "PostToolUseFailure": {
+        "enabled": true,
+        "matchers": ["Bash"]
+      }
     }
   }
 }
@@ -89,12 +93,25 @@ atlas-claude-add-hook \
   --name pre-bash \
   --event PreToolUse \
   --matcher Bash \
+  --command-pattern "python .*eval" \
+  --checkpoint-key fixed \
   --mode blocking
 ```
 
 Use `blocking` when the agent must satisfy the reflection contract before
 continuing. Use `advisory` when the agent should receive a nudge but the host
 should not block.
+
+`matcher` is the host tool/event matcher, usually tool-name granularity such
+as `Bash`. `command_pattern` is an optional regex against `tool_input` /
+command text, so one Bash hook can fire only for a recurring command. Use
+`checkpoint_key` to control how repeated firings close:
+
+| Value | Use |
+|---|---|
+| `tool_use_id` | Default; each host tool call is independent. |
+| `command` | Same command text shares a checkpoint key. |
+| `fixed` | The hook name has one stable in-flight checkpoint. |
 
 ## Taxonomy customization
 

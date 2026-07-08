@@ -8,10 +8,22 @@ Use this path when your application owns the model call: scripts, notebooks, ben
 atlas-single-run \
   --config atlas.json \
   --task "Solve the task, then pass through ATLAS before final answer." \
-  --model gpt-5
+  --model gpt-5 \
+  --gate-exhaustion-policy release \
+  --recent-activity-messages 8 \
+  --recent-activity-chars 12000
 ```
 
 The `--model` flag is the task-solving model. The `atlas_model` field in `atlas.json` is the ATLAS generation, judge, and refinement model.
+
+`gate_exhaustion_policy` controls what happens when the final gate still
+blocks after the retry cap:
+
+- `raise` keeps the strict default and exits with an error.
+- `release` returns the best available answer and records `gate_allowed=false`.
+
+The recent-activity limits bound checkpoint/final-gate prompt growth while
+preserving the original task prompt and a tail of recent messages.
 
 ## Programmatic integration
 

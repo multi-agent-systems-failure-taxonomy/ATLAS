@@ -119,8 +119,25 @@
       "description": "User task-model setting consumed by adapters that run the task agent.",
       "type": "string"
     },
+    "gate_exhaustion_policy": {
+      "description": "Single-LLM behavior when the final gate still blocks after retries.",
+      "enum": ["raise", "release"],
+      "default": "raise"
+    },
+    "recent_activity_messages": {
+      "description": "Single-LLM maximum number of recent messages included in checkpoint/final-gate reflection prompts.",
+      "type": "integer",
+      "minimum": 1,
+      "default": 8
+    },
+    "recent_activity_chars": {
+      "description": "Single-LLM maximum characters included in recent_activity.",
+      "type": "integer",
+      "minimum": 1,
+      "default": 12000
+    },
     "built_in_hooks": {
-      "description": "Claude Code built-in hook configuration. Values can be booleans, matcher lists, or objects with enabled/matchers.",
+      "description": "Legacy top-level Claude Code built-in hook configuration. Prefer claude_code.built_in_hooks.",
       "anyOf": [
         {
           "type": "object",
@@ -141,8 +158,25 @@
         }
       ]
     },
+    "custom_hooks": {
+      "description": "Legacy top-level Claude Code custom hooks. Prefer claude_code.custom_hooks.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "event"],
+        "properties": {
+          "name": {"type": "string"},
+          "event": {"type": "string"},
+          "mode": {"enum": ["blocking", "advisory"]},
+          "matcher": {"type": ["string", "null"]},
+          "command_pattern": {"type": ["string", "null"]},
+          "checkpoint_key": {"enum": ["tool_use_id", "command", "fixed"]}
+        },
+        "additionalProperties": false
+      }
+    },
     "codex_hooks": {
-      "description": "Codex hook configuration. Values can be booleans, matcher lists, or objects with enabled/matchers.",
+      "description": "Legacy top-level Codex hook configuration. Prefer codex.hooks.",
       "anyOf": [
         {
           "type": "object",
@@ -162,6 +196,69 @@
           }
         }
       ]
+    },
+    "claude_code": {
+      "description": "Claude Code adapter-specific settings.",
+      "type": "object",
+      "properties": {
+        "built_in_hooks": {
+          "description": "Claude Code built-in hook configuration.",
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": {"$ref": "#/$defs/builtInHookValue"}
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["event"],
+                "properties": {
+                  "event": {"type": "string"},
+                  "enabled": {"type": "boolean"},
+                  "matchers": {"$ref": "#/$defs/matchers"}
+                },
+                "additionalProperties": false
+              }
+            }
+          ]
+        },
+        "custom_hooks": {
+          "description": "Claude Code custom hooks bound to ATLAS reflection/advisory behavior.",
+          "type": "array",
+          "items": {"$ref": "#/$defs/claudeCustomHook"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "codex": {
+      "description": "Codex adapter-specific settings.",
+      "type": "object",
+      "properties": {
+        "hooks": {
+          "description": "Codex hook configuration.",
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": {"$ref": "#/$defs/builtInHookValue"}
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["event"],
+                "properties": {
+                  "event": {"type": "string"},
+                  "enabled": {"type": "boolean"},
+                  "matchers": {"$ref": "#/$defs/matchers"}
+                },
+                "additionalProperties": false
+              }
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
     }
   },
   "$defs": {
@@ -173,6 +270,19 @@
           "items": {"type": "string"}
         }
       ]
+    },
+    "claudeCustomHook": {
+      "type": "object",
+      "required": ["name", "event"],
+      "properties": {
+        "name": {"type": "string"},
+        "event": {"type": "string"},
+        "mode": {"enum": ["blocking", "advisory"]},
+        "matcher": {"type": ["string", "null"]},
+        "command_pattern": {"type": ["string", "null"]},
+        "checkpoint_key": {"enum": ["tool_use_id", "command", "fixed"]}
+      },
+      "additionalProperties": false
     },
     "builtInHookValue": {
       "anyOf": [

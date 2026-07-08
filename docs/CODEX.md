@@ -34,17 +34,19 @@ This copies the ATLAS guidance skill into the project-local Codex config so the 
 
 ## Custom hook policy
 
-Use `codex_hooks` in `atlas.json` when you want ATLAS to trigger only on selected Codex events:
+Use `codex.hooks` in `atlas.json` when you want ATLAS to trigger only on selected Codex events:
 
 ```json
 {
-  "codex_hooks": {
-    "SessionStart": true,
-    "Stop": true,
-    "SubagentStop": true,
-    "PostToolUse": {
-      "enabled": true,
-      "matchers": ["shell_command", "apply_patch"]
+  "codex": {
+    "hooks": {
+      "SessionStart": true,
+      "Stop": true,
+      "SubagentStop": true,
+      "PostToolUse": {
+        "enabled": true,
+        "matchers": ["shell_command", "apply_patch"]
+      }
     }
   }
 }

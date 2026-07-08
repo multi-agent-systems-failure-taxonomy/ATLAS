@@ -4,6 +4,7 @@ Start with:
 
 ```bash
 atlas-doctor --config atlas.json
+atlas-status --config atlas.json
 ```
 
 Use harness-specific checks when relevant:
@@ -41,6 +42,9 @@ Check:
 2. the harness trusts/enables project-local hooks;
 3. `atlas.json` points to a valid trace output;
 4. custom hook matchers use the host's actual event/tool names.
+
+For broad tool matchers such as `Bash`, prefer adding a `command_pattern` so a
+custom hook fires only for the intended recurring command.
 
 For Codex, open `/hooks` and trust the ATLAS hooks.
 

@@ -270,6 +270,7 @@ def _persist_artifacts(
                 "added": summary.added,
                 "edited": summary.edited,
                 "split": summary.split,
+                "merged": summary.merged,
                 "n_proposed_names_distinct": summary.n_proposed_names_distinct,
                 "n_weak_mapping_codes": summary.n_weak_mapping_codes,
                 "n_unused_codes_in_sample": summary.n_unused_codes_in_sample,

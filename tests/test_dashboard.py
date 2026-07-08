@@ -215,6 +215,115 @@ class DashboardDataTests(unittest.TestCase):
             self.assertTrue(clean["none_apply"])
             self.assertEqual(clean["considered"], ["MAST-1", "MAST-12"])
 
+    def test_uid_labels_are_available_for_task_filtering(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            workspace = ProgramWorkspace(root / "program")
+            (workspace.root / ".atlas-task-labels.json").write_text(
+                json.dumps(
+                    {
+                        "sess-0118": {"label": "UID0118", "correct": False},
+                        "sess-0222": {"label": "UID0222", "correct": True},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (workspace.root / RUNTIME_EVIDENCE).write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "checkpoints": [
+                            {
+                                "taxonomy_id": "mast",
+                                "checkpoint_id": "cp-a",
+                                "timestamp": 1,
+                                "gate": "stop",
+                                "task_id": "sess-0118",
+                                "fired_codes": ["MAST-1", "MAST-2"],
+                            },
+                            {
+                                "taxonomy_id": "mast",
+                                "checkpoint_id": "cp-b",
+                                "timestamp": 2,
+                                "gate": "stop",
+                                "task_id": "sess-0222",
+                                "fired_codes": ["MAST-3"],
+                            },
+                            {
+                                "taxonomy_id": "mast",
+                                "checkpoint_id": "cp-clean",
+                                "timestamp": 3,
+                                "gate": "stop",
+                                "task_id": "sess-0118",
+                                "none_apply": True,
+                                "considered_codes": ["MAST-4"],
+                                "fired_codes": [],
+                            },
+                        ],
+                        "taxonomies": {
+                            "mast": {
+                                "codes": {
+                                    "MAST-1": {
+                                        "fire_count": 1,
+                                        "task_firings": {"sess-0118": 1},
+                                        "events": [
+                                            {
+                                                "checkpoint_id": "cp-a",
+                                                "task_id": "sess-0118",
+                                                "evidence": "failure one",
+                                            }
+                                        ],
+                                    },
+                                    "MAST-2": {
+                                        "fire_count": 1,
+                                        "task_firings": {"sess-0118": 1},
+                                        "events": [
+                                            {
+                                                "checkpoint_id": "cp-a",
+                                                "task_id": "sess-0118",
+                                                "evidence": "failure two",
+                                            }
+                                        ],
+                                    },
+                                    "MAST-3": {
+                                        "fire_count": 1,
+                                        "task_firings": {"sess-0222": 1},
+                                        "events": [
+                                            {
+                                                "checkpoint_id": "cp-b",
+                                                "task_id": "sess-0222",
+                                                "evidence": "other task",
+                                            }
+                                        ],
+                                    },
+                                }
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            data = current_taxonomy(workspace, BASE_STORE)
+
+            by_id = {code["code_id"]: code for code in data["codes"]}
+            self.assertEqual(
+                by_id["MAST-1"]["task_firings"][0]["label"],
+                "UID0118 ✗",
+            )
+            self.assertEqual(
+                by_id["MAST-2"]["runtime_evidence"][0]["task_label"],
+                "UID0118 ✗",
+            )
+            self.assertEqual(
+                by_id["MAST-3"]["task_firings"][0]["label"],
+                "UID0222 ✓",
+            )
+            self.assertEqual(
+                data["clean_checkpoints"][0]["task_label"],
+                "UID0118 ✗",
+            )
+
 
 class DashboardServerTests(unittest.TestCase):
     def setUp(self):
@@ -253,6 +362,8 @@ class DashboardServerTests(unittest.TestCase):
         self.assertIn("text/html", content_type)
         self.assertIn("ATLAS / live taxonomy field manual", body)
         self.assertIn("Filter codes by id, name, or description", body)
+        self.assertIn("Filter by task UID, e.g. UID0118", body)
+        self.assertIn("task-search", body)
         self.assertIn("Expand all", body)
         self.assertIn("Total firings", body)
         self.assertIn("task(s)", body)

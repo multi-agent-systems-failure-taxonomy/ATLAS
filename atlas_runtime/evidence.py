@@ -76,7 +76,7 @@ def record_reflection(
             json.dumps(data, indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",
         )
-        os.replace(temporary, path)
+        _replace_with_retry(temporary, path)
 
 
 @contextmanager
@@ -98,3 +98,14 @@ def _file_lock(path: Path, *, timeout: float = 5.0):
             lock.rmdir()
         except FileNotFoundError:
             pass
+
+
+def _replace_with_retry(source: Path, target: Path, *, attempts: int = 5) -> None:
+    for index in range(attempts):
+        try:
+            os.replace(source, target)
+            return
+        except PermissionError:
+            if index >= attempts - 1:
+                raise
+            time.sleep(0.05 * (index + 1))

@@ -21,6 +21,7 @@ from unittest.mock import patch
 from atlas_integration.claude_code.config import (
     BUILT_IN_HOOK_EVENTS,
     CLAUDE_CODE_EVENTS,
+    CUSTOM_HOOK_CHECKPOINT_KEYS,
     CUSTOM_HOOK_MODES,
     BuiltInHookSpec,
     ClaudeCodeConfig,
@@ -101,9 +102,27 @@ class CustomHookSpecValidationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             CustomHookSpec(name="x", event="PreToolUse", matcher="")
 
+    def test_invalid_command_pattern_rejected(self):
+        with self.assertRaisesRegex(ValueError, "invalid regex"):
+            CustomHookSpec(
+                name="x", event="PreToolUse", command_pattern="[",
+            )
+
+    def test_unknown_checkpoint_key_rejected(self):
+        with self.assertRaises(ValueError):
+            CustomHookSpec(
+                name="x", event="PreToolUse", checkpoint_key="random",
+            )
+
     def test_all_advertised_events_are_accepted(self):
         for event in CLAUDE_CODE_EVENTS:
             CustomHookSpec(name=f"on_{event.lower()}", event=event)
+
+    def test_all_checkpoint_key_modes_are_accepted(self):
+        for key in CUSTOM_HOOK_CHECKPOINT_KEYS:
+            CustomHookSpec(
+                name=f"k_{key}", event="PreToolUse", checkpoint_key=key,
+            )
 
 
 class BuiltInHookSpecValidationTests(unittest.TestCase):
@@ -145,6 +164,8 @@ class ConfigRoundTripTests(unittest.TestCase):
             CustomHookSpec(
                 name="pre-bash", event="PreToolUse",
                 mode="blocking", matcher="Bash",
+                command_pattern="python .*eval.py",
+                checkpoint_key="fixed",
             ),
             CustomHookSpec(
                 name="on-prompt", event="UserPromptSubmit",
@@ -432,6 +453,60 @@ class CustomBlockingCheckpointTests(unittest.TestCase):
             len([k for k in keys if k.startswith("custom:pre-bash:")]), 2,
         )
 
+    def test_fixed_checkpoint_key_reuses_pending_gate(self):
+        spec = CustomHookSpec(
+            name="pre-bash", event="PreToolUse", matcher="Bash",
+            checkpoint_key="fixed",
+        )
+        config = ClaudeCodeConfig(
+            trace_output=self.trace_output,
+            atlas_model="test-model",
+            store_dir=STORE_DIR,
+            custom_hooks=(spec,),
+            max_retries=2,
+        )
+        code_a, prompt_a = custom_blocking_checkpoint(
+            self._event(tool_use_id="toolu_aaa"), config, spec=spec,
+        )
+        code_b, prompt_b = custom_blocking_checkpoint(
+            self._event(tool_use_id="toolu_bbb"), config, spec=spec,
+        )
+        self.assertEqual(code_a, 2)
+        self.assertEqual(code_b, 2)
+        self.assertEqual(checkpoint_id_from(prompt_a), checkpoint_id_from(prompt_b))
+        state = load_state(self.trace_output, "sess-1")
+        self.assertIn("custom:pre-bash:fixed", state["pending"])
+
+    def test_command_pattern_skips_non_matching_tool_input(self):
+        spec = CustomHookSpec(
+            name="eval-only", event="PreToolUse", matcher="Bash",
+            command_pattern=r"python\s+eval\.py",
+        )
+        config = ClaudeCodeConfig(
+            trace_output=self.trace_output,
+            atlas_model="test-model",
+            store_dir=STORE_DIR,
+            custom_hooks=(spec,),
+            max_retries=2,
+        )
+        code, output = custom_blocking_checkpoint(
+            self._event(tool_input={"command": "python train.py"}),
+            config,
+            spec=spec,
+        )
+        self.assertEqual(code, 0)
+        self.assertEqual(output, "")
+        state = load_state(self.trace_output, "sess-1")
+        self.assertFalse(state.get("pending"))
+
+        code, prompt = custom_blocking_checkpoint(
+            self._event(tool_input={"command": "python eval.py --smoke"}),
+            config,
+            spec=spec,
+        )
+        self.assertEqual(code, 2)
+        self.assertIn("custom hook: eval-only", prompt)
+
 
 class CustomAdvisoryTests(unittest.TestCase):
     def setUp(self):
@@ -571,6 +646,9 @@ class ManageHooksCliTests(unittest.TestCase):
             self.assertEqual(
                 [h["name"] for h in list_hooks(root)], ["pre-bash"],
             )
+            hook = list_hooks(root)[0]
+            self.assertEqual(hook["checkpoint_key"], "tool_use_id")
+            self.assertIsNone(hook["command_pattern"])
 
             # Re-adding without overwrite fails.
             with self.assertRaisesRegex(ValueError, "already exists"):
@@ -587,12 +665,15 @@ class ManageHooksCliTests(unittest.TestCase):
                 root,
                 CustomHookSpec(
                     name="pre-bash", event="PreToolUse", matcher="Edit",
+                    command_pattern="Write",
+                    checkpoint_key="command",
                 ),
                 overwrite=True,
             )
-            self.assertEqual(
-                list_hooks(root)[0]["matcher"], "Edit",
-            )
+            hook = list_hooks(root)[0]
+            self.assertEqual(hook["matcher"], "Edit")
+            self.assertEqual(hook["command_pattern"], "Write")
+            self.assertEqual(hook["checkpoint_key"], "command")
 
             remove_hook(root, "pre-bash")
             self.assertEqual(list_hooks(root), [])
@@ -607,6 +688,8 @@ class ManageHooksCliTests(unittest.TestCase):
                     "--name", "pre-write",
                     "--event", "PreToolUse",
                     "--matcher", "Write",
+                    "--command-pattern", "python .*eval",
+                    "--checkpoint-key", "fixed",
                 ])
             self.assertEqual(rc, 0)
             self.assertEqual(
@@ -614,6 +697,8 @@ class ManageHooksCliTests(unittest.TestCase):
                 [{
                     "name": "pre-write", "event": "PreToolUse",
                     "mode": "blocking", "matcher": "Write",
+                    "command_pattern": "python .*eval",
+                    "checkpoint_key": "fixed",
                 }],
             )
 

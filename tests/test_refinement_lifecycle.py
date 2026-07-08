@@ -213,6 +213,37 @@ class RefinementLifecycleTests(unittest.TestCase):
             self.assertEqual(state["traces_since_refinement"], 1)
             self.assertEqual(state["rounds_completed"], 0)
 
+    def test_failed_refinement_rearms_next_round(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            output, store_dir, trace_root = root / "program", root / "tax", root / "traces"
+            copy_store(store_dir)
+
+            def broken(_current, _traces):
+                raise RuntimeError("invalid JSON")
+
+            session, result = self._run_task(
+                output, store_dir, trace_root, 1,
+                k_init=1, k=20, refinement_stops=True,
+                refiner=broken,
+            )
+            self.assertEqual(result.refinement.action, "failed")
+
+            retried = trigger_refinement(
+                session.workspace,
+                store_dir=store_dir,
+                trace_root=trace_root,
+                k_init=1,
+                k=20,
+                refinement_stops=True,
+                refiner=refine_candidate,
+            )
+            self.assertEqual(retried.action, "activated")
+            self.assertEqual(
+                session.workspace.refinement_state()["traces_since_refinement"],
+                0,
+            )
+
     def test_nonblocking_refinement_starts_and_keeps_current_taxonomy(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

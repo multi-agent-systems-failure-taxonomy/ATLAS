@@ -194,6 +194,51 @@ class AtlasConfigTests(unittest.TestCase):
         self.assertFalse(hooks["SubagentStop"].enabled)
         self.assertEqual(hooks["PostToolUse"].matchers, ("Bash", "Edit"))
 
+    def test_claude_install_cli_prefers_scoped_adapter_config(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            config_path = root / "atlas.json"
+            config_path.write_text(
+                json.dumps({
+                    "project_dir": "project",
+                    "atlas_model": "gpt-5",
+                    "trace_output": "program",
+                    "store_dir": "taxonomies",
+                    "built_in_hooks": {"SubagentStop": True},
+                    "claude_code": {
+                        "built_in_hooks": {"SubagentStop": False},
+                        "custom_hooks": [{
+                            "name": "eval-only",
+                            "event": "PreToolUse",
+                            "matcher": "Bash",
+                            "command_pattern": "python .*eval",
+                            "checkpoint_key": "fixed",
+                        }],
+                    },
+                }),
+                encoding="utf-8",
+            )
+            captured = {}
+
+            def fake_install(project_dir, config, **_kwargs):
+                captured["project_dir"] = Path(project_dir)
+                captured["config"] = config
+                return {}
+
+            with patch(
+                "atlas_integration.claude_code.install.install",
+                side_effect=fake_install,
+            ):
+                from atlas_integration.claude_code.install import main
+
+                with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                    code = main(["--config", str(config_path)])
+        self.assertEqual(code, 0)
+        hooks = {spec.event: spec for spec in captured["config"].built_in_hooks}
+        self.assertFalse(hooks["SubagentStop"].enabled)
+        self.assertEqual(captured["config"].custom_hooks[0].name, "eval-only")
+        self.assertEqual(captured["config"].custom_hooks[0].checkpoint_key, "fixed")
+
     def test_codex_install_cli_can_take_required_values_from_config(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -236,6 +281,46 @@ class AtlasConfigTests(unittest.TestCase):
         hooks = {spec.event: spec for spec in captured["config"].hooks}
         self.assertFalse(hooks["SubagentStop"].enabled)
         self.assertEqual(hooks["PostToolUse"].matchers, ("Bash", "Edit|Write"))
+
+    def test_codex_install_cli_prefers_scoped_adapter_config(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            config_path = root / "atlas.json"
+            config_path.write_text(
+                json.dumps({
+                    "project_dir": "project",
+                    "atlas_model": "gpt-5",
+                    "trace_output": "program",
+                    "store_dir": "taxonomies",
+                    "codex_hooks": {"SubagentStop": True},
+                    "codex": {
+                        "hooks": {
+                            "SubagentStop": False,
+                            "PostToolUse": ["shell_command"],
+                        }
+                    },
+                }),
+                encoding="utf-8",
+            )
+            captured = {}
+
+            def fake_install(project_dir, config, **_kwargs):
+                captured["project_dir"] = Path(project_dir)
+                captured["config"] = config
+                return {}
+
+            with patch(
+                "atlas_integration.codex.install.install",
+                side_effect=fake_install,
+            ):
+                from atlas_integration.codex.install import main
+
+                with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                    code = main(["--config", str(config_path)])
+        self.assertEqual(code, 0)
+        hooks = {spec.event: spec for spec in captured["config"].hooks}
+        self.assertFalse(hooks["SubagentStop"].enabled)
+        self.assertEqual(hooks["PostToolUse"].matchers, ("shell_command",))
 
     def test_import_traces_cli_uses_config_for_model_and_storage(self):
         with tempfile.TemporaryDirectory() as td:

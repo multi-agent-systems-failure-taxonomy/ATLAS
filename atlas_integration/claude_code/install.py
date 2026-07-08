@@ -429,6 +429,11 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     try:
         config = load_atlas_config(args.config)
+        adapter_config = (
+            config.get("claude_code")
+            if isinstance(config.get("claude_code"), dict)
+            else {}
+        )
         atlas_model = str(require_config_value(
             args, config, "atlas_model", "--atlas-model"
         ))
@@ -449,7 +454,7 @@ def main(argv=None) -> int:
     trace_root_value = config_value(args, config, "trace_root")
     skip_judge = bool_config_value(args, config, "skip_judge", False)
     try:
-        built_in_hooks = _built_in_hooks_from_options(args, config)
+        built_in_hooks = _built_in_hooks_from_options(args, config, adapter_config)
     except ValueError as exc:
         parser.error(str(exc))
     if args.traces:
@@ -512,6 +517,13 @@ def main(argv=None) -> int:
         "failure_throttle_calls": config_value(args, config, "failure_throttle_calls", 5),
         "failure_recency_seconds": config_value(args, config, "failure_recency_seconds", 30),
         "built_in_hooks": built_in_hooks,
+        "custom_hooks": tuple(
+            CustomHookSpec.from_dict(entry)
+            for entry in adapter_config.get(
+                "custom_hooks",
+                config.get("custom_hooks", ()),
+            )
+        ),
         "dashboard": bool_config_value(args, config, "dashboard", True),
         "openai_base_url": config_value(args, config, "openai_base_url"),
         "openai_api_key_env": config_value(args, config, "openai_api_key_env"),
@@ -540,8 +552,15 @@ def main(argv=None) -> int:
 def _built_in_hooks_from_options(
     args: argparse.Namespace,
     config: dict,
+    adapter_config: dict | None = None,
 ) -> tuple[BuiltInHookSpec, ...]:
-    specs = {spec.event: spec for spec in parse_built_in_hooks(config.get("built_in_hooks"))}
+    adapter_config = adapter_config or {}
+    specs = {
+        spec.event: spec
+        for spec in parse_built_in_hooks(
+            adapter_config.get("built_in_hooks", config.get("built_in_hooks"))
+        )
+    }
     disabled = set(args.disable_hook or ())
     matcher_overrides = {
         "PostToolUse": args.post_tool_use_matchers,

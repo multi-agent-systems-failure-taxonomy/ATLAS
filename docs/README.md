@@ -27,7 +27,7 @@ This folder is the detailed reference for ATLAS. The repository homepage stays i
 | Taxonomy records, inheritance, and importing existing taxonomies | [TAXONOMIES.md](TAXONOMIES.md) |
 | Trace storage, generation thresholds, refinement thresholds | [TRACES_AND_LEARNING.md](TRACES_AND_LEARNING.md) |
 | Live dashboard, task UID filtering, and local monitoring | [DASHBOARD.md](DASHBOARD.md) |
-| Common setup and runtime issues | [TROUBLESHOOTING.md](TROUBLESHOOTING.md) |
+| Program health CLI and common runtime failures | [TROUBLESHOOTING.md](TROUBLESHOOTING.md) |
 
 ## Lower-level package maps
 

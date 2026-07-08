@@ -106,6 +106,7 @@
       padding: 12px 14px;
       border-radius: 2px;
     }
+    .task-search { flex: 0 1 280px; }
     .tool-button {
       border: 1px solid var(--ink);
       background: transparent;
@@ -299,6 +300,7 @@
       .meta-item:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
       .toolbar { flex-wrap: wrap; }
       .search { flex-basis: 100%; }
+      .task-search { flex-basis: 100%; }
       .code-card { grid-template-columns: 58px minmax(0, 1fr); }
       details { padding: 0 16px; }
       .fields { grid-template-columns: 1fr; }
@@ -353,6 +355,9 @@
       <input class="search" id="search" type="search"
              placeholder="Filter codes by id, name, or description"
              aria-label="Filter taxonomy codes">
+      <input class="search task-search" id="task-search" type="search"
+             placeholder="Filter by task UID, e.g. UID0118"
+             aria-label="Filter dashboard by task UID">
       <button class="tool-button" id="expand" type="button">Expand all</button>
       <button class="tool-button" id="collapse" type="button">Collapse all</button>
       <div class="count" id="count">0 codes</div>
@@ -371,6 +376,7 @@
       program: document.querySelector("#program"),
       checked: document.querySelector("#checked"),
       search: document.querySelector("#search"),
+      taskSearch: document.querySelector("#task-search"),
       count: document.querySelector("#count"),
       clean: document.querySelector("#clean-checkpoints"),
       codes: document.querySelector("#codes")
@@ -390,7 +396,6 @@
       els.program.textContent = data.program_id;
       els.checked.textContent = new Date().toLocaleTimeString();
       els.status.textContent = data.is_latest_successor ? "latest successor" : "live";
-      renderCleanCheckpoints(data.clean_checkpoints || []);
       applyFilter();
     }
 
@@ -443,19 +448,51 @@
       els.clean.replaceChildren(panel);
     }
 
+    function matchesTask(item, query) {
+      if (!query) return true;
+      return [item.task_id, item.task_label, item.label]
+        .some(value => text(value).toLowerCase().includes(query));
+    }
+
+    function codeForTask(code, taskQuery) {
+      if (!taskQuery) return code;
+      const taskFirings = (code.task_firings || [])
+        .filter(item => matchesTask(item, taskQuery));
+      const runtimeEvidence = (code.runtime_evidence || [])
+        .filter(item => matchesTask(item, taskQuery));
+      if (!taskFirings.length && !runtimeEvidence.length) return null;
+      return {
+        ...code,
+        fire_count: taskFirings.length
+          ? taskFirings.reduce((total, item) => total + Number(item.count || 0), 0)
+          : runtimeEvidence.length,
+        task_firings: taskFirings,
+        runtime_evidence: runtimeEvidence
+      };
+    }
+
     function applyFilter() {
       if (!state) return;
       const query = els.search.value.trim().toLowerCase();
-      const visible = state.codes.filter(code =>
-        [code.code_id, code.name, code.description]
-          .some(value => text(value).toLowerCase().includes(query))
-      );
+      const taskQuery = els.taskSearch.value.trim().toLowerCase();
+      const clean = (state.clean_checkpoints || [])
+        .filter(item => matchesTask(item, taskQuery));
+      renderCleanCheckpoints(clean);
+      const visible = state.codes
+        .map(code => codeForTask(code, taskQuery))
+        .filter(Boolean)
+        .filter(code =>
+          [code.code_id, code.name, code.description]
+            .some(value => text(value).toLowerCase().includes(query))
+        );
       els.count.textContent = `${visible.length} of ${state.codes.length} codes`;
       els.codes.replaceChildren(...visible.map(codeCard));
       if (!visible.length) {
         const empty = document.createElement("div");
         empty.className = "empty";
-        empty.textContent = "No codes match this filter.";
+        empty.textContent = taskQuery
+          ? "No codes or evidence match this task UID filter."
+          : "No codes match this filter.";
         els.codes.append(empty);
       }
     }
@@ -600,6 +637,7 @@
     }
 
     els.search.addEventListener("input", applyFilter);
+    els.taskSearch.addEventListener("input", applyFilter);
     document.querySelector("#expand").addEventListener("click", () => {
       document.querySelectorAll("details").forEach(item => item.open = true);
     });

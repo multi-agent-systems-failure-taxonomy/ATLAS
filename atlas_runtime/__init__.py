@@ -51,6 +51,7 @@ from .traces import (
     RetentionReport,
     TraceStore,
 )
+from .status import program_health
 
 __all__ = [
     "GateDecision",
@@ -83,6 +84,7 @@ __all__ = [
     "render_reflection_prompt",
     "load_atlas_config",
     "parse_reflection",
+    "program_health",
     "redact_text",
     "redact_trace",
     "start_session",

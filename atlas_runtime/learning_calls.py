@@ -222,7 +222,20 @@ def _bedrock_converse_call(
         logger.error("AWS_REGION or AWS_DEFAULT_REGION is required for Bedrock")
         return None
     try:
-        client = boto3.client("bedrock-runtime", region_name=region)
+        from botocore.config import Config
+
+        # Long generations on big prompts routinely exceed botocore's default
+        # 60s read timeout, silently degrading a judge pass to None. Allow
+        # slow responses and retry transient failures.
+        client = boto3.client(
+            "bedrock-runtime",
+            region_name=region,
+            config=Config(
+                connect_timeout=10,
+                read_timeout=300,
+                retries={"max_attempts": 3, "mode": "adaptive"},
+            ),
+        )
         kwargs: dict[str, Any] = {
             "modelId": _bedrock_model_id(model),
             "messages": [{"role": "user", "content": [{"text": prompt}]}],

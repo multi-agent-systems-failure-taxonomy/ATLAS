@@ -16,10 +16,12 @@ previously gated every newly-generated taxonomy. The new flow:
   3. Hand the full payload to a refiner LLM with a curated prompt that
      instructs it to ADD genuinely-uncovered codes, EDIT weakly-defined
      ones, SPLIT codes that cluster into multiple distinct patterns, and
-     RETIRE bloat (unused / duplicate / persistently weak).
-  4. Apply the refiner's mutations to the Taxonomy in order RETIRE → EDIT
-     → SPLIT → ADD (so renumbering after retire doesn't shift ids the
-     refiner already chose for the remaining mutations).
+     MERGE near-duplicates into one more general code. Outright deletion
+     (RETIRE) is disallowed by default (``allow_retire=False``): a code
+     unused by trace scanning may still matter to artifact-level detectors.
+  4. Apply the refiner's mutations to the Taxonomy in order MERGE → RETIRE
+     (if allowed) → EDIT → SPLIT → ADD (renumbering after removals doesn't
+     shift ids because lookups resolve through stable uids).
 
 The refinement always produces a candidate — there's no rejection. Callers
 that want "validation" in the old accept/reject sense get it implicitly:
@@ -78,11 +80,14 @@ class RefinementSummary:
     added: list[str] = field(default_factory=list)
     edited: list[str] = field(default_factory=list)
     split: list[str] = field(default_factory=list)
+    merged: list[str] = field(default_factory=list)
     judge_warnings: list[str] = field(default_factory=list)
 
     @property
     def applied_any(self) -> bool:
-        return bool(self.retired or self.added or self.edited or self.split)
+        return bool(
+            self.retired or self.added or self.edited or self.split or self.merged
+        )
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -103,6 +108,7 @@ def refine_with_reflection_judge(
     judge_call: JudgeCallable | None = None,
     refiner_call: RefinerCallable | None = None,
     project_fn: ProjectFn | None = None,
+    allow_retire: bool = False,
 ) -> RefinementSummary:
     """Validate + refine ``candidate`` against ``traces`` via the Reflection Judge.
 
@@ -215,7 +221,7 @@ def refine_with_reflection_judge(
         refiner_call=refiner_call,
     )
 
-    applied = _apply_proposals(taxonomy, proposals or {})
+    applied = _apply_proposals(taxonomy, proposals or {}, allow_retire=allow_retire)
 
     refined_candidate = _taxonomy_to_flat(taxonomy, candidate)
     return RefinementSummary(
@@ -228,6 +234,7 @@ def refine_with_reflection_judge(
         added=applied["add"],
         edited=applied["edit"],
         split=applied["split"],
+        merged=applied["merge"],
         judge_warnings=judge_warnings,
     )
 
@@ -428,21 +435,51 @@ def _call_refiner(
 # ──────────────────────────────────────────────────────────────────────────
 
 
-def _apply_proposals(taxonomy: Taxonomy, proposals: Mapping[str, Any]) -> dict[str, list[str]]:
-    """Apply refiner output in order RETIRE → EDIT → SPLIT → ADD.
+def _apply_proposals(
+    taxonomy: Taxonomy,
+    proposals: Mapping[str, Any],
+    *,
+    allow_retire: bool = False,
+) -> dict[str, list[str]]:
+    """Apply refiner output in order MERGE → RETIRE → EDIT → SPLIT → ADD.
 
-    The order matters: retire first so absorbed-into-others codes are gone
-    before edits broaden the survivors; renumber after each mutation keeps
-    subsequent code-id lookups consistent.
+    Merge consolidates >=2 codes into one more general code (the sources are
+    removed only after the combined code is inserted — no pattern is lost).
+    Outright RETIRE proposals are ignored unless ``allow_retire=True``: the
+    default policy is consolidate-never-discard, since a code unused by one
+    detector (trace scanning) may still matter to another (artifact checking).
+    Renumber after each mutation keeps subsequent code-id lookups consistent;
+    lookups resolve through a pre-phase snapshot's stable uids.
     """
-    applied: dict[str, list[str]] = {"retire": [], "edit": [], "split": [], "add": []}
+    applied: dict[str, list[str]] = {
+        "merge": [], "retire": [], "edit": [], "split": [], "add": [],
+    }
+
+    idx = taxonomy.code_index()
+    for mg in (proposals.get("merge") or []):
+        if not isinstance(mg, Mapping) or not mg.get("name"):
+            continue
+        sources = [idx.get(code) for code in (mg.get("codes") or [])]
+        sources = [c for c in sources if c is not None and taxonomy.by_uid(c.uid)]
+        if len(sources) < 2:
+            continue
+        cat = str(mg.get("category") or sources[0].category).upper()[:1]
+        cat = cat if cat in ("A", "B", "C") else sources[0].category
+        uid = taxonomy.add(cat, dict(mg))
+        for src in sources:
+            taxonomy.retire(src.uid)
+        merged_code = taxonomy.by_uid(uid)
+        applied["merge"].append(
+            f"{'+'.join(c.name for c in sources)} -> "
+            f"{merged_code.code if merged_code else '?'} {mg['name']}"
+        )
 
     idx = taxonomy.code_index()
     for rt in (proposals.get("retire") or []):
         if not isinstance(rt, Mapping):
             continue
         c = idx.get(rt.get("code"))
-        if not c:
+        if not c or not allow_retire:
             continue
         applied["retire"].append(f"{rt['code']} {c.name}")
         taxonomy.retire(c.uid)

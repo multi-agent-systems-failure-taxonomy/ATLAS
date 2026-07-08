@@ -312,8 +312,8 @@ class LearningCallTests(unittest.TestCase):
                 }
 
         fake_boto3 = SimpleNamespace(
-            client=lambda service, region_name=None: captured.update(
-                {"service": service, "region_name": region_name}
+            client=lambda service, region_name=None, config=None: captured.update(
+                {"service": service, "region_name": region_name, "config": config}
             ) or Client()
         )
         with patch.dict(
@@ -438,8 +438,8 @@ class LearningCallTests(unittest.TestCase):
                 }
 
         fake_boto3 = SimpleNamespace(
-            client=lambda service, region_name=None: captured.update(
-                {"service": service, "region_name": region_name}
+            client=lambda service, region_name=None, config=None: captured.update(
+                {"service": service, "region_name": region_name, "config": config}
             ) or Client()
         )
         with patch.dict(

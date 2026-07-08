@@ -268,7 +268,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--force-skill", action="store_true")
     args = parser.parse_args(argv)
     config_doc = load_atlas_config(args.config)
-    hooks_doc = dict(config_doc.get("codex_hooks") or {})
+    adapter_config = (
+        config_doc.get("codex")
+        if isinstance(config_doc.get("codex"), dict)
+        else {}
+    )
+    hooks_doc = dict(adapter_config.get("hooks", config_doc.get("codex_hooks")) or {})
     for event in args.disable_hook:
         hooks_doc[event] = False
     if args.post_tool_use_matchers is not None:

@@ -25,23 +25,36 @@ class ReflectionResult:
 
 _SECTION = re.compile(
     r"(?ims)^[ \t]*[#>*\-]*[ \t]*\**[ \t]*"
-    r"(Observe|Map|Correlate|Root[ \t]*causes?|Causal|Decide)"
+    r"(Observe|Observation|Review|Map|Mapping|"
+    r"Correlate|Root[ \t]*causes?|Causal|Decide|Decision|Action)"
     r"[ \t]*:?[ \t]*\**[ \t]*(.*?)"
     r"(?=^[ \t]*[#>*\-]*[ \t]*\**[ \t]*"
-    r"(?:Observe|Map|Correlate|Root[ \t]*causes?|Causal|Decide)\b|\Z)"
+    r"(?:Observe|Observation|Review|Map|Mapping|"
+    r"Correlate|Root[ \t]*causes?|Causal|Decide|Decision|Action)\b|\Z)"
 )
 _CHECKPOINT = re.compile(
-    r"(?im)^\s*(?:[-*]\s*)?Checkpoint\s+ID\s*:\s*([^\s]+)"
+    r"(?im)^\s*(?:[#>*-]\s*)*\**\s*Checkpoint\s+ID\s*:\s*([^\s*]+)"
 )
 _EVIDENCE = re.compile(
     r"(?i)\bevidence\s*[:\-–—]\s*(?:\"([^\"]+)\"|'([^']+)'|(.+))"
 )
 
+_EVIDENCE = re.compile(
+    r"(?i)\bevidence\s*(?:[:=\-–—]|\bis\b)\s*"
+    r"(?:\"([^\"]+)\"|'([^']+)'|(.+))"
+)
+
 
 def _canon_section(name: str) -> str:
     normalized = " ".join(name.strip().lower().split())
+    if normalized in {"observation", "review"}:
+        return "observe"
+    if normalized == "mapping":
+        return "map"
     if normalized.startswith("root cause") or normalized == "causal":
         return "correlate"
+    if normalized in {"decision", "action"}:
+        return "decide"
     return normalized
 
 

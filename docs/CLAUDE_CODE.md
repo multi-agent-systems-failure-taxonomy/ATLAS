@@ -35,13 +35,15 @@ You can also configure built-in hooks in `atlas.json`:
 
 ```json
 {
-  "built_in_hooks": {
-    "SubagentStop": false,
-    "PostToolUse": {
-      "enabled": true,
-      "matchers": ["Bash", "Edit", "Write"]
-    },
-    "PostToolUseFailure": ["Bash"]
+  "claude_code": {
+    "built_in_hooks": {
+      "SubagentStop": false,
+      "PostToolUse": {
+        "enabled": true,
+        "matchers": ["Bash", "Edit", "Write"]
+      },
+      "PostToolUseFailure": ["Bash"]
+    }
   }
 }
 ```
@@ -56,6 +58,8 @@ atlas-claude-add-hook \
   --name pre-bash \
   --event PreToolUse \
   --matcher Bash \
+  --command-pattern "python .*eval" \
+  --checkpoint-key fixed \
   --mode blocking
 ```
 
@@ -72,6 +76,10 @@ atlas-claude-remove-hook --project-dir . --name pre-bash
 ```
 
 Use `blocking` when the agent must satisfy the reflection contract before continuing. Use `advisory` when ATLAS should nudge but not block.
+
+`--command-pattern` narrows a broad tool matcher, for example `Bash`, to one
+recurring command. `--checkpoint-key fixed` is useful for recurring gates that
+should open one checkpoint and close it on the next matching event.
 
 ## Uninstall hooks
 

@@ -33,3 +33,9 @@ This is useful when several tasks share the same dashboard and multiple failure 
 ## Local-only behavior
 
 The dashboard binds to localhost by default and is intended as a development/runtime inspection tool. It should not be exposed publicly without an external authentication layer.
+
+For a terminal summary of the same program state, use:
+
+```bash
+atlas-status --config atlas.json
+```

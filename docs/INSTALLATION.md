@@ -70,7 +70,25 @@ Create `atlas.json` in the project using ATLAS:
   "refinement_stops": false,
   "advanced_refinement": false,
   "max_retries": 3,
-  "dashboard": true
+  "gate_exhaustion_policy": "raise",
+  "recent_activity_messages": 8,
+  "recent_activity_chars": 12000,
+  "dashboard": true,
+  "claude_code": {
+    "built_in_hooks": {
+      "SubagentStop": true,
+      "PostToolUse": ["Bash", "Edit", "Write"]
+    },
+    "custom_hooks": []
+  },
+  "codex": {
+    "hooks": {
+      "SessionStart": true,
+      "Stop": true,
+      "SubagentStop": true,
+      "PostToolUse": ["shell_command", "apply_patch"]
+    }
+  }
 }
 ```
 

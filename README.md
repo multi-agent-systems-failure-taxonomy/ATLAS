@@ -118,6 +118,7 @@ Repo and domain fields are display metadata only. Taxonomies are selected by `ta
 | `atlas-import-traces` | Generate/store a taxonomy from existing traces. |
 | `atlas-register-taxonomy` | Add a taxonomy JSON record to the store. |
 | `atlas-doctor` | Validate config, paths, integrations, and optional dependencies. |
+| `atlas-status` | Show program health: active taxonomy, pending traces, learning state, and recent decisions. |
 | `atlas-claude-install` / `atlas-claude-uninstall` | Manage Claude Code hooks. |
 | `atlas-codex-install` / `atlas-codex-uninstall` | Manage Codex hooks. |
 | `atlas-single-run` | Wrap one direct LLM task call with ATLAS. |
