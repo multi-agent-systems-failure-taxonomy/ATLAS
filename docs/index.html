@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ATLAS Skill documentation</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --surface: #ffffff;
+      --ink: #111827;
+      --muted: #667085;
+      --line: #d8e0eb;
+      --navy: #14213d;
+      --blue: #2f68e9;
+      --blue-soft: #eaf1ff;
+      --green: #0e9f6e;
+      --green-soft: #e8f7f0;
+      --shadow: 0 20px 60px rgba(17, 24, 39, .10);
+      --radius: 24px;
+      --sans: "Inter", "Segoe UI", Aptos, system-ui, sans-serif;
+      --mono: "Cascadia Mono", Consolas, "SFMono-Regular", monospace;
+      --display: "Aptos Display", "Segoe UI Variable Display", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { background: var(--bg); color: var(--ink); }
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      line-height: 1.55;
+      background:
+        radial-gradient(circle at 12% -10%, rgba(47, 104, 233, .18), transparent 34rem),
+        var(--bg);
+    }
+    a { color: inherit; }
+    .shell { width: min(1160px, calc(100% - 36px)); margin: 0 auto; }
+    .hero {
+      margin: 28px auto 22px;
+      padding: 34px;
+      border-radius: 32px;
+      color: white;
+      background:
+        linear-gradient(135deg, rgba(20, 33, 61, .98), rgba(31, 52, 92, .94)),
+        var(--navy);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      position: relative;
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: auto -10% -42% 45%;
+      height: 220px;
+      background:
+        repeating-linear-gradient(90deg, rgba(255,255,255,.22) 0 1px, transparent 1px 22px);
+      transform: rotate(-10deg);
+      opacity: .65;
+    }
+    .hero-content { position: relative; z-index: 1; max-width: 850px; }
+    .eyebrow, .tag, code {
+      font-family: var(--mono);
+    }
+    .eyebrow {
+      color: #b8c8ff;
+      font-size: .76rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    h1 {
+      margin: 0;
+      font-family: var(--display);
+      font-size: clamp(2.3rem, 6vw, 5rem);
+      line-height: .94;
+      letter-spacing: -.055em;
+      text-wrap: balance;
+    }
+    .hero p {
+      max-width: 720px;
+      margin: 16px 0 0;
+      color: #d9e2ff;
+      font-size: 1.06rem;
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 22px;
+    }
+    .button {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 11px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.28);
+      text-decoration: none;
+      background: rgba(255,255,255,.11);
+      color: white;
+      font-weight: 650;
+    }
+    .button.primary {
+      background: white;
+      color: var(--navy);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin: 18px 0;
+    }
+    .card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255,255,255,.9);
+      box-shadow: 0 12px 32px rgba(17, 24, 39, .07);
+      padding: 20px;
+      min-width: 0;
+    }
+    .card h2, .card h3 {
+      margin: 0 0 9px;
+      font-family: var(--display);
+      letter-spacing: -.025em;
+      line-height: 1.1;
+    }
+    .card p {
+      margin: 0 0 16px;
+      color: var(--muted);
+    }
+    .link-list {
+      display: grid;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .link-list a {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 0;
+      border-top: 1px solid #edf1f6;
+      text-decoration: none;
+      color: var(--ink);
+      font-weight: 620;
+    }
+    .link-list a::after {
+      content: "→";
+      color: var(--blue);
+    }
+    .quickstart {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
+      gap: 14px;
+      align-items: stretch;
+      margin: 18px 0 34px;
+    }
+    pre {
+      margin: 0;
+      padding: 18px;
+      overflow: auto;
+      border-radius: 18px;
+      background: #101828;
+      color: #e6edf7;
+      font-size: .86rem;
+      line-height: 1.55;
+    }
+    code { font-size: .9em; }
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+    .tag {
+      display: inline-flex;
+      padding: 5px 9px;
+      border-radius: 999px;
+      background: var(--blue-soft);
+      color: #1744b8;
+      font-size: .72rem;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .tag.green {
+      background: var(--green-soft);
+      color: #057a55;
+    }
+    footer {
+      padding: 28px 0 44px;
+      color: var(--muted);
+      font-size: .88rem;
+    }
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+      .quickstart { grid-template-columns: 1fr; }
+      .hero { padding: 26px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div class="hero-content">
+        <div class="eyebrow">ATLAS Skill documentation</div>
+        <h1>Adaptive failure-mode taxonomies for agent pipelines.</h1>
+        <p>
+          Install ATLAS, choose an integration, watch runtime failure modes,
+          and build or refine taxonomies from the traces your agents already produce.
+        </p>
+        <div class="actions">
+          <a class="button primary" href="GETTING_STARTED.md">Get started</a>
+          <a class="button" href="INSTALLATION.md">Install</a>
+          <a class="button" href="WEB_API.md">Web API</a>
+          <a class="button" href="../README.md">Repository home</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid" aria-label="Main documentation paths">
+      <article class="card">
+        <h2>Run ATLAS</h2>
+        <p>Start with a working configuration, then install the adapter that matches your harness.</p>
+        <ul class="link-list">
+          <li><a href="GETTING_STARTED.md">First successful run</a></li>
+          <li><a href="INSTALLATION.md">Installation and credentials</a></li>
+          <li><a href="TROUBLESHOOTING.md">Common failures</a></li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h2>Integrate</h2>
+        <p>Connect ATLAS to Claude Code, Codex, direct LLM scripts, or a custom harness.</p>
+        <ul class="link-list">
+          <li><a href="CLAUDE_CODE.md">Claude Code</a></li>
+          <li><a href="CODEX.md">Codex</a></li>
+          <li><a href="SINGLE_LLM.md">Single LLM / benchmarks</a></li>
+          <li><a href="API_OR_RUNTIME.md">Runtime API</a></li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h2>Operate</h2>
+        <p>Inspect live evidence, manage taxonomies, and understand learning thresholds.</p>
+        <ul class="link-list">
+          <li><a href="DASHBOARD.md">Runtime dashboard</a></li>
+          <li><a href="WEB_API.md">Local web API</a></li>
+          <li><a href="TAXONOMIES.md">Taxonomy records</a></li>
+          <li><a href="TRACES_AND_LEARNING.md">Traces and learning</a></li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="quickstart" aria-label="Quick start">
+      <article class="card">
+        <h2>The minimum shape</h2>
+        <p>
+          ATLAS starts from built-in MAST unless you inherit a stored taxonomy.
+          Runtime evidence is captured under one program-specific trace folder.
+        </p>
+        <div class="tag-row">
+          <span class="tag">taxonomy_id first</span>
+          <span class="tag">repo/domain display only</span>
+          <span class="tag green">stdlib runtime</span>
+        </div>
+      </article>
+      <pre><code>{
+  "version": 1,
+  "trace_output": "./atlas-program",
+  "trace_root": "~/.atlas-skill/traces",
+  "store_dir": "~/.atlas-skill/taxonomies",
+  "atlas_model": "gpt-5",
+  "inherit": null,
+  "dashboard": true
+}</code></pre>
+    </section>
+  </main>
+  <footer class="shell">
+    ATLAS documentation is static and dependency-free. Markdown pages remain readable directly on GitHub.
+  </footer>
+</body>
+</html>

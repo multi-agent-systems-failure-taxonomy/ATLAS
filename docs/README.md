@@ -27,7 +27,14 @@ This folder is the detailed reference for ATLAS. The repository homepage stays i
 | Taxonomy records, inheritance, and importing existing taxonomies | [TAXONOMIES.md](TAXONOMIES.md) |
 | Trace storage, generation thresholds, refinement thresholds | [TRACES_AND_LEARNING.md](TRACES_AND_LEARNING.md) |
 | Live dashboard, task UID filtering, and local monitoring | [DASHBOARD.md](DASHBOARD.md) |
+| Local dashboard HTTP endpoints and response shapes | [WEB_API.md](WEB_API.md) |
 | Program health CLI and common runtime failures | [TROUBLESHOOTING.md](TROUBLESHOOTING.md) |
+
+## Web docs
+
+The dependency-free web landing page is [index.html](index.html). It can be
+served directly by GitHub Pages from the `docs/` folder while the Markdown pages
+remain readable in GitHub's normal file view.
 
 ## Lower-level package maps
 

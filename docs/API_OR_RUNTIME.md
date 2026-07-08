@@ -27,7 +27,7 @@ The runtime maps `none` to built-in MAST. Finding itself does not load MAST as a
 | Command | Use |
 |---|---|
 | `atlas-find` | Taxonomy selection and interactive picker. |
-| `atlas-dashboard` | Dashboard process. |
+| `atlas-dashboard` | Dashboard process and local Web API. |
 | `atlas-traces` | Trace status and inspection. |
 | `atlas-register-taxonomy` | Store a completed taxonomy record. |
 | `atlas-import-traces` | Build a taxonomy from existing trace files. |
@@ -53,3 +53,4 @@ ATLAS owns:
 - taxonomy storage.
 
 See [INTEGRATION.md](../INTEGRATION.md) for a broader pipeline integration guide.
+See [WEB_API.md](WEB_API.md) for the localhost dashboard API response shapes.

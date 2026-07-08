@@ -10,10 +10,11 @@ The temporary program and taxonomy store disappear when the server stops.
 from __future__ import annotations
 
 import argparse
+import json
 import tempfile
 from pathlib import Path
 
-from atlas_runtime.dashboard import run_dashboard
+from atlas_runtime.dashboard import RUNTIME_EVIDENCE, run_dashboard
 from atlas_runtime.program import ProgramWorkspace
 from finding import store
 
@@ -32,6 +33,7 @@ DEMO_TAXONOMY = {
                 "new ephemeris has arrived, placing the operation outside its "
                 "valid visibility interval."
             ),
+            "category": "Runtime",
             "severity": "high",
             "fire_count": 7,
             "task_firings": [
@@ -49,6 +51,7 @@ DEMO_TAXONOMY = {
                 "downstream task confirms ownership, allowing overlapping "
                 "operations to claim the same resource."
             ),
+            "category": "Coordination",
             "severity": "critical",
             "fire_count": 4,
             "task_firings": [
@@ -64,6 +67,7 @@ DEMO_TAXONOMY = {
                 "A timeout is treated as proof that the remote command failed, "
                 "so the scheduler repeats an operation that actually completed."
             ),
+            "category": "Runtime",
             "severity": "medium",
             "fire_count": 2,
             "task_firings": [
@@ -78,6 +82,7 @@ DEMO_TAXONOMY = {
                 "One scheduling boundary uses local station time while the "
                 "rest of the plan uses UTC, shifting a narrow operation window."
             ),
+            "category": "Specification",
             "severity": "high",
             "fire_count": 5,
             "task_firings": [
@@ -94,6 +99,7 @@ DEMO_TAXONOMY = {
                 "mutated execution payload is never checked against the same "
                 "constraints."
             ),
+            "category": "Verification",
             "severity": "medium",
             "fire_count": 0,
             "task_firings": [],
@@ -116,7 +122,9 @@ def main(argv=None) -> int:
         store_dir = root / "taxonomies"
         program_dir = root / "program"
         store.register(DEMO_TAXONOMY, store_dir)
-        ProgramWorkspace(program_dir).bind_inherited_taxonomy(DEMO_TAXONOMY_ID)
+        workspace = ProgramWorkspace(program_dir)
+        workspace.bind_inherited_taxonomy(DEMO_TAXONOMY_ID)
+        _write_demo_runtime_evidence(program_dir)
 
         print("Loading disposable demo data.")
         print("Counts and task IDs are placeholders for layout review only.")
@@ -129,6 +137,174 @@ def main(argv=None) -> int:
             open_browser=not args.no_browser,
         )
     return 0
+
+
+def _write_demo_runtime_evidence(program_dir: Path) -> None:
+    (program_dir / ".atlas-task-labels.json").write_text(
+        json.dumps(
+            {
+                "task-1042": {"label": "UID1042", "correct": False},
+                "task-1061": {"label": "UID1061", "correct": True},
+                "task-1087": {"label": "UID1087", "correct": False},
+                "task-1120": {"label": "UID1120", "correct": False},
+                "task-1135": {"label": "UID1135", "correct": True},
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (program_dir / RUNTIME_EVIDENCE).write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "checkpoints": [
+                    {
+                        "taxonomy_id": DEMO_TAXONOMY_ID,
+                        "checkpoint_id": "cp-1042-plan",
+                        "timestamp": 1,
+                        "gate": "tool_boundary",
+                        "task_id": "task-1042",
+                        "fired_codes": ["ORB-01"],
+                    },
+                    {
+                        "taxonomy_id": DEMO_TAXONOMY_ID,
+                        "checkpoint_id": "cp-1061-clean",
+                        "timestamp": 2,
+                        "gate": "final_gate",
+                        "task_id": "task-1061",
+                        "none_apply": True,
+                        "considered_codes": ["ORB-01", "ORB-05"],
+                        "fired_codes": [],
+                        "observe": "The agent checked the updated window and payload.",
+                        "correlate": "No evidence-supported failure mode remained.",
+                        "decide": "Submit without repair.",
+                    },
+                    {
+                        "taxonomy_id": DEMO_TAXONOMY_ID,
+                        "checkpoint_id": "cp-1087-handoff",
+                        "timestamp": 3,
+                        "gate": "subtask_boundary",
+                        "task_id": "task-1087",
+                        "fired_codes": ["ORB-02"],
+                    },
+                    {
+                        "taxonomy_id": DEMO_TAXONOMY_ID,
+                        "checkpoint_id": "cp-1120-final",
+                        "timestamp": 4,
+                        "gate": "final_gate",
+                        "task_id": "task-1120",
+                        "fired_codes": ["ORB-01", "ORB-04"],
+                    },
+                    {
+                        "taxonomy_id": DEMO_TAXONOMY_ID,
+                        "checkpoint_id": "cp-1135-retry",
+                        "timestamp": 5,
+                        "gate": "tool_failure",
+                        "task_id": "task-1135",
+                        "fired_codes": ["ORB-03"],
+                    },
+                ],
+                "taxonomies": {
+                    DEMO_TAXONOMY_ID: {
+                        "codes": {
+                            "ORB-01": {
+                                "fire_count": 2,
+                                "task_firings": {"task-1042": 1, "task-1120": 1},
+                                "events": [
+                                    {
+                                        "checkpoint_id": "cp-1042-plan",
+                                        "timestamp": 1,
+                                        "gate": "tool_boundary",
+                                        "task_id": "task-1042",
+                                        "evidence": (
+                                            "The schedule reused the cached "
+                                            "AOS/LOS window after a newer "
+                                            "ephemeris was loaded."
+                                        ),
+                                        "correlate": (
+                                            "The task crossed the exact boundary "
+                                            "described by ORB-01."
+                                        ),
+                                        "decide": "Recompute the window before dispatch.",
+                                    },
+                                    {
+                                        "checkpoint_id": "cp-1120-final",
+                                        "timestamp": 4,
+                                        "gate": "final_gate",
+                                        "task_id": "task-1120",
+                                        "evidence": (
+                                            "The final plan still cites the older "
+                                            "ephemeris revision."
+                                        ),
+                                        "correlate": "The stale input explains the invalid window.",
+                                        "decide": "Block final submission until recomputed.",
+                                    },
+                                ],
+                            },
+                            "ORB-02": {
+                                "fire_count": 1,
+                                "task_firings": {"task-1087": 1},
+                                "events": [
+                                    {
+                                        "checkpoint_id": "cp-1087-handoff",
+                                        "timestamp": 3,
+                                        "gate": "subtask_boundary",
+                                        "task_id": "task-1087",
+                                        "evidence": (
+                                            "The antenna lock was released before "
+                                            "the downstream scheduler confirmed ownership."
+                                        ),
+                                        "correlate": "The handoff lost exclusive ownership.",
+                                        "decide": "Hold the lock until acknowledgement.",
+                                    }
+                                ],
+                            },
+                            "ORB-03": {
+                                "fire_count": 1,
+                                "task_firings": {"task-1135": 1},
+                                "events": [
+                                    {
+                                        "checkpoint_id": "cp-1135-retry",
+                                        "timestamp": 5,
+                                        "gate": "tool_failure",
+                                        "task_id": "task-1135",
+                                        "evidence": (
+                                            "A timeout triggered a duplicate command "
+                                            "without checking command completion."
+                                        ),
+                                        "correlate": "The retry path matched ORB-03.",
+                                        "decide": "Check idempotency before retrying.",
+                                    }
+                                ],
+                            },
+                            "ORB-04": {
+                                "fire_count": 1,
+                                "task_firings": {"task-1120": 1},
+                                "events": [
+                                    {
+                                        "checkpoint_id": "cp-1120-final",
+                                        "timestamp": 4,
+                                        "gate": "final_gate",
+                                        "task_id": "task-1120",
+                                        "evidence": (
+                                            "The uplink boundary was expressed in "
+                                            "station local time while the rest used UTC."
+                                        ),
+                                        "correlate": "The time basis mismatch shifted the window.",
+                                        "decide": "Normalize the boundary before release.",
+                                    }
+                                ],
+                            },
+                        }
+                    }
+                },
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
 
 if __name__ == "__main__":

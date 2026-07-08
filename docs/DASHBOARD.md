@@ -14,13 +14,15 @@ Integrations can also launch it automatically when `dashboard` is true in `atlas
 
 ## What it shows
 
-The dashboard is organized around recorded trace evidence:
+The dashboard is organized around runtime progress:
 
-- active taxonomy metadata;
-- task IDs and task UIDs;
-- failure-mode codes that fired;
-- evidence snippets and reasoning captured by the gate;
-- learning state when generation or refinement is pending.
+- active taxonomy metadata and live refresh status;
+- summary cards for active failure modes, total firings, affected task UIDs,
+  clean checkpoints, and total codes;
+- a recent-event timeline across fired modes and clean checkpoints;
+- failure-mode cards sorted with active codes first;
+- evidence snippets and reasoning captured by runtime gates;
+- task UID filtering for one benchmark item or user task.
 
 ## UID filtering
 
@@ -29,6 +31,22 @@ Use the search bar at the top to filter to a single task UID, such as `UID0118`.
 If `A.2`, `A.5`, and `C.1` fired for `UID0118`, searching that UID hides unrelated tasks and shows only the matching `UID0118` entries and their associated codes.
 
 This is useful when several tasks share the same dashboard and multiple failure modes fire across different tasks.
+
+## Demo data
+
+For a disposable local preview:
+
+```bash
+python -m examples.dashboard_demo
+```
+
+The demo writes temporary taxonomy and runtime-evidence data, opens the
+dashboard, and removes the temporary folder when the process exits.
+
+## Local Web API
+
+The dashboard reads `GET /api/taxonomy` and `GET /api/health`. See
+[WEB_API.md](WEB_API.md) for endpoint details and response shapes.
 
 ## Local-only behavior
 

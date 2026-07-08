@@ -105,6 +105,7 @@ Repo and domain fields are display metadata only. Taxonomies are selected by `ta
 | Taxonomy records and inheritance | [docs/TAXONOMIES.md](docs/TAXONOMIES.md) |
 | Traces, generation, refinement | [docs/TRACES_AND_LEARNING.md](docs/TRACES_AND_LEARNING.md) |
 | Live dashboard and UID filtering | [docs/DASHBOARD.md](docs/DASHBOARD.md) |
+| Local dashboard Web API | [docs/WEB_API.md](docs/WEB_API.md) |
 | Harness-neutral runtime API | [docs/API_OR_RUNTIME.md](docs/API_OR_RUNTIME.md) |
 | Common failures and fixes | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) |
 | Documentation index | [docs/README.md](docs/README.md) |
