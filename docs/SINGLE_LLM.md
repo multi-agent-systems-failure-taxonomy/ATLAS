@@ -1,0 +1,74 @@
+# Single-LLM integration
+
+Use this path when your application owns the model call: scripts, notebooks, benchmarks, batch jobs, or custom pipelines.
+
+## CLI wrapper
+
+```bash
+atlas-single-run \
+  --config atlas.json \
+  --task "Solve the task, then pass through ATLAS before final answer." \
+  --model gpt-5
+```
+
+The `--model` flag is the task-solving model. The `atlas_model` field in `atlas.json` is the ATLAS generation, judge, and refinement model.
+
+## Programmatic integration
+
+Custom programs can call the runtime directly. A minimal adapter looks like this:
+
+```python
+from atlas_runtime import GenerationTrace, end_session, load_atlas_config, record_trace, start_session
+
+config = load_atlas_config("atlas.json")
+session_args = dict(
+    trace_output=config["trace_output"],
+    store_dir=config.get("store_dir", "~/.atlas-skill/taxonomies"),
+    trace_root=config.get("trace_root", "~/.atlas-skill/traces"),
+    atlas_model=config.get("atlas_model"),
+    generation_threshold=config.get("generation_threshold", 5),
+    generation_stops=config.get("generation_stops", False),
+    k_init=config.get("k_init", 10),
+    k=config.get("k", 20),
+    refinement_stops=config.get("refinement_stops", False),
+    advanced_refinement=config.get("advanced_refinement", False),
+    dashboard=config.get("dashboard", True),
+)
+if config.get("inherit") is not None:
+    session_args["inherit"] = config["inherit"]
+
+session = start_session(**session_args)
+
+try:
+    # Run your own task-solving model here, then save the canonical ATLAS trace.
+    answer = run_my_model(...)
+    record_trace(
+        session,
+        GenerationTrace(
+            problem_id="UID0118",
+            task="original task text",
+            raw_trajectory="model-visible trajectory and final answer",
+            metadata={"answer": answer},
+        ),
+    )
+finally:
+    end_session(session)
+```
+
+The exact method names depend on the adapter layer you choose, but the contract is stable:
+
+1. start a session with a mandatory trace output;
+2. resolve the active taxonomy;
+3. call checkpoint/final gates at meaningful boundaries;
+4. record one canonical trace at the end.
+
+## When to use this path
+
+Use the single-LLM path when:
+
+- there is no agent harness with hooks;
+- each dataset row or benchmark sample is a separate task;
+- you want deterministic control over when ATLAS is invoked;
+- you want to compare ATLAS-on and ATLAS-off runs from the same script.
+
+See [API_OR_RUNTIME.md](API_OR_RUNTIME.md) for lower-level runtime notes.
