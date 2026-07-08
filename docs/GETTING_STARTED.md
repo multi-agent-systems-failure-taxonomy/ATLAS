@@ -58,6 +58,7 @@ Create `atlas.json` in your project:
   "k": 20,
   "refinement_stops": false,
   "advanced_refinement": false,
+  "freeze": false,
   "max_retries": 3,
   "dashboard": true
 }
@@ -217,6 +218,8 @@ after acceptance.
 | `k` | `20` | Later refinement threshold for the same program. |
 | `refinement_stops` | `false` | Turn on if the current task must wait for refinement. |
 | `advanced_refinement` | `false` | Turn on for one support-judge repair pass during refinement. |
+| `freeze` | `false` | Turn on for inference-only evaluation: record traces/evidence, but skip generation and refinement. |
+| `evidence_export` | unset | Optional external JSON file or directory sink for session-end evidence snapshots. |
 | `max_retries` | `3` | Final-gate repair opportunities before honest unresolved release. |
 | `gate_exhaustion_policy` | `raise` | For single-LLM benchmark wrappers, use `release` to return the best answer after the retry cap while recording `gate_allowed=false`. |
 

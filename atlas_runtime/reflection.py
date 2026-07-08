@@ -97,25 +97,13 @@ def parse_reflection(
 
     known = tuple(str(code_id) for code_id in known_code_ids)
     map_text = sections["map"]
-    mentioned = tuple(
-        code_id
-        for code_id in known
-        if re.search(
-            rf"(?<![A-Za-z0-9_.-]){re.escape(code_id)}"
-            rf"(?![A-Za-z0-9_.-])",
-            map_text,
-            re.IGNORECASE,
-        )
-    )
-    if not mentioned:
-        raise ValueError("Map must name at least one active taxonomy code")
-
     negated_or_clean = re.compile(
         r"none\s+appl|\bconsidered\b|not[\s-]+(?:exhibit|fire|appl)|"
         r"does\s+not\s+apply|doesn'?t\s+apply|\bn/?a\b|no\s+failure|"
         r"\bclean\b|not\s+present|\babsent\b",
         re.I,
     )
+    mentioned = _mentioned_codes(map_text, known)
     assignments: list[CodeAssignment] = []
     seen: set[str] = set()
     for line in map_text.splitlines():
@@ -143,6 +131,10 @@ def parse_reflection(
     none_apply = (not assignments) and bool(
         re.search(r"\bnone\s+appl(?:y|ies)\b", map_text, re.I)
     )
+    if none_apply and not mentioned:
+        mentioned = _mentioned_codes(block, known)
+    if not mentioned:
+        raise ValueError("Map must name at least one active taxonomy code")
     if none_apply and not _evidence(map_text):
         raise ValueError("`none apply` must include evidence or a reason")
     if not assignments and not none_apply:
@@ -170,4 +162,17 @@ def _evidence(text: str) -> str:
     return next(
         (group.strip() for group in match.groups() if group and group.strip()),
         "",
+    )
+
+
+def _mentioned_codes(text: str, known: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(
+        code_id
+        for code_id in known
+        if re.search(
+            rf"(?<![A-Za-z0-9_.-]){re.escape(code_id)}"
+            rf"(?![A-Za-z0-9_.-])",
+            text,
+            re.IGNORECASE,
+        )
     )

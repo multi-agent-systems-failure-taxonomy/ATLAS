@@ -18,6 +18,11 @@ class ProgramHealthTests(unittest.TestCase):
             root = Path(td)
             program = root / "program"
             workspace = ProgramWorkspace(program, repo="repo")
+            workspace.record_usage_event(
+                stage="taxonomy_generation",
+                model="gpt-5",
+                usage_available=False,
+            )
             workspace.pending.append_many([
                 GenerationTrace(
                     problem_id="p1",
@@ -37,6 +42,11 @@ class ProgramHealthTests(unittest.TestCase):
             self.assertEqual(health["active_taxonomy_id"], "mast")
             self.assertEqual(health["pending_traces"], 1)
             self.assertEqual(health["recent_decisions"], ["old", "new"])
+            self.assertEqual(health["usage"]["totals"]["calls"], 1)
+            self.assertEqual(
+                health["usage"]["recent_events"][0]["stage"],
+                "taxonomy_generation",
+            )
 
     def test_status_cli_json_uses_config_trace_output(self):
         with tempfile.TemporaryDirectory() as td:

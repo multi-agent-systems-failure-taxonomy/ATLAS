@@ -76,6 +76,8 @@ def session_start(event: dict[str, Any], config: ClaudeCodeConfig) -> dict:
         k=config.k,
         refinement_stops=config.refinement_stops,
         advanced_refinement=config.advanced_refinement,
+        freeze=config.freeze,
+        evidence_export=config.evidence_export,
     )
     state = build_session_state(
         session_id=session_id,
@@ -441,6 +443,12 @@ def _finish_runtime_session(
         k=int(lifecycle["k"]),
         refinement_stops=bool(lifecycle["refinement_stops"]),
         advanced_refinement=bool(lifecycle["advanced_refinement"]),
+        freeze=bool(lifecycle.get("freeze", False)),
+        evidence_export=(
+            Path(lifecycle["evidence_export"])
+            if lifecycle.get("evidence_export")
+            else None
+        ),
     )
     raw_trajectory = read_raw_transcript(transcript_path).strip()
     if not raw_trajectory:

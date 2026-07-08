@@ -57,6 +57,18 @@ class ListAllTests(unittest.TestCase):
         ids = {rec["taxonomy_id"] for rec in store.list_all(STORE_DIR)}
         self.assertIn("tax-django-orm-001", ids)
 
+    def test_accepts_utf8_bom_records(self):
+        with tempfile.TemporaryDirectory() as td:
+            record = json.loads(
+                (STORE_DIR / "tax-django-orm-001.json").read_text(encoding="utf-8")
+            )
+            record["taxonomy_id"] = "bom-taxonomy"
+            (Path(td) / "bom-taxonomy.json").write_text(
+                json.dumps(record),
+                encoding="utf-8-sig",
+            )
+            self.assertEqual(store.list_all(td)[0]["taxonomy_id"], "bom-taxonomy")
+
 
 class FetchByIdTests(unittest.TestCase):
     def test_returns_full_record(self):
@@ -79,6 +91,21 @@ class FetchByIdTests(unittest.TestCase):
     def test_exists(self):
         self.assertTrue(store.exists("tax-flask-routing-004", STORE_DIR))
         self.assertFalse(store.exists("tax-nope", STORE_DIR))
+
+    def test_fetch_accepts_utf8_bom_record(self):
+        with tempfile.TemporaryDirectory() as td:
+            record = json.loads(
+                (STORE_DIR / "tax-numpy-array-003.json").read_text(encoding="utf-8")
+            )
+            record["taxonomy_id"] = "bom-fetch"
+            (Path(td) / "bom-fetch.json").write_text(
+                json.dumps(record),
+                encoding="utf-8-sig",
+            )
+            self.assertEqual(
+                store.fetch_by_id("bom-fetch", td)["taxonomy_id"],
+                "bom-fetch",
+            )
 
 
 class RegisterTests(unittest.TestCase):

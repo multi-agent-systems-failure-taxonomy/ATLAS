@@ -69,6 +69,8 @@ class Session:
     k: int
     refinement_stops: bool
     advanced_refinement: bool
+    freeze: bool
+    evidence_export: Path | None
     _pending_traces: list[GenerationTrace] = field(default_factory=list)
     _ended: bool = False
 
@@ -80,6 +82,8 @@ class SessionEndResult:
     retention: RetentionReport
     generation: GenerationResult
     refinement: RefinementResult
+    evidence_export_path: Path | None = None
+    evidence_export_error: str | None = None
 
 
 def start_session(
@@ -99,6 +103,8 @@ def start_session(
     k: int = DEFAULT_K,
     refinement_stops: bool = False,
     advanced_refinement: bool = False,
+    freeze: bool = False,
+    evidence_export: Path | str | None = None,
     repo: str | None = None,
     repo_path: Path | str | None = None,
     dashboard: bool = True,
@@ -174,6 +180,8 @@ def start_session(
         k=k,
         refinement_stops=refinement_stops,
         advanced_refinement=advanced_refinement,
+        freeze=freeze,
+        evidence_export=Path(evidence_export) if evidence_export else None,
     )
 
 
@@ -214,7 +222,22 @@ def end_session(
     integrated = 0
     generation = GenerationResult("none", "taxonomy generation not applicable")
     refinement = RefinementResult("none", "taxonomy refinement not applicable")
-    if session.delivery.taxonomy_id != mast.MAST_ID:
+    if session.freeze:
+        if session.delivery.taxonomy_id != mast.MAST_ID:
+            destination = TraceStore(
+                session.trace_root / session.delivery.taxonomy_id
+            )
+            integrated = session.workspace.pending.integrate_into(destination)
+            refinement = RefinementResult(
+                "frozen",
+                "freeze mode enabled; refinement skipped",
+            )
+        else:
+            generation = GenerationResult(
+                "frozen",
+                "freeze mode enabled; generation skipped",
+            )
+    elif session.delivery.taxonomy_id != mast.MAST_ID:
         destination = TraceStore(
             session.trace_root / session.delivery.taxonomy_id
         )
@@ -265,12 +288,26 @@ def end_session(
         stop_dashboard_if_idle(session.workspace)
     except Exception:
         pass
+    evidence_export_path = None
+    evidence_export_error = None
+    if session.evidence_export:
+        try:
+            from .evidence_export import export_program_evidence
+
+            evidence_export_path = export_program_evidence(
+                session.workspace,
+                session.evidence_export,
+            )
+        except Exception as exc:  # noqa: BLE001
+            evidence_export_error = str(exc)
     return SessionEndResult(
         persisted_traces=persisted,
         integrated_traces=integrated,
         retention=retained.retention_report(),
         generation=generation,
         refinement=refinement,
+        evidence_export_path=evidence_export_path,
+        evidence_export_error=evidence_export_error,
     )
 
 

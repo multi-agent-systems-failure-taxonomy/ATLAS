@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -38,6 +39,7 @@ from .worker_state import (
 
 DEFAULT_K_INIT = 10
 DEFAULT_K = 20
+DEFAULT_OVERLAP_THRESHOLD = 0.72
 Refiner = Callable[[dict[str, Any], list[dict[str, Any]]], dict[str, Any]]
 RefinementJudge = Callable[
     [
@@ -174,6 +176,16 @@ def run_refinement_job(
         traces = _load_program_refinement_traces(workspace, trace_root)
         trace_records = [trace.to_dict() for trace in traces]
         candidate = refine(current, trace_records)
+        workspace.record_usage_event(
+            stage="taxonomy_refinement",
+            model=str(model) if model else None,
+            usage_available=False,
+            details={
+                "trace_count": len(trace_records),
+                "custom_refiner": refiner is not None,
+                "note": "transport did not expose token or cost metadata",
+            },
+        )
         candidate = _normalize_candidate(candidate, current)
         if not structurally_accept_refinement(candidate):
             raise ValueError("refinement candidate failed structural validation")
@@ -187,6 +199,17 @@ def run_refinement_job(
             issues = _normalize_issues(
                 review(current, candidate, diff, trace_records, str(model))
             )
+            workspace.record_usage_event(
+                stage="refinement_support_judge",
+                model=str(model),
+                usage_available=False,
+                details={
+                    "trace_count": len(trace_records),
+                    "issue_count": len(issues),
+                    "custom_judge": judge is not None,
+                    "note": "transport did not expose token or cost metadata",
+                },
+            )
             if issues:
                 revise = repairer or _model_refinement_repairer
                 candidate = revise(
@@ -197,6 +220,17 @@ def run_refinement_job(
                     issues,
                     str(model),
                 )
+                workspace.record_usage_event(
+                    stage="refinement_repair",
+                    model=str(model),
+                    usage_available=False,
+                    details={
+                        "trace_count": len(trace_records),
+                        "issue_count": len(issues),
+                        "custom_repairer": repairer is not None,
+                        "note": "transport did not expose token or cost metadata",
+                    },
+                )
                 candidate = _normalize_candidate(candidate, current)
                 if not structurally_accept_refinement(candidate):
                     raise ValueError(
@@ -204,6 +238,7 @@ def run_refinement_job(
                     )
                 diff = structural_diff(current, candidate)
                 repaired = True
+        overlap_warnings = overlap_lint(candidate)
         if not accept(candidate):
             workspace.mark_refinement("rejected", "candidate rejected")
             return RefinementResult(
@@ -218,6 +253,7 @@ def run_refinement_job(
             advanced_refinement=advanced_refinement,
             repaired=repaired,
             judge_issues=issues,
+            overlap_warnings=overlap_warnings,
             store_dir=store_dir,
             trace_root=trace_root,
             poll_seconds=activation_poll_seconds,
@@ -279,16 +315,80 @@ def structural_diff(
     before = {_code_identity(code): code for code in current.get("codes", [])}
     after = {_code_identity(code): code for code in candidate.get("codes", [])}
     shared = sorted(before.keys() & after.keys())
+    removed = sorted(before.keys() - after.keys())
+    added = sorted(after.keys() - before.keys())
     return {
         "repo_changed": current.get("repo") != candidate.get("repo"),
         "domain_changed": current.get("domain") != candidate.get("domain"),
-        "codes_added": sorted(after.keys() - before.keys()),
-        "codes_removed": sorted(before.keys() - after.keys()),
+        "codes_added": added,
+        "codes_removed": removed,
         "codes_changed": [
             code_id
             for code_id in shared
             if before[code_id] != after[code_id]
         ],
+        "code_id_mapping": {
+            "old_to_new": {
+                **{code_id: code_id for code_id in shared},
+                **{code_id: None for code_id in removed},
+            },
+            "new_from_old": {
+                **{code_id: code_id for code_id in shared},
+                **{code_id: None for code_id in added},
+            },
+        },
+    }
+
+
+def overlap_lint(
+    taxonomy: dict[str, Any],
+    *,
+    threshold: float = DEFAULT_OVERLAP_THRESHOLD,
+) -> list[dict[str, Any]]:
+    """Return non-blocking warnings for near-duplicate failure modes."""
+    codes = [
+        code for code in taxonomy.get("codes", [])
+        if isinstance(code, dict)
+    ]
+    warnings: list[dict[str, Any]] = []
+    for left_index, left in enumerate(codes):
+        left_terms = _lint_terms(left)
+        if not left_terms:
+            continue
+        for right in codes[left_index + 1:]:
+            right_terms = _lint_terms(right)
+            if not right_terms:
+                continue
+            overlap = len(left_terms & right_terms) / len(left_terms | right_terms)
+            if overlap >= threshold:
+                warnings.append(
+                    {
+                        "code_a": str(left.get("id", "")),
+                        "code_b": str(right.get("id", "")),
+                        "score": round(overlap, 3),
+                        "threshold": threshold,
+                        "reason": (
+                            "possible overlap between failure-mode names "
+                            "or descriptions"
+                        ),
+                    }
+                )
+    return warnings
+
+
+def _lint_terms(code: dict[str, Any]) -> set[str]:
+    text = " ".join(
+        str(code.get(key, "")) for key in ("name", "description", "category")
+    ).lower()
+    stopwords = {
+        "a", "an", "and", "are", "as", "at", "be", "by", "for", "from",
+        "in", "into", "is", "it", "its", "of", "on", "or", "that", "the",
+        "their", "this", "to", "with", "without", "when",
+    }
+    return {
+        term
+        for term in re.findall(r"[a-z0-9]+", text)
+        if len(term) > 2 and term not in stopwords
     }
 
 
@@ -341,6 +441,7 @@ def _wait_and_commit(
     advanced_refinement: bool,
     repaired: bool,
     judge_issues: list[Any],
+    overlap_warnings: list[dict[str, Any]],
     store_dir: Path,
     trace_root: Path,
     poll_seconds: float,
@@ -359,6 +460,7 @@ def _wait_and_commit(
                     advanced_refinement=advanced_refinement,
                     repaired=repaired,
                     judge_issues=judge_issues,
+                    overlap_warnings=overlap_warnings,
                     store_dir=store_dir,
                     trace_root=trace_root,
                 )
@@ -377,6 +479,7 @@ def _commit_refinement(
     advanced_refinement: bool,
     repaired: bool,
     judge_issues: list[Any],
+    overlap_warnings: list[dict[str, Any]],
     store_dir: Path,
     trace_root: Path,
 ) -> str:
@@ -401,6 +504,7 @@ def _commit_refinement(
             advanced_refinement=advanced_refinement,
             repaired=repaired,
             judge_issues=judge_issues,
+            overlap_warnings=overlap_warnings,
         )
         artifact_written = True
 
@@ -435,6 +539,7 @@ def _write_refinement_artifact(
     advanced_refinement: bool,
     repaired: bool,
     judge_issues: list[Any],
+    overlap_warnings: list[dict[str, Any]],
 ) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     temporary = target.with_suffix(".json.tmp")
@@ -446,6 +551,7 @@ def _write_refinement_artifact(
                 "advanced_refinement": advanced_refinement,
                 "repaired": repaired,
                 "judge_issues": judge_issues,
+                "overlap_warnings": overlap_warnings,
                 "diff": diff,
             },
             indent=2,

@@ -55,6 +55,8 @@ class SingleLLMConfig:
     skip_judge: bool = False
     refinement_stops: bool = False
     advanced_refinement: bool = False
+    freeze: bool = False
+    evidence_export: Path | None = None
     gate_exhaustion_policy: str = "raise"
     recent_activity_messages: int = 8
     recent_activity_chars: int = 12000
@@ -105,6 +107,8 @@ def run_single_llm(
         skip_judge=config.skip_judge,
         refinement_stops=config.refinement_stops,
         advanced_refinement=config.advanced_refinement,
+        freeze=config.freeze,
+        evidence_export=config.evidence_export,
     )
     messages: list[dict[str, str]] = [
         {"role": "system", "content": STANDING_PROMPT},

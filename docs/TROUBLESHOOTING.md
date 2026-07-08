@@ -79,3 +79,7 @@ Generated, refined, imported, or registered taxonomies appear only after they ar
 ## Trace folders are growing
 
 ATLAS keeps traces by default so future generation and refinement have evidence. For long-running programs, keep trace roots outside the repository and archive old folders periodically.
+
+If another system needs the evidence, configure `evidence_export` so ATLAS
+writes a session-end JSON snapshot to a separate file or directory sink. This
+does not prune or move the original trace folder.

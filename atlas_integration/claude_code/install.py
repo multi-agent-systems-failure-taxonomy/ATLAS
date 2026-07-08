@@ -374,6 +374,23 @@ def main(argv=None) -> int:
         action=argparse.BooleanOptionalAction,
         default=None,
     )
+    parser.add_argument(
+        "--freeze",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help=(
+            "inference-only mode: record traces/evidence but skip generation "
+            "and refinement"
+        ),
+    )
+    parser.add_argument(
+        "--evidence-export",
+        type=Path,
+        help=(
+            "optional external evidence export path; .json means exact file, "
+            "otherwise the value is treated as a directory sink"
+        ),
+    )
     parser.add_argument("--failure-throttle-calls", type=int)
     parser.add_argument("--failure-recency-seconds", type=int)
     parser.add_argument(
@@ -514,6 +531,8 @@ def main(argv=None) -> int:
         "k": config_value(args, config, "k", 20),
         "refinement_stops": bool_config_value(args, config, "refinement_stops", False),
         "advanced_refinement": bool_config_value(args, config, "advanced_refinement", False),
+        "freeze": bool_config_value(args, config, "freeze", False),
+        "evidence_export": config_value(args, config, "evidence_export"),
         "failure_throttle_calls": config_value(args, config, "failure_throttle_calls", 5),
         "failure_recency_seconds": config_value(args, config, "failure_recency_seconds", 30),
         "built_in_hooks": built_in_hooks,

@@ -117,8 +117,8 @@ atlas-claude-install \
   --post-tool-use-failure-matchers Bash
 ```
 
-The equivalent config-file field is `built_in_hooks`. Boolean values enable or
-disable an event; lists set matchers for `PostToolUse` and
+The equivalent config-file field is `claude_code.built_in_hooks`. Boolean
+values enable or disable an event; lists set matchers for `PostToolUse` and
 `PostToolUseFailure`; object values can carry both `enabled` and `matchers`.
 
 ## Runtime configuration surface
@@ -140,14 +140,17 @@ values:
   "k": 20,
   "refinement_stops": false,
   "advanced_refinement": false,
+  "freeze": false,
   "max_retries": 3,
   "dashboard": true,
-  "built_in_hooks": {
-    "SubagentStop": false,
-    "PostToolUse": ["Bash", "Edit"],
-    "PostToolUseFailure": {
-      "enabled": true,
-      "matchers": ["Bash"]
+  "claude_code": {
+    "built_in_hooks": {
+      "SubagentStop": false,
+      "PostToolUse": ["Bash", "Edit"],
+      "PostToolUseFailure": {
+        "enabled": true,
+        "matchers": ["Bash"]
+      }
     }
   }
 }
@@ -156,6 +159,11 @@ values:
 Relative paths are resolved relative to the config file. Unknown fields are
 rejected so spelling mistakes fail loudly. Explicit CLI/API arguments win over
 config-file values.
+
+Set `evidence_export` when a pipeline needs a durable JSON snapshot outside the
+program trace folder. `atlas-status` reads the program manifest and reports the
+learning-call usage ledger; unavailable provider token/cost data is reported as
+unavailable, not estimated.
 
 Supported operational CLIs:
 

@@ -32,7 +32,7 @@ The runtime maps `none` to built-in MAST. Finding itself does not load MAST as a
 | `atlas-register-taxonomy` | Store a completed taxonomy record. |
 | `atlas-import-traces` | Build a taxonomy from existing trace files. |
 | `atlas-doctor` | Validate paths, config, and optional dependencies. |
-| `atlas-status` | Inspect one program's active taxonomy, pending traces, learning state, last errors, and recent decisions. |
+| `atlas-status` | Inspect one program's active taxonomy, pending traces, learning state, usage totals, last errors, and recent decisions. |
 
 ## What should stay harness-specific
 

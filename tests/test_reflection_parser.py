@@ -65,6 +65,28 @@ change to run the relevant test before submission
             "the final answer lacks validation",
         )
 
+    def test_accepts_clean_map_with_codes_checked_summary(self):
+        result = parse_reflection(
+            """ATLAS reflection:
+- Checkpoint ID: cp-3
+- Observe: The task is complete and no failure evidence is present.
+- Map:
+  - none apply | evidence: "No failure evidence is present."
+- Correlate: No recurring failure pattern is visible.
+- Decide: submit: no change needed.
+
+Final ATLAS status: READY_TO_SUBMIT
+Codes checked: MAST-1, MAST-12
+Evidence: No failure evidence is present.
+Final decision: ready
+""",
+            checkpoint_id="cp-3",
+            known_code_ids=("MAST-1", "MAST-12"),
+        )
+        self.assertTrue(result.none_apply)
+        self.assertEqual(result.assignments, ())
+        self.assertEqual(result.considered_codes, ("MAST-1", "MAST-12"))
+
 
 if __name__ == "__main__":
     unittest.main()

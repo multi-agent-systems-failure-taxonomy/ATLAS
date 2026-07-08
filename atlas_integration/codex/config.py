@@ -141,6 +141,8 @@ class CodexConfig:
     k: int = 20
     refinement_stops: bool = False
     advanced_refinement: bool = False
+    freeze: bool = False
+    evidence_export: Path | None = None
     hooks: tuple[CodexHookSpec, ...] = field(default_factory=default_hooks)
 
     def __post_init__(self) -> None:
@@ -166,7 +168,7 @@ class CodexConfig:
 
     @classmethod
     def load(cls, path: Path | str) -> "CodexConfig":
-        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        data = json.loads(Path(path).read_text(encoding="utf-8-sig"))
         scoped = data.get("codex") if isinstance(data.get("codex"), dict) else {}
         inherit = data.get("inherit")
         if inherit in ("", "none"):
@@ -200,6 +202,12 @@ class CodexConfig:
             k=max(1, int(data.get("k", 20))),
             refinement_stops=bool(data.get("refinement_stops", False)),
             advanced_refinement=bool(data.get("advanced_refinement", False)),
+            freeze=bool(data.get("freeze", False)),
+            evidence_export=(
+                Path(str(data["evidence_export"])).expanduser().resolve()
+                if data.get("evidence_export")
+                else None
+            ),
             hooks=parse_codex_hooks(scoped.get("hooks", data.get("codex_hooks"))),
         )
 
@@ -222,6 +230,10 @@ class CodexConfig:
             "k": self.k,
             "refinement_stops": self.refinement_stops,
             "advanced_refinement": self.advanced_refinement,
+            "freeze": self.freeze,
+            "evidence_export": (
+                str(self.evidence_export) if self.evidence_export else None
+            ),
             "codex": {
                 "hooks": {spec.event: spec.to_dict() for spec in self.hooks},
             },

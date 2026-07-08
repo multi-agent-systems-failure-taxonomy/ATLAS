@@ -76,6 +76,15 @@ class ProgramWorkspace:
                 "state": "idle",
                 "last_error": None,
             },
+            "usage": {
+                "totals": {
+                    "calls": 0,
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "cost_usd": 0.0,
+                },
+                "events": [],
+            },
         }
 
     def load(self) -> dict[str, Any]:
@@ -223,6 +232,58 @@ class ProgramWorkspace:
             refinement["last_error"] = None
             refinement.pop("worker_kind", None)
             refinement.pop("worker_started_unix", None)
+
+    def record_usage_event(
+        self,
+        *,
+        stage: str,
+        model: str | None = None,
+        provider: str | None = None,
+        usage_available: bool = False,
+        calls: int = 1,
+        input_tokens: int | None = None,
+        output_tokens: int | None = None,
+        cost_usd: float | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        """Append an honest learning-call usage event to the program manifest.
+
+        Many supported transports do not expose token or cost metadata. In
+        those cases ATLAS records the call and marks usage unavailable instead
+        of inventing estimates.
+        """
+        event = {
+            "timestamp_unix": time.time(),
+            "stage": stage,
+            "model": model,
+            "provider": provider,
+            "usage_available": bool(usage_available),
+            "calls": int(calls),
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "cost_usd": cost_usd,
+            "details": details or {},
+        }
+        with self.locked_manifest() as manifest:
+            usage = manifest.setdefault("usage", self._new_manifest()["usage"])
+            totals = usage.setdefault("totals", {})
+            totals["calls"] = int(totals.get("calls", 0)) + event["calls"]
+            for key, value in (
+                ("input_tokens", input_tokens),
+                ("output_tokens", output_tokens),
+            ):
+                if isinstance(value, int):
+                    totals[key] = int(totals.get(key, 0)) + value
+            if isinstance(cost_usd, int | float):
+                totals["cost_usd"] = float(totals.get("cost_usd", 0.0)) + float(
+                    cost_usd
+                )
+            totals.setdefault("input_tokens", 0)
+            totals.setdefault("output_tokens", 0)
+            totals.setdefault("cost_usd", 0.0)
+            events = usage.setdefault("events", [])
+            events.append(event)
+            del events[:-200]
 
     def finish_session(self, session_id: str) -> None:
         with self.locked_manifest() as manifest:

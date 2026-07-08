@@ -35,6 +35,10 @@ def build_session_state(
             "k": session.k,
             "refinement_stops": session.refinement_stops,
             "advanced_refinement": session.advanced_refinement,
+            "freeze": session.freeze,
+            "evidence_export": (
+                str(session.evidence_export) if session.evidence_export else None
+            ),
             "runtime_protocol": session.delivery.runtime_protocol,
         },
         "main_cursor": main_cursor,

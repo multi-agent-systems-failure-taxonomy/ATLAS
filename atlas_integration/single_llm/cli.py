@@ -147,6 +147,17 @@ def main(argv=None) -> int:
     )
     parser.add_argument("--recent-activity-messages", type=int)
     parser.add_argument("--recent-activity-chars", type=int)
+    parser.add_argument(
+        "--freeze",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="record traces/evidence but skip generation and refinement",
+    )
+    parser.add_argument(
+        "--evidence-export",
+        type=Path,
+        help="optional external evidence export path or directory sink",
+    )
     parser.add_argument("--dashboard", dest="dashboard", action="store_true", default=None)
     parser.add_argument("--no-dashboard", dest="dashboard", action="store_false")
     args = parser.parse_args(argv)
@@ -169,7 +180,7 @@ def main(argv=None) -> int:
     task = (
         args.task
         if args.task is not None
-        else Path(args.task_file).read_text(encoding="utf-8")
+        else Path(args.task_file).read_text(encoding="utf-8-sig")
     )
     store_dir = config_value(args, config, "store_dir", store.DEFAULT_STORE_DIR)
     inherit = (
@@ -203,6 +214,12 @@ def main(argv=None) -> int:
         ),
         "recent_activity_chars": config_value(
             args, config, "recent_activity_chars", 12000
+        ),
+        "freeze": bool_config_value(args, config, "freeze", False),
+        "evidence_export": (
+            Path(config_value(args, config, "evidence_export"))
+            if config_value(args, config, "evidence_export")
+            else None
         ),
     }
     if store_dir:

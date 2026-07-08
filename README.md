@@ -7,12 +7,12 @@
 [![Codex](https://img.shields.io/badge/Codex-hooks-111827)](docs/CODEX.md)
 [![Runtime](https://img.shields.io/badge/runtime-harness_neutral-7C3AED)](atlas_runtime/)
 [![Taxonomy](https://img.shields.io/badge/taxonomy-runtime_selected-0EA5E9)](finding/mast.json)
-[![Tests](https://img.shields.io/badge/tests-296_passing-16A34A)](tests/)
+[![Tests](https://img.shields.io/badge/tests-pytest-16A34A)](tests/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 ATLAS helps agents notice their own recurring failure patterns before they submit work. It starts with the built-in MAST taxonomy, asks the agent for evidence-based reflection at configured gates, records the failure modes that actually appear, and can later generate or refine a taxonomy specialized to the user's traces.
 
-The short version: ATLAS is not another task solver. It is a runtime supervision layer that gives an agent a structured way to ask, “what mistake am I about to repeat?”
+The short version: ATLAS is not another task solver. It is a runtime supervision layer that gives an agent a structured way to ask, "what mistake am I about to repeat?"
 
 ![ATLAS runtime loop](docs/atlas_runtime_loop.png)
 
@@ -58,6 +58,7 @@ Create `atlas.json` in the project that will run the agent:
   "k": 20,
   "refinement_stops": false,
   "advanced_refinement": false,
+  "freeze": false,
   "max_retries": 3,
   "dashboard": true
 }
@@ -87,7 +88,7 @@ ATLAS has four moving pieces:
 | Taxonomy finding | Selects a stored taxonomy by `taxonomy_id`, or starts from built-in MAST when no taxonomy is inherited. |
 | Runtime gates | Ask the agent to reflect only at configured checkpoints, tool boundaries, subagent boundaries, or final submission. |
 | Trace capture | Stores canonical evidence from each task under the configured program trace output. |
-| Learning lifecycle | Generates or refines taxonomies when enough traces accumulate, then activates accepted taxonomies for later tasks. |
+| Learning lifecycle | Generates or refines taxonomies when enough traces accumulate, records usage/overlap metadata, then activates accepted taxonomies for later tasks. |
 
 Repo and domain fields are display metadata only. Taxonomies are selected by `taxonomy_id`.
 
@@ -118,7 +119,7 @@ Repo and domain fields are display metadata only. Taxonomies are selected by `ta
 | `atlas-import-traces` | Generate/store a taxonomy from existing traces. |
 | `atlas-register-taxonomy` | Add a taxonomy JSON record to the store. |
 | `atlas-doctor` | Validate config, paths, integrations, and optional dependencies. |
-| `atlas-status` | Show program health: active taxonomy, pending traces, learning state, and recent decisions. |
+| `atlas-status` | Show program health: active taxonomy, pending traces, learning state, usage totals, and recent decisions. |
 | `atlas-claude-install` / `atlas-claude-uninstall` | Manage Claude Code hooks. |
 | `atlas-codex-install` / `atlas-codex-uninstall` | Manage Codex hooks. |
 | `atlas-single-run` | Wrap one direct LLM task call with ATLAS. |

@@ -37,6 +37,11 @@
       "type": "string",
       "minLength": 1
     },
+    "evidence_export": {
+      "description": "Optional external evidence export path. A .json value is an exact file; any other value is treated as a directory sink.",
+      "type": "string",
+      "minLength": 1
+    },
     "max_retries": {
       "description": "Maximum pre-submission gate retry attempts.",
       "type": "integer",
@@ -94,6 +99,11 @@
       "description": "If true, enable dashboard launch/attachment for supported runtime paths.",
       "type": "boolean",
       "default": true
+    },
+    "freeze": {
+      "description": "If true, inference-only mode records traces/evidence but skips generation and refinement.",
+      "type": "boolean",
+      "default": false
     },
     "atlas_model": {
       "description": "Model used by ATLAS generation, judging, and refinement. Separate from the user's task model.",

@@ -69,6 +69,7 @@ Create `atlas.json` in the project using ATLAS:
   "k": 20,
   "refinement_stops": false,
   "advanced_refinement": false,
+  "freeze": false,
   "max_retries": 3,
   "gate_exhaustion_policy": "raise",
   "recent_activity_messages": 8,

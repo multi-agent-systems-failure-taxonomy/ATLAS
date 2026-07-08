@@ -231,6 +231,8 @@ class ClaudeCodeConfig:
     k: int = 20
     refinement_stops: bool = False
     advanced_refinement: bool = False
+    freeze: bool = False
+    evidence_export: Path | None = None
     failure_throttle_calls: int = 5
     failure_recency_seconds: int = 30
     built_in_hooks: tuple[BuiltInHookSpec, ...] = field(
@@ -290,7 +292,7 @@ class ClaudeCodeConfig:
 
     @classmethod
     def load(cls, path: Path | str) -> "ClaudeCodeConfig":
-        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        data = json.loads(Path(path).read_text(encoding="utf-8-sig"))
         scoped = data.get("claude_code") if isinstance(data.get("claude_code"), dict) else {}
         trace_output = str(data.get("trace_output", "")).strip()
         atlas_model = str(data.get("atlas_model", "")).strip()
@@ -348,6 +350,12 @@ class ClaudeCodeConfig:
             advanced_refinement=bool(
                 data.get("advanced_refinement", False)
             ),
+            freeze=bool(data.get("freeze", False)),
+            evidence_export=(
+                Path(str(data["evidence_export"])).expanduser().resolve()
+                if data.get("evidence_export")
+                else None
+            ),
             failure_throttle_calls=max(
                 1, int(data.get("failure_throttle_calls", 5))
             ),
@@ -377,6 +385,10 @@ class ClaudeCodeConfig:
             "k": self.k,
             "refinement_stops": self.refinement_stops,
             "advanced_refinement": self.advanced_refinement,
+            "freeze": self.freeze,
+            "evidence_export": (
+                str(self.evidence_export) if self.evidence_export else None
+            ),
             "failure_throttle_calls": self.failure_throttle_calls,
             "failure_recency_seconds": self.failure_recency_seconds,
             "claude_code": {

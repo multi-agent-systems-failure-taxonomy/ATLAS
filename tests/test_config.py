@@ -35,6 +35,7 @@ class AtlasConfigTests(unittest.TestCase):
                     "trace_output": "program",
                     "trace_root": "traces",
                     "store_dir": "taxonomies",
+                    "evidence_export": "exports",
                     "atlas_model": "gpt-5",
                     "dashboard": False,
                 }),
@@ -44,8 +45,26 @@ class AtlasConfigTests(unittest.TestCase):
         self.assertEqual(config["trace_output"], (root / "program").resolve())
         self.assertEqual(config["trace_root"], (root / "traces").resolve())
         self.assertEqual(config["store_dir"], (root / "taxonomies").resolve())
+        self.assertEqual(config["evidence_export"], (root / "exports").resolve())
         self.assertEqual(config["atlas_model"], "gpt-5")
         self.assertFalse(config["dashboard"])
+
+    def test_loads_windows_utf8_bom_config(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            config_path = root / "atlas.json"
+            config_path.write_text(
+                json.dumps({
+                    "trace_output": "program",
+                    "trace_root": "traces",
+                    "store_dir": "taxonomies",
+                    "atlas_model": "gpt-5",
+                }),
+                encoding="utf-8-sig",
+            )
+            config = load_atlas_config(config_path)
+        self.assertEqual(config["trace_output"], (root / "program").resolve())
+        self.assertEqual(config["atlas_model"], "gpt-5")
 
     def test_unknown_field_is_rejected(self):
         with tempfile.TemporaryDirectory() as td:

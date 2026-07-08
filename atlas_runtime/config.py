@@ -9,7 +9,14 @@ from typing import Any
 
 DEFAULT_CONFIG_FILE = "atlas.json"
 
-PATH_FIELDS = {"trace_output", "store_dir", "trace_root", "repo_path", "project_dir"}
+PATH_FIELDS = {
+    "trace_output",
+    "store_dir",
+    "trace_root",
+    "repo_path",
+    "project_dir",
+    "evidence_export",
+}
 INT_FIELDS = {
     "max_retries",
     "generation_threshold",
@@ -26,6 +33,7 @@ BOOL_FIELDS = {
     "refinement_stops",
     "advanced_refinement",
     "dashboard",
+    "freeze",
 }
 STRING_FIELDS = {
     "atlas_model",
@@ -67,7 +75,7 @@ def load_atlas_config(path: Path | str | None = None) -> dict[str, Any]:
     if not config_path.is_file():
         raise FileNotFoundError(f"ATLAS config not found: {config_path}")
     try:
-        data = json.loads(config_path.read_text(encoding="utf-8"))
+        data = json.loads(config_path.read_text(encoding="utf-8-sig"))
     except json.JSONDecodeError as exc:
         raise ValueError(f"invalid ATLAS config JSON: {config_path}: {exc}") from exc
     if not isinstance(data, dict):

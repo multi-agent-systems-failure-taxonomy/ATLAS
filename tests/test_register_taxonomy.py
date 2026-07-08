@@ -96,6 +96,19 @@ class RegisterTaxonomyFileTests(unittest.TestCase):
             self.assertFalse(r.refinement["applied"])
             self.assertTrue(r.taxonomy_path.is_file())
 
+    def test_registers_utf8_bom_taxonomy_file(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td)
+            src = td / "t.json"
+            src.write_text(json.dumps(FLAT), encoding="utf-8-sig")
+            r = register_taxonomy_file(
+                src,
+                store_dir=td / "store",
+                taxonomy_id="bom-import",
+            )
+            rec = store.fetch_by_id(r.taxonomy_id, td / "store")
+            self.assertEqual(rec["taxonomy_id"], "bom-import")
+
     def test_registers_atlas_pipeline_file_without_traces(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             td = Path(td)

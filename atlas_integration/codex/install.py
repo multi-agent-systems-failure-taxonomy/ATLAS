@@ -244,6 +244,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--k", type=int)
     parser.add_argument("--refinement-stops", "--refinement_stops", dest="refinement_stops", action=argparse.BooleanOptionalAction)
     parser.add_argument("--advanced-refinement", "--advanced_refinement", dest="advanced_refinement", action=argparse.BooleanOptionalAction)
+    parser.add_argument("--freeze", dest="freeze", action=argparse.BooleanOptionalAction)
+    parser.add_argument("--evidence-export", "--evidence_export", dest="evidence_export", type=Path)
     parser.add_argument("--no-dashboard", dest="dashboard", action="store_false", default=None)
     parser.add_argument("--openai-base-url", "--openai_base_url", dest="openai_base_url")
     parser.add_argument("--openai-api-key-env", "--openai_api_key_env", dest="openai_api_key_env")
@@ -302,6 +304,12 @@ def main(argv: list[str] | None = None) -> int:
         k=int(config_value(args, config_doc, "k", 20)),
         refinement_stops=bool_config_value(args, config_doc, "refinement_stops", False),
         advanced_refinement=bool_config_value(args, config_doc, "advanced_refinement", False),
+        freeze=bool_config_value(args, config_doc, "freeze", False),
+        evidence_export=(
+            Path(config_value(args, config_doc, "evidence_export"))
+            if config_value(args, config_doc, "evidence_export")
+            else None
+        ),
         hooks=parse_codex_hooks(hooks_doc),
     )
     result = install(config_value(args, config_doc, "project_dir", "."), cfg)

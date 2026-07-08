@@ -72,6 +72,49 @@ Standard refinement proposes a refined taxonomy and records a structural diff.
 
 Advanced refinement adds one support-judge repair pass. If issues are found, the refinement model gets the judge output and proposes one repaired taxonomy. The repaired taxonomy is accepted automatically after that single repair pass.
 
+Every refinement artifact also includes non-blocking overlap warnings. These
+warnings flag pairs of failure modes whose names/descriptions look unusually
+similar. They are meant for review, not automatic rejection.
+
+## Freeze mode
+
+For clean A/B evaluations, turn on inference-only mode:
+
+```json
+{
+  "freeze": true
+}
+```
+
+Freeze mode still records runtime evidence and traces. It skips both MAST
+warm-up generation and stored-taxonomy refinement, so the active taxonomy stays
+pinned for the run.
+
+## Evidence export
+
+ATLAS always keeps runtime evidence in the program folder. If you also want a
+durable snapshot for an external dashboard or archive, set `evidence_export`:
+
+```json
+{
+  "evidence_export": "./atlas-evidence"
+}
+```
+
+If the value ends in `.json`, ATLAS writes exactly that file. Otherwise ATLAS
+treats it as a directory and writes one `<program_id>.json` snapshot inside it
+at session end. Exporting never moves or deletes the original trace/evidence
+files.
+
+## Usage ledger
+
+Program manifests include a small usage ledger for learning calls. The ledger
+counts ATLAS generation, judge, and refinement calls and records the stage and
+model used. When the provider does not expose token or cost metadata, ATLAS
+marks the event as `usage_available: false` instead of estimating.
+
+Use `atlas-status --config atlas.json` to see the current totals.
+
 ## Trace retention
 
 ATLAS keeps accumulated traces by default. If you run many long tasks, trace folders can grow large.

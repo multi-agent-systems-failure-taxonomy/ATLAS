@@ -382,6 +382,16 @@ def _generate_and_refine_once(
         if generator is not None
         else _atlas_generate(traces, model, _generation_output_dir(workspace))
     )
+    workspace.record_usage_event(
+        stage="taxonomy_generation",
+        model=model,
+        usage_available=False,
+        details={
+            "trace_count": len(traces),
+            "custom_generator": generator is not None,
+            "note": "transport did not expose token or cost metadata",
+        },
+    )
     candidate = candidate_from_atlas(raw, repo=workspace.repo)
 
     if not skip_judge:
@@ -391,6 +401,18 @@ def _generate_and_refine_once(
             atlas_model=model,
             judge_call=judge_call,
             refiner_call=refiner_call,
+        )
+        workspace.record_usage_event(
+            stage="generation_reflection_judge",
+            model=model,
+            usage_available=False,
+            details={
+                "trace_count": len(traces),
+                "n_traces_judged": summary.n_traces_judged,
+                "custom_judge_call": judge_call is not None,
+                "custom_refiner_call": refiner_call is not None,
+                "note": "transport did not expose token or cost metadata",
+            },
         )
         candidate = summary.candidate
         candidate.setdefault("judge_metadata", {}).update({

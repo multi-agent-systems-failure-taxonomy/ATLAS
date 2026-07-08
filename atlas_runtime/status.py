@@ -22,6 +22,7 @@ def program_health(trace_output: Path | str) -> dict[str, Any]:
     decisions = _recent_decisions(root)
     generation = manifest.get("generation") or {}
     refinement = manifest.get("refinement") or {}
+    usage = manifest.get("usage") or {}
     return {
         "trace_output": str(root),
         "manifest_exists": manifest_path.is_file(),
@@ -50,6 +51,15 @@ def program_health(trace_output: Path | str) -> dict[str, Any]:
             "taxonomy_count": len(evidence.get("taxonomies", {}))
             if isinstance(evidence, dict)
             else 0,
+        },
+        "usage": {
+            "totals": usage.get("totals") or {
+                "calls": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "cost_usd": 0.0,
+            },
+            "recent_events": (usage.get("events") or [])[-10:],
         },
         "recent_decisions": decisions,
     }
@@ -122,6 +132,13 @@ def _render_text(health: dict[str, Any]) -> str:
             "evidence: "
             f"{health['evidence']['checkpoint_count']} checkpoints across "
             f"{health['evidence']['taxonomy_count']} taxonomy record(s)"
+        ),
+        (
+            "usage: "
+            f"calls={health['usage']['totals'].get('calls', 0)} "
+            f"input_tokens={health['usage']['totals'].get('input_tokens', 0)} "
+            f"output_tokens={health['usage']['totals'].get('output_tokens', 0)} "
+            f"cost_usd={health['usage']['totals'].get('cost_usd', 0.0)}"
         ),
     ]
     if health["recent_decisions"]:

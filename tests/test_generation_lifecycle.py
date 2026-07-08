@@ -90,6 +90,13 @@ class GenerationLifecycleTests(unittest.TestCase):
             self.assertEqual(TraceStore(trace_root / taxonomy_id).count(), 5)
             self.assertTrue(store.exists(taxonomy_id, store_dir))
             self.assertEqual(fifth.workspace.load()["taxonomy_id"], taxonomy_id)
+            usage = fifth.workspace.load()["usage"]
+            self.assertEqual(usage["totals"]["calls"], 1)
+            self.assertEqual(
+                usage["events"][0]["stage"],
+                "taxonomy_generation",
+            )
+            self.assertFalse(usage["events"][0]["usage_available"])
             self.assertEqual(
                 fifth.workspace.refinement_state()["traces_since_refinement"],
                 0,
@@ -185,6 +192,61 @@ class GenerationLifecycleTests(unittest.TestCase):
             self.assertEqual(result.generation.action, "failed")
             self.assertEqual(fifth.workspace.pending.count(), 5)
             self.assertIsNone(fifth.workspace.load()["taxonomy_id"])
+
+    def test_freeze_mode_records_mast_trace_without_generation(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            output, store_dir, trace_root = root / "program", root / "tax", root / "traces"
+            copy_store(store_dir)
+            self._finish_four(output, store_dir, trace_root)
+
+            fifth = start_session(
+                resolver.ABSENT,
+                trace_output=output,
+                store_dir=store_dir,
+                trace_root=trace_root,
+                generation_stops=True,
+                freeze=True,
+            )
+            record_trace(fifth, trace(5))
+            result = end_session(
+                fifth,
+                generator=lambda _traces: self.fail("generation should be frozen"),
+            )
+
+            self.assertEqual(result.generation.action, "frozen")
+            self.assertEqual(fifth.workspace.pending.count(), 5)
+            self.assertIsNone(fifth.workspace.load()["taxonomy_id"])
+            self.assertFalse(trace_root.exists())
+
+    def test_session_end_can_export_durable_evidence_snapshot(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            output, store_dir, trace_root = root / "program", root / "tax", root / "traces"
+            export_dir = root / "evidence-export"
+            copy_store(store_dir)
+
+            session = start_session(
+                resolver.ABSENT,
+                trace_output=output,
+                store_dir=store_dir,
+                trace_root=trace_root,
+                generation_threshold=2,
+                evidence_export=export_dir,
+            )
+            record_trace(session, trace(1))
+            result = end_session(session)
+
+            self.assertIsNone(result.evidence_export_error)
+            self.assertTrue(result.evidence_export_path)
+            payload = json.loads(
+                result.evidence_export_path.read_text(encoding="utf-8")
+            )
+            self.assertEqual(payload["program_id"], session.program_id)
+            self.assertEqual(payload["trace_output"], str(output.resolve()))
+            self.assertIn("manifest", payload)
+            self.assertIn("runtime_evidence", payload)
+            self.assertEqual(result.evidence_export_path.parent, export_dir.resolve())
 
     def test_nonblocking_generation_keeps_mast_until_job_activates(self):
         with tempfile.TemporaryDirectory() as td:

@@ -74,7 +74,7 @@ def list_all(store_dir=DEFAULT_STORE_DIR) -> list[dict]:
     store_dir = Path(store_dir)
     records: list[dict] = []
     for path in sorted(store_dir.glob("*.json")):
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
         records.append({field: data.get(field) for field in HEADER_FIELDS})
     records.sort(key=lambda r: r["taxonomy_id"] or "")
     return records
@@ -85,7 +85,7 @@ def fetch_by_id(taxonomy_id: str, store_dir=DEFAULT_STORE_DIR) -> dict:
     path = _record_path(taxonomy_id, store_dir)
     if not path.is_file():
         raise TaxonomyNotFound(taxonomy_id)
-    return json.loads(path.read_text(encoding="utf-8"))
+    return json.loads(path.read_text(encoding="utf-8-sig"))
 
 
 def register(record: dict, store_dir=DEFAULT_STORE_DIR, *, replace: bool = False) -> Path:

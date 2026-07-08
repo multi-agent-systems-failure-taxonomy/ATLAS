@@ -74,7 +74,7 @@ def load_candidate(taxonomy_path: Path) -> dict[str, Any]:
     Accepts both atlas_skill flat (``{repo, domain, codes}``) and ATLAS
     pipeline output (``{annotation_layer, full_layer}``).
     """
-    data = json.loads(Path(taxonomy_path).read_text(encoding="utf-8"))
+    data = json.loads(Path(taxonomy_path).read_text(encoding="utf-8-sig"))
     if not isinstance(data, dict):
         raise ValueError(
             f"{taxonomy_path}: top-level must be a JSON object (got {type(data).__name__})"

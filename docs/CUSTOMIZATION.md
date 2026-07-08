@@ -44,6 +44,7 @@ than long command lines:
   "generation_stops": false,
   "k_init": 10,
   "k": 20,
+  "freeze": false,
   "claude_code": {
     "built_in_hooks": {
       "SubagentStop": false,

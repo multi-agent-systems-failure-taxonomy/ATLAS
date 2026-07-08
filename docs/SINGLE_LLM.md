@@ -44,6 +44,7 @@ session_args = dict(
     k=config.get("k", 20),
     refinement_stops=config.get("refinement_stops", False),
     advanced_refinement=config.get("advanced_refinement", False),
+    freeze=config.get("freeze", False),
     dashboard=config.get("dashboard", True),
 )
 if config.get("inherit") is not None:

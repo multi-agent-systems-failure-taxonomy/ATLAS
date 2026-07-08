@@ -9,7 +9,11 @@ from pathlib import Path
 from atlas_runtime.lifecycle import end_session, record_trace, start_session
 from atlas_runtime.lineage import TaxonomyLineage
 from atlas_runtime.program import ProgramWorkspace
-from atlas_runtime.refinement import trigger_refinement
+from atlas_runtime.refinement import (
+    overlap_lint,
+    structural_diff,
+    trigger_refinement,
+)
 from atlas_runtime.traces import GenerationTrace
 from atlas_runtime.worker_state import REFINEMENT_WORKER_STATE, write_worker_state
 
@@ -44,6 +48,64 @@ def refine_candidate(current, _traces):
             }
         ],
     }
+
+
+class RefinementDiffTests(unittest.TestCase):
+    def test_structural_diff_records_code_id_mapping(self):
+        current = {
+            "repo": "demo",
+            "domain": "d",
+            "codes": [
+                {"id": "A.1", "name": "Keep", "description": "old", "category": "A"},
+                {"id": "A.2", "name": "Remove", "description": "old", "category": "A"},
+            ],
+        }
+        candidate = {
+            "repo": "demo",
+            "domain": "d",
+            "codes": [
+                {"id": "A.1", "name": "Keep", "description": "edited", "category": "A"},
+                {"id": "A.3", "name": "Add", "description": "new", "category": "A"},
+            ],
+        }
+
+        diff = structural_diff(current, candidate)
+
+        self.assertEqual(diff["codes_changed"], ["A.1"])
+        self.assertEqual(
+            diff["code_id_mapping"]["old_to_new"],
+            {"A.1": "A.1", "A.2": None},
+        )
+        self.assertEqual(
+            diff["code_id_mapping"]["new_from_old"],
+            {"A.1": "A.1", "A.3": None},
+        )
+
+    def test_overlap_lint_warns_without_rejecting_candidate(self):
+        candidate = {
+            "repo": "demo",
+            "domain": "d",
+            "codes": [
+                {
+                    "id": "A.1",
+                    "name": "Skipped verification",
+                    "description": "The agent skips validation before completion.",
+                    "category": "A",
+                },
+                {
+                    "id": "A.2",
+                    "name": "Skipped verification",
+                    "description": "The agent skips validation before completion.",
+                    "category": "A",
+                },
+            ],
+        }
+
+        warnings = overlap_lint(candidate)
+
+        self.assertEqual(len(warnings), 1)
+        self.assertEqual(warnings[0]["code_a"], "A.1")
+        self.assertEqual(warnings[0]["code_b"], "A.2")
 
 
 class RefinementLifecycleTests(unittest.TestCase):
@@ -244,6 +306,38 @@ class RefinementLifecycleTests(unittest.TestCase):
                 0,
             )
 
+    def test_freeze_mode_integrates_inherited_trace_without_refinement_counter(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            output, store_dir, trace_root = root / "program", root / "tax", root / "traces"
+            copy_store(store_dir)
+
+            session = start_session(
+                BASE_ID,
+                trace_output=output,
+                store_dir=store_dir,
+                trace_root=trace_root,
+                k_init=1,
+                refinement_stops=True,
+                freeze=True,
+            )
+            record_trace(session, trace(1))
+            result = end_session(
+                session,
+                refiner=lambda _current, _traces: self.fail(
+                    "refinement should be frozen"
+                ),
+            )
+
+            self.assertEqual(result.refinement.action, "frozen")
+            self.assertEqual(result.integrated_traces, 1)
+            self.assertEqual(session.workspace.pending.count(), 0)
+            self.assertEqual(len(list((trace_root / BASE_ID).glob("*.json"))), 1)
+            state = session.workspace.refinement_state()
+            self.assertEqual(state["traces_since_refinement"], 0)
+            self.assertEqual(state["trace_refs"], [])
+            self.assertEqual(session.workspace.load()["taxonomy_id"], BASE_ID)
+
     def test_nonblocking_refinement_starts_and_keeps_current_taxonomy(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -321,6 +415,10 @@ class RefinementLifecycleTests(unittest.TestCase):
             self.assertEqual(artifact["diff"]["codes_added"], ["R.NEW"])
             self.assertFalse(artifact["advanced_refinement"])
             self.assertFalse(artifact["repaired"])
+            self.assertEqual(artifact["overlap_warnings"], [])
+            usage = ProgramWorkspace(output).load()["usage"]
+            self.assertEqual(usage["totals"]["calls"], 1)
+            self.assertEqual(usage["events"][0]["stage"], "taxonomy_refinement")
 
     def test_advanced_refinement_without_issues_accepts_without_repair(self):
         with tempfile.TemporaryDirectory() as td:

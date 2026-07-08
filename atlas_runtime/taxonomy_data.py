@@ -88,7 +88,7 @@ class Taxonomy:
     # ── construction ──
     @classmethod
     def from_json(cls, path: str | Path) -> "Taxonomy":
-        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        data = json.loads(Path(path).read_text(encoding="utf-8-sig"))
         tax = cls.from_dict(data)
         tax.metadata.setdefault("seed_path", str(path))
         return tax
