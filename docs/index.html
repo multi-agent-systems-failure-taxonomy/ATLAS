@@ -114,6 +114,12 @@
       color: var(--blue);
       outline: none;
     }
+    .nav-link.active {
+      background: white;
+      color: var(--blue);
+      box-shadow: inset 3px 0 0 var(--blue), 0 1px 2px rgba(15, 23, 42, .04);
+      font-weight: 700;
+    }
 
     .main {
       min-width: 0;
@@ -628,6 +634,56 @@ atlas-status --config atlas.json</code></pre>
   <script>
     const search = document.querySelector("#search");
     const groups = [...document.querySelectorAll(".nav-group")];
+    const navLinks = [...document.querySelectorAll(".nav-link[href^='#']")];
+    const sectionById = new Map(
+      navLinks
+        .map((link) => [link.getAttribute("href").slice(1), link])
+        .filter(([id]) => document.getElementById(id))
+    );
+
+    function setActiveSection(id) {
+      for (const link of navLinks) {
+        link.classList.toggle("active", link.getAttribute("href") === `#${id}`);
+        if (link.getAttribute("href") === `#${id}`) {
+          link.setAttribute("aria-current", "location");
+        } else {
+          link.removeAttribute("aria-current");
+        }
+      }
+    }
+
+    const observedSections = [...sectionById.keys()].map((id) => document.getElementById(id));
+    let ticking = false;
+
+    function updateActiveFromScroll() {
+      ticking = false;
+      const marker = 128;
+      let activeId = observedSections[0]?.id;
+      for (const section of observedSections) {
+        if (section.getBoundingClientRect().top <= marker) {
+          activeId = section.id;
+        } else {
+          break;
+        }
+      }
+      if (activeId) setActiveSection(activeId);
+    }
+
+    window.addEventListener("scroll", () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(updateActiveFromScroll);
+    }, { passive: true });
+
+    setActiveSection(location.hash ? location.hash.slice(1) : "overview");
+    updateActiveFromScroll();
+    window.addEventListener("hashchange", () => {
+      if (location.hash) {
+        setActiveSection(location.hash.slice(1));
+        requestAnimationFrame(updateActiveFromScroll);
+      }
+    });
+
     search.addEventListener("input", () => {
       const query = search.value.trim().toLowerCase();
       for (const group of groups) {
