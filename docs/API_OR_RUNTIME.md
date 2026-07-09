@@ -52,5 +52,5 @@ ATLAS owns:
 - generation/refinement trigger timing;
 - taxonomy storage.
 
-See [INTEGRATION.md](../INTEGRATION.md) for a broader pipeline integration guide.
+See [INTEGRATION.md](INTEGRATION.md) for a broader pipeline integration guide.
 See [WEB_API.md](WEB_API.md) for the localhost dashboard API response shapes.

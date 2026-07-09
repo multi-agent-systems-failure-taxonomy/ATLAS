@@ -2,19 +2,58 @@
 
 ### A failure-mode taxonomy layer for agents: reflect at meaningful boundaries, catch recurring mistakes, and learn from traces.
 
+[![Docs](https://img.shields.io/badge/docs-website-2563EB)](https://multi-agent-systems-failure-taxonomy.github.io/ATLAS/)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Claude Code](https://img.shields.io/badge/Claude_Code-hooks-D97757)](docs/CLAUDE_CODE.md)
-[![Codex](https://img.shields.io/badge/Codex-hooks-111827)](docs/CODEX.md)
-[![Runtime](https://img.shields.io/badge/runtime-harness_neutral-7C3AED)](atlas_runtime/)
-[![Taxonomy](https://img.shields.io/badge/taxonomy-runtime_selected-0EA5E9)](finding/mast.json)
-[![Tests](https://img.shields.io/badge/tests-pytest-16A34A)](tests/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-ATLAS helps agents notice their own recurring failure patterns before they submit work. It starts with the built-in MAST taxonomy, asks the agent for evidence-based reflection at configured gates, records the failure modes that actually appear, and can later generate or refine a taxonomy specialized to the user's traces.
+**Documentation:** [multi-agent-systems-failure-taxonomy.github.io/ATLAS](https://multi-agent-systems-failure-taxonomy.github.io/ATLAS/) · [Concepts](docs/CONCEPTS.md) · [Getting started](docs/GETTING_STARTED.md)
 
-The short version: ATLAS is not another task solver. It is a runtime supervision layer that gives an agent a structured way to ask, "what mistake am I about to repeat?"
+ATLAS helps agents notice their own recurring failure patterns before they
+submit work. It starts from MAST — the Multi-Agent System failure Taxonomy
+from ["Why Do Multi-Agent LLM Systems Fail?" (Cemri et al., 2025)](https://arxiv.org/abs/2503.13657),
+shipped here as a built-in 14-code adaptation — asks the agent for
+evidence-based reflection at configured gates, records the failure modes that
+actually appear, and later generates or refines a taxonomy specialized to your
+own traces.
+
+ATLAS is not another task solver. It is a runtime supervision layer that gives
+an agent a structured way to ask, "what mistake am I about to repeat?"
+
+## What it looks like
+
+At a checkpoint, the agent reflects on its recent trajectory against the
+active taxonomy in a fixed shape:
+
+```text
+Observe:   The last two Bash runs failed with the same ImportError; no
+           dependency check ran between attempts.
+Correlate: Retrying an identical command without new information.
+Map:       MAST-3 (Step repetition) — evidence supports the match.
+Decide:    One focused repair — verify the installed package version
+           before the next run.
+```
+
+Mapping no codes ("none apply") is a valid outcome. Before the final answer is
+released, a blocking gate requires the same reflection and allows a bounded
+number of repairs. Everything the gates record is browsable live in the
+[dashboard](docs/DASHBOARD.md).
+
+## How it works
 
 ![ATLAS runtime loop](docs/atlas_runtime_loop.png)
+
+1. A task starts. ATLAS selects the active taxonomy — an inherited stored
+   taxonomy, or built-in MAST when none is configured.
+2. At configured boundaries (checkpoints, tool failures, subagent stops), the
+   agent reflects against the taxonomy and repairs when evidence demands it.
+3. A final submission gate blocks completion until the reflection passes or
+   retries are exhausted honestly.
+4. One canonical trace is recorded at session end.
+5. After enough traces, ATLAS generates a task-specific taxonomy (or refines
+   the active one). Accepted taxonomies become inheritable records for future
+   runs.
+
+New to the terminology? Start with [docs/CONCEPTS.md](docs/CONCEPTS.md).
 
 ## Install
 
@@ -24,20 +63,11 @@ Requirements: Python 3.10 or newer.
 python -m pip install "git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git@ATLAS_SKILL"
 ```
 
-From a local checkout:
+From a local checkout: `python -m pip install .`
 
-```bash
-python -m pip install .
-```
-
-Optional provider extras:
-
-```bash
-python -m pip install "atlas-skill[anthropic] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git@ATLAS_SKILL"
-python -m pip install "atlas-skill[bedrock] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git@ATLAS_SKILL"
-```
-
-Full install notes live in [docs/INSTALLATION.md](docs/INSTALLATION.md).
+ATLAS's own learning calls support Anthropic, OpenAI(-compatible), Gemini, and
+AWS Bedrock model IDs. Optional extras (`[anthropic]`, `[bedrock]`) and
+credential setup live in [docs/INSTALLATION.md](docs/INSTALLATION.md).
 
 ## Quick start
 
@@ -47,22 +77,12 @@ Create `atlas.json` in the project that will run the agent:
 {
   "version": 1,
   "trace_output": "./atlas-program",
-  "trace_root": "~/.atlas-skill/traces",
-  "store_dir": "~/.atlas-skill/taxonomies",
-  "atlas_model": "gpt-5",
-  "inherit": null,
-  "generation_threshold": 5,
-  "generation_stops": false,
-  "skip_judge": false,
-  "k_init": 10,
-  "k": 20,
-  "refinement_stops": false,
-  "advanced_refinement": false,
-  "freeze": false,
-  "max_retries": 3,
-  "dashboard": true
+  "atlas_model": "gpt-5"
 }
 ```
+
+Every field, its default, and when to change it:
+[docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
 Then choose the integration that matches your pipeline:
 
@@ -72,6 +92,7 @@ Then choose the integration that matches your pipeline:
 | Codex project | `atlas-codex-install --project-dir . --config atlas.json` | [Codex](docs/CODEX.md) |
 | One LLM call from a script | `atlas-single-run --config atlas.json --task "..." --model gpt-5` | [Single LLM](docs/SINGLE_LLM.md) |
 | Existing trace folder | `atlas-import-traces --config atlas.json --traces ./traces` | [Taxonomies](docs/TAXONOMIES.md) |
+| Your own harness | `from atlas_runtime import start_session, ...` | [Integration](docs/INTEGRATION.md) |
 
 Check the setup:
 
@@ -79,28 +100,18 @@ Check the setup:
 atlas-doctor --config atlas.json
 ```
 
-## What ATLAS does at runtime
-
-ATLAS has four moving pieces:
-
-| Piece | Role |
-|---|---|
-| Taxonomy finding | Selects a stored taxonomy by `taxonomy_id`, or starts from built-in MAST when no taxonomy is inherited. |
-| Runtime gates | Ask the agent to reflect only at configured checkpoints, tool boundaries, subagent boundaries, or final submission. |
-| Trace capture | Stores canonical evidence from each task under the configured program trace output. |
-| Learning lifecycle | Generates or refines taxonomies when enough traces accumulate, records usage/overlap metadata, then activates accepted taxonomies for later tasks. |
-
-Repo and domain fields are display metadata only. Taxonomies are selected by `taxonomy_id`.
-
 ## Documentation
 
 | Topic | Page |
 |---|---|
+| Vocabulary and the runtime loop | [docs/CONCEPTS.md](docs/CONCEPTS.md) |
 | First successful run | [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) |
+| Every `atlas.json` field | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) |
 | Install options and credentials | [docs/INSTALLATION.md](docs/INSTALLATION.md) |
 | Claude Code hooks | [docs/CLAUDE_CODE.md](docs/CLAUDE_CODE.md) |
 | Codex hooks | [docs/CODEX.md](docs/CODEX.md) |
 | Single-call / benchmark integration | [docs/SINGLE_LLM.md](docs/SINGLE_LLM.md) |
+| Harness-author contract and privacy | [docs/INTEGRATION.md](docs/INTEGRATION.md) |
 | Config files, prompts, hooks, judges | [docs/CUSTOMIZATION.md](docs/CUSTOMIZATION.md) |
 | Taxonomy records and inheritance | [docs/TAXONOMIES.md](docs/TAXONOMIES.md) |
 | Traces, generation, refinement | [docs/TRACES_AND_LEARNING.md](docs/TRACES_AND_LEARNING.md) |
@@ -125,13 +136,10 @@ Repo and domain fields are display metadata only. Taxonomies are selected by `ta
 | `atlas-codex-install` / `atlas-codex-uninstall` | Manage Codex hooks. |
 | `atlas-single-run` | Wrap one direct LLM task call with ATLAS. |
 
-## Verify
+## Contributing
 
-```bash
-python -m compileall atlas_runtime atlas_integration finding judge_types vendor
-python -m pytest -q
-git diff --check
-```
+Development setup, verification commands, and package maps are in
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

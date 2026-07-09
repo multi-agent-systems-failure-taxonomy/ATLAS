@@ -6,9 +6,11 @@ This folder is the detailed reference for ATLAS. The repository homepage stays i
 
 | Goal | Page |
 |---|---|
+| Learn the vocabulary and the runtime loop | [CONCEPTS.md](CONCEPTS.md) |
 | Get one project running quickly | [GETTING_STARTED.md](GETTING_STARTED.md) |
 | Install ATLAS and optional model providers | [INSTALLATION.md](INSTALLATION.md) |
-| Understand the runtime loop | [TRACES_AND_LEARNING.md](TRACES_AND_LEARNING.md) |
+| Look up any `atlas.json` field | [CONFIGURATION.md](CONFIGURATION.md) |
+| Understand the learning lifecycle | [TRACES_AND_LEARNING.md](TRACES_AND_LEARNING.md) |
 | Customize hooks, prompts, judges, or model profiles | [CUSTOMIZATION.md](CUSTOMIZATION.md) |
 
 ## Integrations
@@ -19,6 +21,7 @@ This folder is the detailed reference for ATLAS. The repository homepage stays i
 | Codex | [CODEX.md](CODEX.md) |
 | Direct single-LLM calls, scripts, notebooks, benchmarks | [SINGLE_LLM.md](SINGLE_LLM.md) |
 | Custom harnesses | [API_OR_RUNTIME.md](API_OR_RUNTIME.md) |
+| Harness-author contract, privacy, and redaction | [INTEGRATION.md](INTEGRATION.md) |
 
 ## Runtime data
 

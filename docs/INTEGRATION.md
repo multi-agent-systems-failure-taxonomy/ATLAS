@@ -6,8 +6,8 @@ trace capture, generation, refinement, and lineage.
 
 If you only want a ready-made integration, start with:
 
-- Claude Code: [`atlas_integration/claude_code/`](atlas_integration/claude_code/)
-- Single LLM call: [`atlas_integration/single_llm/`](atlas_integration/single_llm/)
+- Claude Code: [`atlas_integration/claude_code/`](../atlas_integration/claude_code/)
+- Single LLM call: [`atlas_integration/single_llm/`](../atlas_integration/single_llm/)
 
 ## The boundary
 
@@ -129,36 +129,14 @@ values:
 ```json
 {
   "trace_output": "./atlas-program",
-  "atlas_model": "gpt-5",
-  "store_dir": "~/.atlas-skill/taxonomies",
-  "trace_root": "~/.atlas-skill/traces",
-  "inherit": null,
-  "generation_threshold": 5,
-  "generation_stops": false,
-  "skip_judge": false,
-  "k_init": 10,
-  "k": 20,
-  "refinement_stops": false,
-  "advanced_refinement": false,
-  "freeze": false,
-  "max_retries": 3,
-  "dashboard": true,
-  "claude_code": {
-    "built_in_hooks": {
-      "SubagentStop": false,
-      "PostToolUse": ["Bash", "Edit"],
-      "PostToolUseFailure": {
-        "enabled": true,
-        "matchers": ["Bash"]
-      }
-    }
-  }
+  "atlas_model": "gpt-5"
 }
 ```
 
-Relative paths are resolved relative to the config file. Unknown fields are
-rejected so spelling mistakes fail loudly. Explicit CLI/API arguments win over
-config-file values.
+Every field, its default, and the precedence rules are defined in
+[CONFIGURATION.md](CONFIGURATION.md). Relative paths are resolved relative to
+the config file. Unknown fields are rejected so spelling mistakes fail loudly.
+Explicit CLI/API arguments win over config-file values.
 
 Set `evidence_export` when a pipeline needs a durable JSON snapshot outside the
 program trace folder. `atlas-status` reads the program manifest and reports the

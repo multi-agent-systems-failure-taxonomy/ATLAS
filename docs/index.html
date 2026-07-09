@@ -238,6 +238,14 @@
       font-size: .86rem;
       line-height: 1.55;
     }
+    .content img {
+      max-width: 100%;
+      height: auto;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      margin: 8px 0 18px;
+      background: white;
+    }
     :not(pre) > code {
       padding: .12rem .32rem;
       border: 1px solid var(--line);
@@ -334,7 +342,7 @@
           <span>Runtime and API docs</span>
         </span>
       </a>
-      <input class="search" type="search" placeholder="Search docs" aria-label="Search docs" id="search">
+      <input class="search" type="search" placeholder="Filter navigation" aria-label="Filter navigation" id="search">
 
       <nav id="nav">
         <div class="nav-group" data-group="get started">
@@ -366,7 +374,7 @@
           <p class="nav-title">Reference</p>
           <a class="nav-link" href="#commands">Commands</a>
           <a class="nav-link" href="#troubleshooting">Troubleshooting</a>
-          <a class="nav-link" href="#source-pages">Markdown source pages</a>
+          <a class="nav-link" href="#source-pages">Full reference pages</a>
         </div>
       </nav>
     </aside>
@@ -379,6 +387,15 @@
           ATLAS gives an agent a structured way to notice recurring mistakes at runtime,
           record evidence, and generate or refine task-specific failure-mode taxonomies
           from completed traces.
+        </p>
+        <img src="atlas_runtime_loop.png" alt="ATLAS runtime loop: taxonomy selection, runtime gates, trace capture, and the learning lifecycle">
+        <p>
+          Runs start from <strong>MAST</strong> — the Multi-Agent System failure Taxonomy from
+          <a href="https://arxiv.org/abs/2503.13657">&ldquo;Why Do Multi-Agent LLM Systems Fail?&rdquo; (Cemri et&nbsp;al., 2025)</a>,
+          shipped as a built-in 14-code adaptation. At configured gates the agent reflects on its
+          recent trajectory (Observe &rarr; Correlate &rarr; Map &rarr; Decide), a blocking final gate
+          runs before submission, and completed traces feed taxonomy generation and refinement.
+          ATLAS is not a task solver; your harness keeps owning model execution.
         </p>
 
         <section id="quickstart">
@@ -406,7 +423,11 @@ atlas-single-run --config atlas.json --task "..." --model gpt-5</code></pre>
 
         <section id="configuration">
           <h2>Configuration</h2>
-          <p>ATLAS uses one dependency-light JSON file. CLI flags override config values.</p>
+          <p>
+            ATLAS uses one dependency-light JSON file. CLI flags override config values.
+            The fields below are the ones most projects touch; the complete reference is
+            <a href="https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/ATLAS_SKILL/docs/CONFIGURATION.md">CONFIGURATION.md</a>.
+          </p>
           <table>
             <thead><tr><th>Field</th><th>Default</th><th>Purpose</th></tr></thead>
             <tbody>
@@ -599,17 +620,23 @@ atlas-status --config atlas.json</code></pre>
         </section>
 
         <section id="source-pages">
-          <h2>Markdown source pages</h2>
-          <p>These remain the editable source references in the repository:</p>
+          <h2>Full reference pages</h2>
+          <p>This page is a summary. The complete, editable reference lives in the repository (rendered on GitHub):</p>
           <ul>
-            <li><a href="GETTING_STARTED.md">Getting started</a></li>
-            <li><a href="INSTALLATION.md">Installation</a></li>
-            <li><a href="CLAUDE_CODE.md">Claude Code</a></li>
-            <li><a href="CODEX.md">Codex</a></li>
-            <li><a href="SINGLE_LLM.md">Single LLM</a></li>
-            <li><a href="DASHBOARD.md">Dashboard</a></li>
-            <li><a href="WEB_API.md">Web API markdown</a></li>
-            <li><a href="TRACES_AND_LEARNING.md">Traces and learning</a></li>
+            <li><a href="https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/ATLAS_SKILL/docs/CONCEPTS.md">Concepts and vocabulary</a></li>
+            <li><a href="https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/ATLAS_SKILL/docs/GETTING_STARTED.md">Getting started</a></li>
+            <li><a href="https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/ATLAS_SKILL/docs/INSTALLATION.md">Installation</a></li>
+            <li><a href="https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/ATLAS_SKILL/docs/CONFIGURATION.md">Configuration reference</a></li>
+            <li><a href="https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/ATLAS_SKILL/docs/CLAUDE_CODE.md">Claude Code</a></li>
+            <li><a href="https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/ATLAS_SKILL/docs/CODEX.md">Codex</a></li>
+            <li><a href="https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/ATLAS_SKILL/docs/SINGLE_LLM.md">Single LLM</a></li>
+            <li><a href="https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/ATLAS_SKILL/docs/INTEGRATION.md">Custom harness integration</a></li>
+            <li><a href="https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/ATLAS_SKILL/docs/CUSTOMIZATION.md">Customization</a></li>
+            <li><a href="https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/ATLAS_SKILL/docs/TAXONOMIES.md">Taxonomies</a></li>
+            <li><a href="https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/ATLAS_SKILL/docs/TRACES_AND_LEARNING.md">Traces and learning</a></li>
+            <li><a href="https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/ATLAS_SKILL/docs/DASHBOARD.md">Dashboard</a></li>
+            <li><a href="https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/ATLAS_SKILL/docs/WEB_API.md">Web API</a></li>
+            <li><a href="https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/ATLAS_SKILL/docs/TROUBLESHOOTING.md">Troubleshooting</a></li>
           </ul>
         </section>
       </article>

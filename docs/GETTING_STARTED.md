@@ -47,27 +47,15 @@ Create `atlas.json` in your project:
 {
   "version": 1,
   "trace_output": "./atlas-program",
-  "trace_root": "~/.atlas-skill/traces",
-  "store_dir": "~/.atlas-skill/taxonomies",
-  "atlas_model": "gpt-5",
-  "inherit": null,
-  "generation_threshold": 5,
-  "generation_stops": false,
-  "skip_judge": false,
-  "k_init": 10,
-  "k": 20,
-  "refinement_stops": false,
-  "advanced_refinement": false,
-  "freeze": false,
-  "max_retries": 3,
-  "dashboard": true
+  "atlas_model": "gpt-5"
 }
 ```
 
 Use `atlas_model` for ATLAS generation, judge, and refinement calls. If your
 own program has a task-solving model, keep that separate.
 
-Relative paths are resolved relative to the config file.
+Relative paths are resolved relative to the config file. Every other field has
+a sensible default; the full reference is [CONFIGURATION.md](CONFIGURATION.md).
 
 ## 3. Check the install
 
@@ -209,19 +197,16 @@ after acceptance.
 
 ## 7. Common first-run choices
 
+The fields most people touch first:
+
 | Choice | Default | When to change it |
 |---|---:|---|
 | `generation_threshold` | `5` | Raise it if early traces are noisy or not representative. |
-| `generation_stops` | `false` | Turn on if the current task must wait for the generated taxonomy. |
-| `skip_judge` | `false` | Turn on only when you want structural validation without Reflection-Judge cleanup. |
-| `k_init` | `10` | First refinement threshold after a real taxonomy becomes active. |
-| `k` | `20` | Later refinement threshold for the same program. |
-| `refinement_stops` | `false` | Turn on if the current task must wait for refinement. |
-| `advanced_refinement` | `false` | Turn on for one support-judge repair pass during refinement. |
 | `freeze` | `false` | Turn on for inference-only evaluation: record traces/evidence, but skip generation and refinement. |
-| `evidence_export` | unset | Optional external JSON file or directory sink for session-end evidence snapshots. |
 | `max_retries` | `3` | Final-gate repair opportunities before honest unresolved release. |
-| `gate_exhaustion_policy` | `raise` | For single-LLM benchmark wrappers, use `release` to return the best answer after the retry cap while recording `gate_allowed=false`. |
+
+Every field, with defaults and semantics, is in
+[CONFIGURATION.md](CONFIGURATION.md).
 
 ## 8. Where to customize
 
