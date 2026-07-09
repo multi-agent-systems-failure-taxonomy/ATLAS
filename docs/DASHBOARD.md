@@ -2,7 +2,7 @@
 
 ATLAS includes a read-only localhost dashboard for watching taxonomy codes fire during runs.
 
-![ATLAS runtime dashboard showing the bundled demo taxonomy](dashboard.png)
+![ATLAS runtime dashboard showing the bundled demo taxonomy](assets/screenshots/dashboard-demo.png)
 
 *The bundled demo (`python -m examples.dashboard_demo`) with placeholder data.*
 

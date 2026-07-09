@@ -36,11 +36,9 @@ Decide:    One focused repair — verify the installed package version
 Mapping no codes ("none apply") is a valid outcome. Before the final answer is
 released, a blocking gate requires the same reflection and allows a bounded
 number of repairs. Everything the gates record is browsable live in the
-[dashboard](docs/DASHBOARD.md):
+[dashboard](docs/DASHBOARD.md).
 
-![ATLAS runtime dashboard](docs/dashboard.png)
-
-A full walkthrough of what the agent sees and produces at each stage is in
+A full walkthrough with dashboard screenshots is in
 [docs/EXAMPLE_RUN.md](docs/EXAMPLE_RUN.md). Try the dashboard yourself with
 `python -m examples.dashboard_demo`.
 

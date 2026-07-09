@@ -59,7 +59,7 @@ instead of claiming clean success.
 Everything the gates record — firings, clean checkpoints, evidence snippets,
 and per-task UID filters — is browsable live:
 
-![ATLAS runtime dashboard](dashboard.png)
+![ATLAS runtime dashboard](assets/screenshots/dashboard-demo.png)
 
 ## 5. What learning produces
 
