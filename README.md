@@ -104,6 +104,16 @@ Check the setup:
 atlas-doctor --config atlas.json
 ```
 
+## Results
+
+Full evaluation artifacts — per-question result rows, the exact taxonomies
+used, and replication steps — live in [runs/](runs/):
+
+| Experiment | Headline |
+|---|---|
+| [OfficeQA Pro, agent harness](runs/OfficeQA/) | 44.4% → **51.9%** @0% strict (Bedrock Haiku 4.5, 133 questions, same harness both arms) |
+| [Circle packing (n=26)](runs/Circle-Packing/) | Baselines never reach 0.997 of AlphaEvolve's record; with ATLAS the search reaches it in **20 evals** (peak 0.999735) |
+
 ## Documentation
 
 | Topic | Page |
