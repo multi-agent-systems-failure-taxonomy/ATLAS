@@ -1,6 +1,0 @@
-arm,run,evals,peak,iters_to_0.997,cost_usd,cost_source,cc_reported
-baseline,base-haiku-noatlas,29,0.7608,,0.9,run-note,0.0
-baseline,base-haiku-noatlas2,3,0.4308,,0.08,cc,0.0788
-baseline,base-haiku-noatlas3,25,0.7667,,1.23,run-note,0.0
-baseline,base-s1,61,0.9006,,2.15,token-math,1.3216
-taxonomy,taxonomy (tax-s2->s4->s5->s7),59,0.999735,20,32.47,token-math,12.7854
