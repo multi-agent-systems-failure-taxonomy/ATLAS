@@ -34,10 +34,20 @@ assets where possible; start with
 
 ## Documentation
 
-- Markdown pages in [docs/](docs/) are the source of truth.
-- [docs/index.html](docs/index.html) is the GitHub Pages landing page; when
-  you change behavior, update the matching Markdown page first, then check
-  whether the landing page mentions the same detail.
+- Markdown pages in [docs/](docs/) are the source of truth. The website is
+  built from them with MkDocs Material ([mkdocs.yml](mkdocs.yml)) and deployed
+  by [.github/workflows/docs.yml](.github/workflows/docs.yml) on pushes to
+  `ATLAS_SKILL`.
+- Preview locally:
+
+  ```bash
+  python -m pip install -e ".[docs]"
+  mkdocs serve
+  ```
+
+- [docs/index.html](docs/index.html) is the legacy hand-rolled landing page,
+  kept only until the Pages source is switched to "GitHub Actions"; do not add
+  new content there.
 - The canonical config reference is
   [docs/CONFIGURATION.md](docs/CONFIGURATION.md) — other pages should show
   minimal configs and link there rather than duplicating field tables.

@@ -33,6 +33,7 @@ dependencies = ["openai>=1.40"]
 anthropic = ["anthropic>=0.40"]
 bedrock = ["boto3>=1.43"]
 test = ["pytest>=7"]
+docs = ["mkdocs-material>=9.5"]
 
 [project.scripts]
 atlas-find = "finding.cli:main"

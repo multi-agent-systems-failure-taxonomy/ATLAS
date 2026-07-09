@@ -1,0 +1,76 @@
+site_name: ATLAS
+site_description: >-
+  Failure-mode taxonomies for LLM agents: runtime reflection gates,
+  trace capture, and taxonomy learning from traces.
+site_url: https://multi-agent-systems-failure-taxonomy.github.io/ATLAS/
+repo_url: https://github.com/multi-agent-systems-failure-taxonomy/ATLAS
+repo_name: ATLAS
+edit_uri: edit/ATLAS_SKILL/docs/
+
+theme:
+  name: material
+  icon:
+    logo: material/radar
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.action.edit
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+
+# index.html is the legacy hand-rolled landing page (still served while
+# Pages is in branch mode); README.md is the GitHub file-view index. Both
+# would collide with index.md in the built site.
+exclude_docs: |
+  index.html
+  README.md
+
+nav:
+  - Home: index.md
+  - Get started:
+      - Concepts: CONCEPTS.md
+      - An example run: EXAMPLE_RUN.md
+      - Getting started: GETTING_STARTED.md
+      - Installation: INSTALLATION.md
+      - Configuration reference: CONFIGURATION.md
+  - Integrations:
+      - Claude Code: CLAUDE_CODE.md
+      - Codex: CODEX.md
+      - Single LLM: SINGLE_LLM.md
+      - Runtime API: API_OR_RUNTIME.md
+      - Pipeline integration: INTEGRATION.md
+  - Runtime data:
+      - Dashboard: DASHBOARD.md
+      - Web API: WEB_API.md
+      - Traces and learning: TRACES_AND_LEARNING.md
+      - Taxonomies: TAXONOMIES.md
+  - Reference:
+      - Customization: CUSTOMIZATION.md
+      - Troubleshooting: TROUBLESHOOTING.md

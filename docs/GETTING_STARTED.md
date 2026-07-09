@@ -3,7 +3,7 @@
 This page is the shortest reliable path from "I installed ATLAS" to "my
 pipeline is producing traces and enforcing the final gate."
 
-If you want the full reference, use the documentation index: [`docs/README.md`](README.md).
+If you want the full reference, start from the [documentation home](index.md).
 
 ## 1. Install
 

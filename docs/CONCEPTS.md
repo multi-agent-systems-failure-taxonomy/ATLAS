@@ -66,7 +66,7 @@ traces feed the first generation.
 | Coordination | MAST-6 Conversation reset · MAST-7 Failure to ask for clarification · MAST-8 Task derailment · MAST-9 Information withholding · MAST-10 Ignored other agent's input |
 | Verification | MAST-11 Premature termination · MAST-12 No or incomplete verification · MAST-13 Weak verification · MAST-14 Incorrect verification |
 
-The full definitions live in [`finding/mast.json`](../finding/mast.json).
+The full definitions live in [`finding/mast.json`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/ATLAS_SKILL/finding/mast.json).
 MAST is a built-in constant, not a store record; it does not appear in the
 interactive picker.
 
