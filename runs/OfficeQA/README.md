@@ -23,8 +23,6 @@ before submission.
 
 | File | What it is |
 |---|---|
-| `agent_oracle_baseline.jsonl` | Baseline run — one JSON row per question (question, gold, prediction, scores). |
-| `agent_oracle_atlas.jsonl` | ATLAS run, same schema. |
 | `officeqa_taxonomy.json` | The 15-code failure-mode taxonomy used in the ATLAS run. |
 
 ## The taxonomy
@@ -50,4 +48,4 @@ refinement), so both arms are a clean A/B.
    install the Claude Code hooks with that taxonomy inherited
    (`atlas-claude-install`), learning frozen (`"freeze": true`).
 4. **Baseline arm**: identical, without the ATLAS hooks.
-5. Score both result files with the official reward and compare.
+5. Score both runs with the official reward and compare accuracy.
