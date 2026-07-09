@@ -36,7 +36,13 @@ Decide:    One focused repair — verify the installed package version
 Mapping no codes ("none apply") is a valid outcome. Before the final answer is
 released, a blocking gate requires the same reflection and allows a bounded
 number of repairs. Everything the gates record is browsable live in the
-[dashboard](docs/DASHBOARD.md).
+[dashboard](docs/DASHBOARD.md):
+
+![ATLAS runtime dashboard](docs/dashboard.png)
+
+A full walkthrough of what the agent sees and produces at each stage is in
+[docs/EXAMPLE_RUN.md](docs/EXAMPLE_RUN.md). Try the dashboard yourself with
+`python -m examples.dashboard_demo`.
 
 ## How it works
 
@@ -105,6 +111,7 @@ atlas-doctor --config atlas.json
 | Topic | Page |
 |---|---|
 | Vocabulary and the runtime loop | [docs/CONCEPTS.md](docs/CONCEPTS.md) |
+| Real reflections, gates, and dashboard output | [docs/EXAMPLE_RUN.md](docs/EXAMPLE_RUN.md) |
 | First successful run | [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) |
 | Every `atlas.json` field | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) |
 | Install options and credentials | [docs/INSTALLATION.md](docs/INSTALLATION.md) |

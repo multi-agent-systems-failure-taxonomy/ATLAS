@@ -7,6 +7,7 @@ This folder is the detailed reference for ATLAS. The repository homepage stays i
 | Goal | Page |
 |---|---|
 | Learn the vocabulary and the runtime loop | [CONCEPTS.md](CONCEPTS.md) |
+| See real reflections, gates, and dashboard output | [EXAMPLE_RUN.md](EXAMPLE_RUN.md) |
 | Get one project running quickly | [GETTING_STARTED.md](GETTING_STARTED.md) |
 | Install ATLAS and optional model providers | [INSTALLATION.md](INSTALLATION.md) |
 | Look up any `atlas.json` field | [CONFIGURATION.md](CONFIGURATION.md) |
