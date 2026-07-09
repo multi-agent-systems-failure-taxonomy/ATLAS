@@ -150,6 +150,8 @@ class ClaudeCodeIntegrationTests(unittest.TestCase):
         self.assertIn("Work the steps IN ORDER", prompt)
         self.assertIn("failure points", prompt)
         self.assertIn("`<CODE> | evidence:", prompt)
+        self.assertIn("Replacement standard", prompt)
+        self.assertIn("never by demonstrating an alternative's appeal", prompt)
 
     def test_task_completed_blocks_hollow_and_releases_valid_none_apply(self):
         event = {
@@ -486,6 +488,16 @@ Final decision: submit
         code, message = stop.handle(active, self.config)
         self.assertEqual(code, 2)
         self.assertIn("repair attempt 1 of 3", message)
+        started = [
+            json.loads(line)
+            for line in (self.trace_output / "decisions.log")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if json.loads(line)["event"] == "repair_round_started"
+        ]
+        self.assertEqual(len(started), 1)
+        self.assertEqual(started[0]["repair_round"], 1)
+        self.assertIn("change:", started[0]["decide"])
 
         for completed in range(1, 4):
             append_text(

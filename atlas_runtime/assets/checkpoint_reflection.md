@@ -38,6 +38,15 @@ ATLAS reflection:
   - `change: <one focused change>`
   - `no change needed, because <evidence-based reason>`
 
+Replacement standard: if the change would replace a result or answer you
+already produced, a committed answer may be replaced only by demonstrating
+its own failure — never by demonstrating an alternative's appeal. Construct
+and run a check against the current answer: recompute it from its own stated
+inputs, re-read the value at its cited source location, re-check a constraint
+the task text explicitly states, or confirm a step the task requires never
+happened. Compare the results yourself. If you cannot construct a failing
+check, keep the answer, however compelling another reading looks.
+
 Find failure points from the work itself, not by scanning the code list for
 matches. A better result than before is not evidence that nothing is failing:
 improving work can still have weak spots, skipped steps, or better directions

@@ -289,6 +289,20 @@ def blocking_checkpoint(
                 pending["awaiting_repair"] = True
                 pending["repair_offset"] = transcript_size(transcript_path)
                 save_state(config.trace_output, state["session_id"], state)
+                # Verbatim, parse-free audit record: lets the next A/B
+                # classify repairs (did the agent run a check before
+                # replacing the answer?) without transcript digging.
+                _log_decision(
+                    config,
+                    {
+                        "event": "repair_round_started",
+                        "gate": gate,
+                        "session_id": state.get("session_id"),
+                        "repair_round": next_attempt,
+                        "repair_rounds": repair_rounds,
+                        "decide": reflection.decide[:2000],
+                    },
+                )
                 return 2, _repair_action_feedback(
                     decision.reason,
                     next_attempt=next_attempt,

@@ -52,6 +52,12 @@ Every gate asks for the same four steps, in order:
 A reflection that maps no codes is a *clean checkpoint* and is recorded as
 evidence too. Agents must not invent a failure mode to satisfy the gate.
 
+Decisions that would replace an already-committed answer are additionally
+held to a replacement standard: the agent must construct and run a check
+that demonstrates the current answer's failure (internal, source,
+task-constraint, or completeness consistency) — an alternative's appeal
+alone never authorizes a replacement.
+
 ## Built-in MAST
 
 MAST is the Multi-Agent System failure Taxonomy from

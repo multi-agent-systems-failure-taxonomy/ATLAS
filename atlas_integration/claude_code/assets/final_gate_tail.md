@@ -6,8 +6,12 @@ This Stop hook exists so you can still repair the work before submission.
 If Decide says `change:`:
 1. emit `Final ATLAS status: REPAIR_REQUIRED`;
 2. set `Final decision: repair`;
-3. after this hook blocks, perform the change and verify it;
-4. then provide a corrected `<FINAL_ANSWER>` and run the reflection again.
+3. after this hook blocks, first run the check that indicts the current
+   answer, with its execution and output visible in your work — if the check
+   passes, keep the original answer and report READY_TO_SUBMIT at the next
+   gate;
+4. if the check fails, repair exactly what it exposed, verify the repair,
+   then provide a corrected `<FINAL_ANSWER>` and run the reflection again.
 
 Never say the answer was already submitted, never treat this as a post-hoc
 audit, and never use statuses such as PASS, conditional pass, complete, or
