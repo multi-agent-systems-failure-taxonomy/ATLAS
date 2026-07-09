@@ -19,6 +19,23 @@ own traces.
 ATLAS is not another task solver. It is a runtime supervision layer that gives
 an agent a structured way to ask, "what mistake am I about to repeat?"
 
+## How it works
+
+![ATLAS runtime loop](docs/atlas_runtime_loop.png)
+
+1. A task starts. ATLAS selects the active taxonomy — an inherited stored
+   taxonomy, or built-in MAST when none is configured.
+2. At configured boundaries (checkpoints, tool failures, subagent stops), the
+   agent reflects against the taxonomy and repairs when evidence demands it.
+3. A final submission gate blocks completion until the reflection passes or
+   retries are exhausted honestly.
+4. One canonical trace is recorded at session end.
+5. After enough traces, ATLAS generates a task-specific taxonomy (or refines
+   the active one). Accepted taxonomies become inheritable records for future
+   runs.
+
+New to the terminology? Start with [docs/CONCEPTS.md](docs/CONCEPTS.md).
+
 ## What it looks like
 
 At a checkpoint, the agent reflects on its recent trajectory against the
@@ -41,23 +58,6 @@ number of repairs. Everything the gates record is browsable live in the
 A full walkthrough with dashboard screenshots is in
 [docs/EXAMPLE_RUN.md](docs/EXAMPLE_RUN.md). Try the dashboard yourself with
 `python -m examples.dashboard_demo`.
-
-## How it works
-
-![ATLAS runtime loop](docs/atlas_runtime_loop.png)
-
-1. A task starts. ATLAS selects the active taxonomy — an inherited stored
-   taxonomy, or built-in MAST when none is configured.
-2. At configured boundaries (checkpoints, tool failures, subagent stops), the
-   agent reflects against the taxonomy and repairs when evidence demands it.
-3. A final submission gate blocks completion until the reflection passes or
-   retries are exhausted honestly.
-4. One canonical trace is recorded at session end.
-5. After enough traces, ATLAS generates a task-specific taxonomy (or refines
-   the active one). Accepted taxonomies become inheritable records for future
-   runs.
-
-New to the terminology? Start with [docs/CONCEPTS.md](docs/CONCEPTS.md).
 
 ## Install
 
