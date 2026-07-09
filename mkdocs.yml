@@ -45,11 +45,9 @@ markdown_extensions:
   - pymdownx.inlinehilite
   - pymdownx.superfences
 
-# index.html is the legacy hand-rolled landing page (still served while
-# Pages is in branch mode); README.md is the GitHub file-view index. Both
-# would collide with index.md in the built site.
+# README.md is the GitHub file-view index; it would collide with index.md
+# in the built site.
 exclude_docs: |
-  index.html
   README.md
 
 nav:

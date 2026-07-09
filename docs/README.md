@@ -36,9 +36,12 @@ This folder is the detailed reference for ATLAS. The repository homepage stays i
 
 ## Web docs
 
-The dependency-free web landing page is [index.html](index.html). It can be
-served directly by GitHub Pages from the `docs/` folder while the Markdown pages
-remain readable in GitHub's normal file view.
+The documentation website at
+[multi-agent-systems-failure-taxonomy.github.io/ATLAS](https://multi-agent-systems-failure-taxonomy.github.io/ATLAS/)
+is built from these Markdown pages with MkDocs Material (see
+[mkdocs.yml](../mkdocs.yml)) and deployed by GitHub Actions on every push to
+`ATLAS_SKILL`. The site home is [index.md](index.md); this README stays the
+index for GitHub's file view.
 
 ## Lower-level package maps
 

@@ -45,9 +45,6 @@ assets where possible; start with
   mkdocs serve
   ```
 
-- [docs/index.html](docs/index.html) is the legacy hand-rolled landing page,
-  kept only until the Pages source is switched to "GitHub Actions"; do not add
-  new content there.
 - The canonical config reference is
   [docs/CONFIGURATION.md](docs/CONFIGURATION.md) — other pages should show
   minimal configs and link there rather than duplicating field tables.
