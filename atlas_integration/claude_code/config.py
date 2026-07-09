@@ -224,6 +224,8 @@ class ClaudeCodeConfig:
     openai_base_url: str | None = None
     openai_api_key_env: str | None = None
     max_retries: int = 3
+    format_retries: int = 2
+    repair_rounds: int | None = None
     generation_threshold: int = 5
     generation_stops: bool = False
     skip_judge: bool = False
@@ -245,6 +247,14 @@ class ClaudeCodeConfig:
             raise ValueError("Claude Code integration requires atlas_model")
         if self.max_retries < 0:
             raise ValueError("max_retries cannot be negative")
+        # max_retries is the legacy shared knob; it maps to the substantive
+        # repair budget when repair_rounds is not set explicitly.
+        if self.repair_rounds is None:
+            object.__setattr__(self, "repair_rounds", self.max_retries)
+        if self.repair_rounds < 0:
+            raise ValueError("repair_rounds cannot be negative")
+        if self.format_retries < 1:
+            raise ValueError("format_retries must be positive")
         for name, value in (
             ("generation_threshold", self.generation_threshold),
             ("k_init", self.k_init),
@@ -339,6 +349,12 @@ class ClaudeCodeConfig:
                 else None
             ),
             max_retries=max(0, int(data.get("max_retries", 3))),
+            format_retries=max(1, int(data.get("format_retries", 2))),
+            repair_rounds=(
+                max(0, int(data["repair_rounds"]))
+                if data.get("repair_rounds") is not None
+                else None
+            ),
             generation_threshold=max(
                 1, int(data.get("generation_threshold", 5))
             ),
@@ -377,7 +393,9 @@ class ClaudeCodeConfig:
             "dashboard": self.dashboard,
             "openai_base_url": self.openai_base_url,
             "openai_api_key_env": self.openai_api_key_env,
-            "max_retries": self.max_retries,
+            "max_retries": self.repair_rounds,
+            "format_retries": self.format_retries,
+            "repair_rounds": self.repair_rounds,
             "generation_threshold": self.generation_threshold,
             "generation_stops": self.generation_stops,
             "skip_judge": self.skip_judge,

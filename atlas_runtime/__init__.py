@@ -28,14 +28,26 @@ from .lifecycle import (
     start_session,
 )
 from .config import load_atlas_config
-from .protocol import GateDecision, evaluate_pre_submission, render_protocol
+from .protocol import (
+    GateDecision,
+    evaluate_pre_submission,
+    pin_gate_decision,
+    render_protocol,
+)
 from .generation import GenerationResult
 from .program import ProgramConflict, ProgramWorkspace
 from .options import RuntimeOptions, add_runtime_arguments, parse_runtime_args
 from .refinement import RefinementResult
-from .checkpoint_prompt import render_reflection_prompt
+from .checkpoint_prompt import render_format_repair, render_reflection_prompt
 from .evidence import EVIDENCE_FILE, record_reflection
-from .reflection import CodeAssignment, ReflectionResult, parse_reflection
+from .reflection import (
+    CodeAssignment,
+    HarvestedReflection,
+    PartialReflection,
+    ReflectionResult,
+    harvest_reflection,
+    parse_reflection,
+)
 from .dashboard import (
     build_server as build_dashboard_server,
     current_taxonomy,
@@ -59,6 +71,8 @@ __all__ = [
     "GenerationTrace",
     "CodeAssignment",
     "EVIDENCE_FILE",
+    "HarvestedReflection",
+    "PartialReflection",
     "ProgramConflict",
     "ProgramWorkspace",
     "ProjectFn",
@@ -77,9 +91,12 @@ __all__ = [
     "TraceStore",
     "end_session",
     "evaluate_pre_submission",
+    "harvest_reflection",
+    "pin_gate_decision",
     "pre_submission",
     "record_trace",
     "record_reflection",
+    "render_format_repair",
     "render_protocol",
     "render_reflection_prompt",
     "load_atlas_config",

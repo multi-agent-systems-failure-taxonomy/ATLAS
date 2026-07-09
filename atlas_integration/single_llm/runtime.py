@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 import uuid
 from dataclasses import dataclass
 from importlib import resources
@@ -15,13 +16,17 @@ from atlas_runtime import (
     ReflectionResult,
     SessionEndResult,
     end_session,
+    pin_gate_decision,
     pre_submission,
     record_trace,
     start_session,
 )
-from atlas_runtime.checkpoint_prompt import render_reflection_prompt
+from atlas_runtime.checkpoint_prompt import (
+    render_format_repair,
+    render_reflection_prompt,
+)
 from atlas_runtime.evidence import record_reflection
-from atlas_runtime.reflection import parse_reflection
+from atlas_runtime.reflection import harvest_reflection
 from atlas_runtime.traces import DEFAULT_TRACE_ROOT
 from finding import resolver, store
 
@@ -47,6 +52,8 @@ class SingleLLMConfig:
     trace_root: Path = DEFAULT_TRACE_ROOT
     inherit: str | None = None
     max_retries: int = 3
+    format_retries: int = 2
+    repair_rounds: int | None = None
     max_checkpoints: int = 20
     dashboard: bool = True
     repo: str | None = None
@@ -68,6 +75,14 @@ class SingleLLMConfig:
             raise ValueError("recent_activity_messages must be positive")
         if self.recent_activity_chars <= 0:
             raise ValueError("recent_activity_chars must be positive")
+        # max_retries is the legacy shared knob; it maps to the substantive
+        # repair budget when repair_rounds is not set explicitly.
+        if self.repair_rounds is None:
+            object.__setattr__(self, "repair_rounds", self.max_retries)
+        if self.repair_rounds < 0:
+            raise ValueError("repair_rounds cannot be negative")
+        if self.format_retries < 0:
+            raise ValueError("format_retries cannot be negative")
 
 
 @dataclass(frozen=True)
@@ -99,7 +114,7 @@ def run_single_llm(
         trace_root=config.trace_root,
         session_id=run_id,
         atlas_model=config.atlas_model,
-        max_retries=config.max_retries,
+        max_retries=config.repair_rounds,
         dashboard=config.dashboard,
         repo=config.repo,
         repo_path=config.repo_path,
@@ -144,7 +159,7 @@ def run_single_llm(
                     recent_activity=recent,
                     gate_label="major-segment checkpoint",
                     full=False,
-                    max_retries=config.max_retries,
+                    format_retries=config.format_retries,
                 )
                 _record(
                     config,
@@ -166,11 +181,11 @@ def run_single_llm(
                 segment_start = len(messages) - 1
                 continue
 
-            reflection, gate_text = _collect_final_gate(
+            reflection, gate_text, pinned_status = _collect_final_gate(
                 call,
                 messages,
                 session,
-                max_retries=config.max_retries,
+                format_retries=config.format_retries,
                 repair_attempts_used=repair_attempts,
                 recent_activity_messages=config.recent_activity_messages,
                 recent_activity_chars=config.recent_activity_chars,
@@ -182,11 +197,21 @@ def run_single_llm(
                 reflection,
                 gate="single_llm_stop",
             )
-            decision = pre_submission(session, gate_text)
+            decision, flipped = pin_gate_decision(
+                pre_submission(session, gate_text),
+                pinned_status,
+                max_retries=config.repair_rounds,
+            )
+            if flipped:
+                print(
+                    "[atlas] single-llm verdict flip suppressed: gated on "
+                    f"pre-re-prompt status {pinned_status}",
+                    file=sys.stderr,
+                )
             if decision.allow:
                 break
             repair_attempts += 1
-            if repair_attempts > config.max_retries:
+            if repair_attempts > config.repair_rounds:
                 if config.gate_exhaustion_policy == "raise":
                     raise RuntimeError("ATLAS final repair limit exceeded")
                 break
@@ -235,7 +260,7 @@ def _collect_final_gate(
     messages,
     session,
     *,
-    max_retries,
+    format_retries,
     repair_attempts_used,
     recent_activity_messages,
     recent_activity_chars,
@@ -252,7 +277,7 @@ def _collect_final_gate(
         ),
         gate_label="final submission gate",
         full=True,
-        max_retries=max_retries,
+        format_retries=format_retries,
         return_text=True,
         prompt_suffix=(
             "\nThe runtime-counted value for `Repair attempts used:` is "
@@ -270,7 +295,7 @@ def _collect_reflection(
     recent_activity: str,
     gate_label: str,
     full: bool,
-    max_retries: int,
+    format_retries: int,
     return_text: bool = False,
     prompt_suffix: str = "",
 ):
@@ -284,26 +309,47 @@ def _collect_reflection(
         full=full,
     ) + prompt_suffix
     known = [str(code["id"]) for code in taxonomy["codes"]]
-    for attempt in range(max_retries + 1):
+    pinned_status: str | None = None
+    for attempt in range(max(0, format_retries) + 1):
         messages.append({"role": "user", "content": prompt})
         text = _call(call, messages)
         messages.append({"role": "assistant", "content": text})
-        try:
-            reflection = parse_reflection(
-                text,
-                checkpoint_id=checkpoint_id,
-                known_code_ids=known,
+        harvest = harvest_reflection(
+            text,
+            checkpoint_id=checkpoint_id,
+            known_code_ids=known,
+        )
+        if harvest.result is not None:
+            reflection = harvest.result
+            return (
+                (reflection, text, pinned_status) if return_text else reflection
             )
-            return (reflection, text) if return_text else reflection
-        except ValueError as exc:
-            if attempt >= max_retries:
-                raise RuntimeError(
-                    f"ATLAS reflection remained invalid: {exc}"
-                ) from exc
+        partial = harvest.partial
+        if (
+            full
+            and partial is not None
+            and partial.has_block
+            and partial.status
+            and pinned_status is None
+        ):
+            # Preserve the pre-re-prompt verdict; a format re-emission must
+            # not be allowed to flip it.
+            pinned_status = partial.status
+        if attempt >= format_retries:
+            raise RuntimeError(
+                f"ATLAS reflection remained invalid: {harvest.error}"
+            )
+        if partial is not None and partial.has_block:
+            prompt = render_format_repair(
+                checkpoint_id=checkpoint_id,
+                issues=partial.issues,
+                full=full,
+            )
+        else:
             prompt = (
-                f"ATLAS reflection was invalid: {exc}. Re-emit the complete "
-                f"reflection for Checkpoint ID {checkpoint_id} in the exact "
-                "required shape."
+                f"ATLAS reflection was invalid: {harvest.error}. Re-emit the "
+                f"complete reflection for Checkpoint ID {checkpoint_id} in "
+                "the exact required shape."
             )
     raise AssertionError("unreachable")
 

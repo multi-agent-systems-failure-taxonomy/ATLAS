@@ -19,6 +19,8 @@ PATH_FIELDS = {
 }
 INT_FIELDS = {
     "max_retries",
+    "format_retries",
+    "repair_rounds",
     "generation_threshold",
     "k_init",
     "k",

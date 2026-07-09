@@ -153,6 +153,68 @@ Final decision: repair
             self.assertEqual(answers, 2)
             self.assertEqual(final_gates, 2)
 
+    def test_format_failure_reprompts_targeted_and_pins_verdict(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            format_repairs = 0
+
+            def call(messages):
+                nonlocal format_repairs
+                prompt = messages[-1]["content"]
+                if "ATLAS format repair" in prompt:
+                    format_repairs += 1
+                    cid = checkpoint_id(messages)
+                    # Well-formed re-emission that flips the verdict.
+                    return f"""ATLAS reflection:
+- Checkpoint ID: {cid}
+- Observe: A second look claims a gap.
+- Map:
+  - MAST-12 | evidence: "second-guessed verification"
+- Correlate: Re-prompt pressure produced a new story.
+- Decide: change: rewrite the answer
+
+Final ATLAS status: REPAIR_REQUIRED
+Codes checked: MAST-12
+Evidence: second-guessed verification
+Repair attempts used: 0
+Final decision: repair
+"""
+                if "final submission gate" in prompt:
+                    cid = checkpoint_id(messages)
+                    # Missing Correlate -> form failure; verdict is READY.
+                    return f"""ATLAS reflection:
+- Checkpoint ID: {cid}
+- Observe: The answer was verified end to end.
+- Map:
+  - none apply | considered: MAST-12 | evidence: "verification passed"
+- Decide: no change needed, because verification passed
+
+Final ATLAS status: READY_TO_SUBMIT
+Codes checked: none
+Evidence: verification passed
+Repair attempts used: 0
+Final decision: submit
+"""
+                return "The final answer is 42."
+
+            result = run_single_llm(
+                "Solve the task.",
+                call,
+                SingleLLMConfig(
+                    trace_output=root / "program",
+                    atlas_model="gpt-5",
+                    store_dir=STORE_DIR,
+                    trace_root=root / "traces",
+                    dashboard=False,
+                ),
+                problem_id="pinned-task",
+            )
+            # One targeted re-prompt; the flipped verdict is pinned to the
+            # pre-re-prompt READY status, so no repair round runs.
+            self.assertEqual(format_repairs, 1)
+            self.assertEqual(result.answer, "The final answer is 42.")
+            self.assertTrue(result.gate_allowed)
+
     def test_release_policy_returns_best_answer_after_gate_cap(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

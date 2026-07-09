@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from atlas_runtime.reflection import parse_reflection
+from atlas_runtime.reflection import harvest_reflection, parse_reflection
 
 
 class ReflectionParserTests(unittest.TestCase):
@@ -86,6 +86,89 @@ Final decision: ready
         self.assertTrue(result.none_apply)
         self.assertEqual(result.assignments, ())
         self.assertEqual(result.considered_codes, ("MAST-1", "MAST-12"))
+
+
+class HarvestReflectionTests(unittest.TestCase):
+    def test_valid_content_with_wrong_checkpoint_id_is_corrected(self):
+        harvest = harvest_reflection(
+            """ATLAS reflection:
+- Checkpoint ID: stale-id
+- Observe: checked
+- Map:
+  - MAST-12 | evidence: "missing verification"
+- Correlate: skipped
+- Decide: change: verify
+""",
+            checkpoint_id="cp-1",
+            known_code_ids=("MAST-12",),
+        )
+        self.assertTrue(harvest.id_corrected)
+        self.assertIsNotNone(harvest.result)
+        self.assertEqual(harvest.result.checkpoint_id, "cp-1")
+        self.assertEqual(harvest.found_checkpoint_id, "stale-id")
+
+    def test_matching_id_is_not_marked_corrected(self):
+        harvest = harvest_reflection(
+            """ATLAS reflection:
+- Checkpoint ID: cp-1
+- Observe: checked
+- Map:
+  - MAST-12 | evidence: "missing verification"
+- Correlate: skipped
+- Decide: change: verify
+""",
+            checkpoint_id="cp-1",
+            known_code_ids=("MAST-12",),
+        )
+        self.assertFalse(harvest.id_corrected)
+        self.assertIsNotNone(harvest.result)
+
+    def test_partial_recovers_verdict_codes_and_missing_sections(self):
+        harvest = harvest_reflection(
+            """ATLAS reflection:
+- Checkpoint ID: cp-1
+- Observe: checked everything
+- Map:
+  - none apply | considered: MAST-12 | evidence: "suite green"
+- Decide: no change needed, because it is verified
+Final ATLAS status: READY_TO_SUBMIT
+""",
+            checkpoint_id="cp-1",
+            known_code_ids=("MAST-12",),
+        )
+        self.assertIsNone(harvest.result)
+        partial = harvest.partial
+        self.assertTrue(partial.has_block)
+        self.assertIn("correlate", partial.missing_sections)
+        self.assertEqual(partial.status, "READY_TO_SUBMIT")
+        self.assertIs(partial.decide_change, False)
+        self.assertIn("MAST-12", partial.mentioned_codes)
+        self.assertIn("empty or missing Correlate step", partial.issues)
+
+    def test_ambiguous_statuses_do_not_yield_a_pinnable_status(self):
+        harvest = harvest_reflection(
+            """ATLAS reflection:
+- Checkpoint ID: cp-1
+- Observe: checked
+Final ATLAS status: READY_TO_SUBMIT
+Final decision: repair
+""",
+            checkpoint_id="cp-1",
+            known_code_ids=("MAST-12",),
+        )
+        self.assertIsNone(harvest.result)
+        self.assertGreater(len(set(harvest.partial.statuses)), 1)
+        self.assertIsNone(harvest.partial.status)
+
+    def test_no_block_yields_empty_partial(self):
+        harvest = harvest_reflection(
+            "all done.",
+            checkpoint_id="cp-1",
+            known_code_ids=("MAST-12",),
+        )
+        self.assertIsNone(harvest.result)
+        self.assertFalse(harvest.partial.has_block)
+        self.assertIn("missing `ATLAS reflection` block", harvest.error)
 
 
 if __name__ == "__main__":

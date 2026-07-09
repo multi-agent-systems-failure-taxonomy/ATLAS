@@ -86,7 +86,7 @@ def evaluate_pre_submission(
     if max_retries < 0:
         raise ValueError("max_retries must be non-negative")
 
-    statuses = _extract_statuses(gate_text or "")
+    statuses = extract_statuses(gate_text or "")
     attempts = _ATTEMPTS_RE.findall(gate_text or "")
     if not statuses:
         return GateDecision(
@@ -97,9 +97,15 @@ def evaluate_pre_submission(
             repair_attempts_used=0,
         )
 
-    status = statuses[-1]
     used = int(attempts[-1]) if attempts else 0
+    return _decision_for_status(
+        statuses[-1], used=used, max_retries=max_retries
+    )
 
+
+def _decision_for_status(
+    status: str, *, used: int, max_retries: int
+) -> GateDecision:
     if status == READY:
         return GateDecision(
             allow=True,
@@ -127,7 +133,47 @@ def evaluate_pre_submission(
     )
 
 
-def _extract_statuses(text: str) -> list[str]:
+def pin_gate_decision(
+    decision: GateDecision,
+    pinned_status: str | None,
+    *,
+    max_retries: int,
+) -> tuple[GateDecision, bool]:
+    """Make a status recovered before a format re-prompt authoritative.
+
+    A re-emission that flips its verdict under re-prompt pressure is sampling
+    noise, not new information; the pre-re-prompt status wins. Returns the
+    effective decision and whether a flip was suppressed.
+    """
+    if max_retries < 0:
+        raise ValueError("max_retries must be non-negative")
+    if (
+        pinned_status not in (READY, REPAIR)
+        or decision.status is None
+        or decision.status == pinned_status
+    ):
+        return decision, False
+    pinned = _decision_for_status(
+        pinned_status,
+        used=decision.repair_attempts_used,
+        max_retries=max_retries,
+    )
+    return (
+        GateDecision(
+            allow=pinned.allow,
+            decision=pinned.decision,
+            reason=(
+                f"{pinned.reason} (verdict pinned to the pre-re-prompt "
+                f"reflection; the re-emission flipped to {decision.status})"
+            ),
+            status=pinned.status,
+            repair_attempts_used=pinned.repair_attempts_used,
+        ),
+        True,
+    )
+
+
+def extract_statuses(text: str) -> list[str]:
     """Return normalized final-gate statuses in document order.
 
     Agents often render the final report as Markdown headings or a small status

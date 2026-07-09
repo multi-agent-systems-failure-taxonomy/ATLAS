@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from .protocol import extract_statuses
+
 
 @dataclass(frozen=True)
 class CodeAssignment:
@@ -23,6 +25,7 @@ class ReflectionResult:
     decide: str
 
 
+_BLOCK_MARKER = re.compile(r"(?im)^[ \t]*#*[ \t]*\**[ \t]*ATLAS\s+reflection\b")
 _SECTION = re.compile(
     r"(?ims)^[ \t]*[#>*\-]*[ \t]*\**[ \t]*"
     r"(Observe|Observation|Review|Map|Mapping|"
@@ -36,13 +39,13 @@ _CHECKPOINT = re.compile(
     r"(?im)^\s*(?:[#>*-]\s*)*\**\s*Checkpoint\s+ID\s*:\s*([^\s*]+)"
 )
 _EVIDENCE = re.compile(
-    r"(?i)\bevidence\s*[:\-–—]\s*(?:\"([^\"]+)\"|'([^']+)'|(.+))"
-)
-
-_EVIDENCE = re.compile(
     r"(?i)\bevidence\s*(?:[:=\-–—]|\bis\b)\s*"
     r"(?:\"([^\"]+)\"|'([^']+)'|(.+))"
 )
+_DECIDE_CHANGE = re.compile(r"\bchange\s*:", re.I)
+_DECIDE_NO_CHANGE = re.compile(r"\bno\s+change\s+needed\b", re.I)
+
+REQUIRED_SECTIONS = ("observe", "map", "correlate", "decide")
 
 
 def _canon_section(name: str) -> str:
@@ -58,6 +61,13 @@ def _canon_section(name: str) -> str:
     return normalized
 
 
+def _find_block(text: str) -> str | None:
+    starts = [match.start() for match in _BLOCK_MARKER.finditer(text)]
+    if not starts:
+        return None
+    return text[starts[-1]:]
+
+
 def parse_reflection(
     text: str,
     *,
@@ -70,28 +80,31 @@ def parse_reflection(
     explicitly says none apply while naming at least one considered known code
     and giving evidence. The checker validates shape, not insight quality.
     """
-    text = text or ""
-    starts = [
-        match.start()
-        for match in re.finditer(
-            r"(?im)^[ \t]*#*[ \t]*\**[ \t]*ATLAS\s+reflection\b",
-            text,
-        )
-    ]
-    if not starts:
+    block = _find_block(text or "")
+    if block is None:
         raise ValueError("missing `ATLAS reflection` block")
-    block = text[starts[-1]:]
     marker = _CHECKPOINT.search(block)
     if not marker or marker.group(1).strip() != checkpoint_id:
         raise ValueError(
             f"reflection must include `Checkpoint ID: {checkpoint_id}`"
         )
+    return _parse_block(
+        block, checkpoint_id=checkpoint_id, known_code_ids=known_code_ids
+    )
 
+
+def _parse_block(
+    block: str,
+    *,
+    checkpoint_id: str,
+    known_code_ids: list[str] | tuple[str, ...],
+) -> ReflectionResult:
+    """Validate a reflection block's content, trusting ``checkpoint_id``."""
     sections = {
         _canon_section(match.group(1)): match.group(2).strip()
         for match in _SECTION.finditer(block)
     }
-    for name in ("observe", "map", "correlate", "decide"):
+    for name in REQUIRED_SECTIONS:
         if not sections.get(name):
             raise ValueError(f"reflection has an empty or missing {name.title()} step")
 
@@ -152,6 +165,125 @@ def parse_reflection(
         correlate=sections["correlate"],
         decide=decide,
     )
+
+
+@dataclass(frozen=True)
+class PartialReflection:
+    """Best-effort content recovered from a malformed reflection.
+
+    A reflection has form (parseable shape) and content (verdict, code
+    assignments, evidence). When the form fails, the content that was still
+    recoverable is captured here so recovery never has to re-sample it.
+    """
+
+    has_block: bool
+    found_checkpoint_id: str | None
+    present_sections: tuple[str, ...]
+    missing_sections: tuple[str, ...]
+    mentioned_codes: tuple[str, ...]
+    statuses: tuple[str, ...]
+    decide_change: bool | None
+    issues: tuple[str, ...]
+
+    @property
+    def status(self) -> str | None:
+        """The recovered final-gate status, only when it is unambiguous."""
+        unique = set(self.statuses)
+        if len(unique) == 1:
+            return next(iter(unique))
+        return None
+
+
+@dataclass(frozen=True)
+class HarvestedReflection:
+    """Outcome of a lenient reflection parse.
+
+    ``result`` is set when the block validated, possibly after substituting
+    the hook-owned checkpoint id (``id_corrected``); the hook gains no
+    information by making the model echo an id it already knows. Otherwise
+    ``partial`` carries the recoverable content and ``error`` the strict
+    parser's complaint.
+    """
+
+    result: ReflectionResult | None
+    id_corrected: bool
+    found_checkpoint_id: str | None
+    partial: PartialReflection | None
+    error: str | None
+
+
+def harvest_reflection(
+    text: str,
+    *,
+    checkpoint_id: str,
+    known_code_ids: list[str] | tuple[str, ...],
+) -> HarvestedReflection:
+    """Parse leniently: strict result if possible, partial content otherwise."""
+    block = _find_block(text or "")
+    if block is None:
+        error = "missing `ATLAS reflection` block"
+        partial = PartialReflection(
+            has_block=False,
+            found_checkpoint_id=None,
+            present_sections=(),
+            missing_sections=REQUIRED_SECTIONS,
+            mentioned_codes=(),
+            statuses=(),
+            decide_change=None,
+            issues=(error,),
+        )
+        return HarvestedReflection(None, False, None, partial, error)
+
+    marker = _CHECKPOINT.search(block)
+    found_id = marker.group(1).strip() if marker else None
+    content_error: str | None = None
+    result: ReflectionResult | None = None
+    try:
+        result = _parse_block(
+            block, checkpoint_id=checkpoint_id, known_code_ids=known_code_ids
+        )
+    except ValueError as exc:
+        content_error = str(exc)
+
+    if result is not None:
+        return HarvestedReflection(
+            result, found_id != checkpoint_id, found_id, None, None
+        )
+
+    known = tuple(str(code_id) for code_id in known_code_ids)
+    sections = {
+        _canon_section(match.group(1)): match.group(2).strip()
+        for match in _SECTION.finditer(block)
+    }
+    present = tuple(name for name in REQUIRED_SECTIONS if sections.get(name))
+    missing = tuple(name for name in REQUIRED_SECTIONS if not sections.get(name))
+    decide_text = sections.get("decide", "")
+    if _DECIDE_CHANGE.search(decide_text):
+        decide_change: bool | None = True
+    elif _DECIDE_NO_CHANGE.search(decide_text):
+        decide_change = False
+    else:
+        decide_change = None
+
+    issues: list[str] = []
+    if found_id != checkpoint_id:
+        issues.append(f"missing or wrong `Checkpoint ID: {checkpoint_id}` line")
+    for name in missing:
+        issues.append(f"empty or missing {name.title()} step")
+    if not missing and content_error:
+        issues.append(content_error)
+
+    partial = PartialReflection(
+        has_block=True,
+        found_checkpoint_id=found_id,
+        present_sections=present,
+        missing_sections=missing,
+        mentioned_codes=_mentioned_codes(block, known),
+        statuses=tuple(extract_statuses(block)),
+        decide_change=decide_change,
+        issues=tuple(issues),
+    )
+    return HarvestedReflection(None, False, found_id, partial, content_error)
 
 
 def _evidence(text: str) -> str:

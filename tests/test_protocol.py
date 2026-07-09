@@ -160,6 +160,55 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(decision.status, protocol.REPAIR)
         self.assertIn("2 attempt(s) remain", decision.reason)
 
+    def test_pin_gate_decision_suppresses_a_flip(self):
+        emitted = protocol.evaluate_pre_submission(
+            "Final ATLAS status: REPAIR_REQUIRED\nRepair attempts used: 0",
+            max_retries=3,
+        )
+        pinned, flipped = protocol.pin_gate_decision(
+            emitted, protocol.READY, max_retries=3
+        )
+        self.assertTrue(flipped)
+        self.assertTrue(pinned.allow)
+        self.assertEqual(pinned.status, protocol.READY)
+        self.assertIn("verdict pinned", pinned.reason)
+
+    def test_pin_gate_decision_pins_repair_over_ready(self):
+        emitted = protocol.evaluate_pre_submission(
+            "Final ATLAS status: READY_TO_SUBMIT\nRepair attempts used: 0",
+            max_retries=3,
+        )
+        pinned, flipped = protocol.pin_gate_decision(
+            emitted, protocol.REPAIR, max_retries=3
+        )
+        self.assertTrue(flipped)
+        self.assertFalse(pinned.allow)
+        self.assertEqual(pinned.status, protocol.REPAIR)
+
+    def test_pin_gate_decision_noop_cases(self):
+        emitted = protocol.evaluate_pre_submission(
+            "Final ATLAS status: READY_TO_SUBMIT\nRepair attempts used: 0",
+            max_retries=3,
+        )
+        same, flipped = protocol.pin_gate_decision(
+            emitted, protocol.READY, max_retries=3
+        )
+        self.assertFalse(flipped)
+        self.assertIs(same, emitted)
+
+        none_pinned, flipped = protocol.pin_gate_decision(
+            emitted, None, max_retries=3
+        )
+        self.assertFalse(flipped)
+        self.assertIs(none_pinned, emitted)
+
+        missing = protocol.evaluate_pre_submission("done", max_retries=3)
+        unchanged, flipped = protocol.pin_gate_decision(
+            missing, protocol.READY, max_retries=3
+        )
+        self.assertFalse(flipped)
+        self.assertIs(unchanged, missing)
+
 
 if __name__ == "__main__":
     unittest.main()

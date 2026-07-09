@@ -57,10 +57,15 @@ See [TRACES_AND_LEARNING.md](TRACES_AND_LEARNING.md) for how these interact.
 
 ## Gate fields
 
+Form failures (unparseable reflections) and substantive repairs draw on
+separate budgets, so tuning one loop cannot silently disable the other.
+
 | Field | Default | Purpose |
 |---|---|---|
-| `max_retries` | `3` | Final-gate repair opportunities before honest unresolved release. |
-| `gate_exhaustion_policy` | `"raise"` | Single-LLM only. `"raise"` errors when the retry cap is hit; `"release"` returns the best answer and records `gate_allowed=false` (useful for benchmark wrappers). |
+| `repair_rounds` | `3` | Substantive `REPAIR_REQUIRED` repair opportunities at the final gate before honest unresolved release. |
+| `format_retries` | `2` | Reflection parse/shape failures tolerated per checkpoint cycle before the gate releases. Format re-prompts are targeted: they name the missing elements and pin the previous verdict. |
+| `max_retries` | `3` | Legacy shared knob, accepted indefinitely: maps to `repair_rounds` when `repair_rounds` is not set. |
+| `gate_exhaustion_policy` | `"raise"` | Single-LLM only. `"raise"` errors when the repair cap is hit; `"release"` returns the best answer and records `gate_allowed=false` (useful for benchmark wrappers). |
 
 ## Model transport fields
 
@@ -115,7 +120,8 @@ fields are still accepted as compatibility aliases for the scoped forms.
   "refinement_stops": false,
   "advanced_refinement": false,
   "freeze": false,
-  "max_retries": 3,
+  "repair_rounds": 3,
+  "format_retries": 2,
   "dashboard": true,
   "claude_code": {
     "built_in_hooks": {

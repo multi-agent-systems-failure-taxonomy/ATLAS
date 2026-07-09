@@ -346,6 +346,8 @@ def main(argv=None) -> int:
         help="open the local taxonomy picker at install time",
     )
     parser.add_argument("--max-retries", type=int)
+    parser.add_argument("--format-retries", type=int)
+    parser.add_argument("--repair-rounds", type=int)
     parser.add_argument("--generation-threshold", type=int)
     parser.add_argument(
         "--generation-stops",
@@ -524,6 +526,8 @@ def main(argv=None) -> int:
         "atlas_model": atlas_model,
         "inherit": inherit,
         "max_retries": config_value(args, config, "max_retries", 3),
+        "format_retries": config_value(args, config, "format_retries", 2),
+        "repair_rounds": config_value(args, config, "repair_rounds"),
         "generation_threshold": config_value(args, config, "generation_threshold", 5),
         "generation_stops": bool_config_value(args, config, "generation_stops", False),
         "skip_judge": skip_judge,

@@ -203,7 +203,7 @@ The fields most people touch first:
 |---|---:|---|
 | `generation_threshold` | `5` | Raise it if early traces are noisy or not representative. |
 | `freeze` | `false` | Turn on for inference-only evaluation: record traces/evidence, but skip generation and refinement. |
-| `max_retries` | `3` | Final-gate repair opportunities before honest unresolved release. |
+| `repair_rounds` | `3` | Final-gate repair opportunities before honest unresolved release (`max_retries` is the legacy alias). |
 
 Every field, with defaults and semantics, is in
 [CONFIGURATION.md](CONFIGURATION.md).

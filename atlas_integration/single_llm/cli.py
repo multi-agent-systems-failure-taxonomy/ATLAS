@@ -206,6 +206,9 @@ def main(argv=None) -> int:
         "atlas_model": config_value(args, config, "atlas_model", model),
         "inherit": inherit,
         "dashboard": bool_config_value(args, config, "dashboard", True),
+        "max_retries": config_value(args, config, "max_retries", 3),
+        "format_retries": config_value(args, config, "format_retries", 2),
+        "repair_rounds": config_value(args, config, "repair_rounds"),
         "gate_exhaustion_policy": config_value(
             args, config, "gate_exhaustion_policy", "raise"
         ),

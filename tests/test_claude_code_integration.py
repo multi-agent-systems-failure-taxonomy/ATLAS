@@ -167,7 +167,8 @@ class ClaudeCodeIntegrationTests(unittest.TestCase):
         )
         code, error = task_completed.handle(event, self.config)
         self.assertEqual(code, 2)
-        self.assertIn("incomplete", error)
+        self.assertIn("ATLAS format repair", error)
+        self.assertIn("empty or missing Map step", error)
         append_text(self.transcript, none_reflection(cid))
         code, _ = task_completed.handle(event, self.config)
         self.assertEqual(code, 0)
@@ -237,7 +238,10 @@ Run the missing verification before proceeding.
             "verification was absent",
         )
 
-    def test_reflection_still_requires_matching_checkpoint_id(self):
+    def test_wrong_checkpoint_id_is_corrected_not_rejected(self):
+        # The hook owns the checkpoint id; a reflection that is valid in every
+        # other respect is accepted with the id corrected instead of burning a
+        # format retry on making the model echo hook-owned bookkeeping.
         event = {
             **self.base,
             "hook_event_name": "TaskCompleted",
@@ -251,9 +255,24 @@ Run the missing verification before proceeding.
             fired_reflection("not-the-pending-checkpoint"),
         )
 
-        code, error = task_completed.handle(event, self.config)
-        self.assertEqual(code, 2)
-        self.assertIn("Checkpoint ID", error)
+        code, _message = task_completed.handle(event, self.config)
+        self.assertEqual(code, 0)
+        events = [
+            json.loads(line)
+            for line in (self.trace_output / "decisions.log")
+            .read_text(encoding="utf-8")
+            .splitlines()
+        ]
+        corrected = [
+            entry
+            for entry in events
+            if entry["event"] == "checkpoint_id_corrected"
+        ]
+        self.assertEqual(len(corrected), 1)
+        self.assertEqual(
+            corrected[0]["found_checkpoint_id"],
+            "not-the-pending-checkpoint",
+        )
 
     def test_subagent_stop_rejects_hollow_and_accepts_none_apply(self):
         agent_transcript = self.root / "agent-none.jsonl"
@@ -295,7 +314,8 @@ Run the missing verification before proceeding.
         active = {**event, "stop_hook_active": True}
         code, _ = stop.handle(active, self.config)
         self.assertEqual(code, 2)
-        self.assertEqual(stop.handle(active, self.config)[0], 2)
+        # format_retries defaults to 2: the second consecutive shape failure
+        # releases the gate.
         code, message = stop.handle(active, self.config)
         self.assertEqual(code, 0)
         self.assertIn("hook-owned retry limit", message)
@@ -315,10 +335,138 @@ Run the missing verification before proceeding.
             "- Observe: still hollow",
         )
         self.assertEqual(task_completed.handle(event, self.config)[0], 2)
-        self.assertEqual(task_completed.handle(event, self.config)[0], 2)
         code, message = task_completed.handle(event, self.config)
         self.assertEqual(code, 0)
         self.assertIn("hook-owned retry limit", message)
+
+    def test_format_failure_gets_targeted_reprompt_and_verdict_pinning(self):
+        event = {
+            **self.base,
+            "hook_event_name": "Stop",
+            "stop_hook_active": False,
+            "last_assistant_message": "Finished.",
+        }
+        code, prompt = stop.handle(event, self.config)
+        self.assertEqual(code, 2)
+        cid = checkpoint_id(prompt)
+        # Valid in substance (READY verdict, no change) but missing Correlate.
+        append_text(
+            self.transcript,
+            f"""ATLAS reflection:
+- Checkpoint ID: {cid}
+- Observe: The trace is complete and verified.
+- Map:
+  - none apply | considered: MAST-12 | evidence: "the full suite passed"
+- Decide: no change needed, because verification is green
+Final ATLAS status: READY_TO_SUBMIT
+Codes checked: none
+Evidence: the full suite passed
+Repair attempts used: 0
+Final decision: submit
+""",
+        )
+        active = {**event, "stop_hook_active": True}
+        code, message = stop.handle(active, self.config)
+        self.assertEqual(code, 2)
+        self.assertIn("ATLAS format repair", message)
+        self.assertIn("empty or missing Correlate step", message)
+        self.assertNotIn("empty or missing Observe step", message)
+        self.assertIn("Do not re-analyze", message)
+        # The re-emission is well-formed but flips the verdict; the pinned
+        # pre-re-prompt status must win and the gate must release.
+        append_text(
+            self.transcript,
+            fired_reflection(cid)
+            + "\nFinal ATLAS status: REPAIR_REQUIRED\n"
+            + "Repair attempts used: 0\n",
+        )
+        code, _message = stop.handle(active, self.config)
+        self.assertEqual(code, 0)
+        events = [
+            json.loads(line)
+            for line in (self.trace_output / "decisions.log")
+            .read_text(encoding="utf-8")
+            .splitlines()
+        ]
+        flips = [
+            entry
+            for entry in events
+            if entry["event"] == "verdict_flip_suppressed"
+        ]
+        self.assertEqual(len(flips), 1)
+        self.assertEqual(flips[0]["pinned_status"], "READY_TO_SUBMIT")
+        self.assertEqual(flips[0]["emitted_status"], "REPAIR_REQUIRED")
+
+    def test_shape_error_does_not_consume_repair_round(self):
+        # Legacy max_retries=1 maps to repair_rounds=1 while format_retries
+        # stays at its own default, so one checkpoint-id/shape slip can no
+        # longer exhaust the gate before a repair is offered.
+        config = ClaudeCodeConfig(
+            trace_output=self.trace_output,
+            atlas_model="test-model",
+            store_dir=STORE_DIR,
+            max_retries=1,
+        )
+        base = {**self.base, "session_id": "session-repair-budget"}
+        with patch.dict(os.environ, {"ATLAS_DISABLE_DASHBOARD": "1"}):
+            session_start.handle(
+                {**base, "hook_event_name": "SessionStart"}, config
+            )
+        event = {
+            **base,
+            "hook_event_name": "Stop",
+            "stop_hook_active": False,
+            "last_assistant_message": "Finished.",
+        }
+        code, prompt = stop.handle(event, config)
+        self.assertEqual(code, 2)
+        cid = checkpoint_id(prompt)
+        append_text(
+            self.transcript,
+            f"ATLAS reflection:\n- Checkpoint ID: {cid}\n- Observe: hollow",
+        )
+        active = {**event, "stop_hook_active": True}
+        code, message = stop.handle(active, config)
+        self.assertEqual(code, 2)
+        self.assertIn("ATLAS format repair", message)
+        append_text(
+            self.transcript,
+            fired_reflection(cid)
+            + "\nFinal ATLAS status: REPAIR_REQUIRED\n"
+            + "Repair attempts used: 0\n",
+        )
+        code, message = stop.handle(active, config)
+        self.assertEqual(code, 2)
+        self.assertIn("repair attempt 1 of 1", message)
+
+    def test_legacy_max_retries_maps_to_repair_rounds(self):
+        config = ClaudeCodeConfig(
+            trace_output=self.trace_output,
+            atlas_model="test-model",
+            store_dir=STORE_DIR,
+            max_retries=5,
+        )
+        self.assertEqual(config.repair_rounds, 5)
+        self.assertEqual(config.format_retries, 2)
+        data = config.to_dict()
+        self.assertEqual(data["max_retries"], 5)
+        self.assertEqual(data["repair_rounds"], 5)
+        self.assertEqual(data["format_retries"], 2)
+
+        path = self.root / "legacy-atlas.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "trace_output": str(self.trace_output),
+                    "atlas_model": "test-model",
+                    "max_retries": 3,
+                }
+            ),
+            encoding="utf-8",
+        )
+        loaded = ClaudeCodeConfig.load(path)
+        self.assertEqual(loaded.repair_rounds, 3)
+        self.assertEqual(loaded.format_retries, 2)
 
     def test_three_completed_repairs_each_receive_fresh_re_evaluation(self):
         event = {

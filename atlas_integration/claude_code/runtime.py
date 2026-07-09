@@ -19,11 +19,17 @@ from atlas_runtime import (
     SessionDelivery,
     end_session,
     evaluate_pre_submission,
+    pin_gate_decision,
     record_trace,
+    render_format_repair,
     start_session,
 )
 from atlas_runtime.evidence import record_reflection
-from atlas_runtime.reflection import ReflectionResult, parse_reflection
+from atlas_runtime.reflection import (
+    ReflectionResult,
+    harvest_reflection,
+    parse_reflection,
+)
 from finding import resolver
 
 from atlas_integration.shared import build_session_state
@@ -67,7 +73,7 @@ def session_start(event: dict[str, Any], config: ClaudeCodeConfig) -> dict:
         session_id=f"claude-code:{session_id}",
         atlas_model=config.atlas_model,
         repo_path=event.get("cwd") or Path.cwd(),
-        max_retries=config.max_retries,
+        max_retries=config.repair_rounds,
         dashboard=config.dashboard,
         generation_threshold=config.generation_threshold,
         generation_stops=config.generation_stops,
@@ -83,7 +89,7 @@ def session_start(event: dict[str, Any], config: ClaudeCodeConfig) -> dict:
         session_id=session_id,
         session=session,
         cwd=str(event.get("cwd") or ""),
-        max_retries=config.max_retries,
+        max_retries=config.repair_rounds,
         main_cursor=transcript_size(event.get("transcript_path")),
         failure={
             "call_index": 0,
@@ -92,6 +98,8 @@ def session_start(event: dict[str, Any], config: ClaudeCodeConfig) -> dict:
             "last_fired_at": 0.0,
         },
     )
+    state["format_retries"] = config.format_retries
+    state["repair_rounds"] = config.repair_rounds
     save_state(config.trace_output, session_id, state)
     context = STANDING_PROMPT
     if session.delivery.dashboard_url:
@@ -123,6 +131,8 @@ def blocking_checkpoint(
                     "repairs_completed": completed,
                     "checkpoint_id": _checkpoint_id(gate),
                     "guard_failures": 0,
+                    "pinned_status": None,
+                    "pinned_decide": None,
                     "recorded": False,
                 }
             )
@@ -146,16 +156,27 @@ def blocking_checkpoint(
         recent = read_transcript(transcript_path, after=int(pending["offset"]))
         if event.get("last_assistant_message"):
             recent += "\n" + str(event["last_assistant_message"])
-        try:
-            reflection = parse_reflection(
-                recent,
-                checkpoint_id=pending["checkpoint_id"],
-                known_code_ids=_code_ids(state),
-            )
-        except ValueError as exc:
+        harvest = harvest_reflection(
+            recent,
+            checkpoint_id=pending["checkpoint_id"],
+            known_code_ids=_code_ids(state),
+        )
+        if harvest.result is None:
+            partial = harvest.partial
             pending["guard_failures"] = int(
                 pending.get("guard_failures", 0)
             ) + 1
+            if partial is not None and partial.has_block:
+                # Preserve the pre-re-prompt verdict: a format re-emission
+                # must not be allowed to flip it (sampling noise, not new
+                # information).
+                if partial.status and not pending.get("pinned_status"):
+                    pending["pinned_status"] = partial.status
+                if (
+                    pending.get("pinned_decide") is None
+                    and partial.decide_change is not None
+                ):
+                    pending["pinned_decide"] = partial.decide_change
             if _retry_limit_reached(pending, state):
                 return _release_retry_guard(
                     config,
@@ -163,10 +184,31 @@ def blocking_checkpoint(
                     key=key,
                     gate=gate,
                     transcript_path=transcript_path,
-                    detail=f"Last shape error: {exc}",
+                    detail=f"Last shape error: {harvest.error}",
                 )
             save_state(config.trace_output, state["session_id"], state)
-            return 2, f"ATLAS reflection is incomplete: {exc}\n\n" + pending["prompt"]
+            if partial is not None and partial.has_block:
+                return 2, render_format_repair(
+                    checkpoint_id=pending["checkpoint_id"],
+                    issues=partial.issues,
+                    full=gate == "stop" and bool(pending.get("full", True)),
+                )
+            return 2, (
+                f"ATLAS reflection is incomplete: {harvest.error}\n\n"
+                + pending["prompt"]
+            )
+        reflection = harvest.result
+        if harvest.id_corrected:
+            _log_decision(
+                config,
+                {
+                    "event": "checkpoint_id_corrected",
+                    "gate": gate,
+                    "session_id": state.get("session_id"),
+                    "expected_checkpoint_id": pending["checkpoint_id"],
+                    "found_checkpoint_id": harvest.found_checkpoint_id,
+                },
+            )
 
         if not pending.get("recorded"):
             task_id = _task_id(event, gate)
@@ -181,12 +223,32 @@ def blocking_checkpoint(
             )
             pending["recorded"] = True
         if gate == "stop" and pending.get("full", True):
-            decision = evaluate_pre_submission(
-                recent, max_retries=int(state["max_retries"])
+            repair_rounds = _repair_rounds(state)
+            emitted = evaluate_pre_submission(
+                recent, max_retries=repair_rounds
             )
+            decision, flipped = pin_gate_decision(
+                emitted,
+                pending.get("pinned_status"),
+                max_retries=repair_rounds,
+            )
+            if flipped:
+                _log_decision(
+                    config,
+                    {
+                        "event": "verdict_flip_suppressed",
+                        "gate": gate,
+                        "session_id": state.get("session_id"),
+                        "pinned_status": pending.get("pinned_status"),
+                        "emitted_status": emitted.status,
+                    },
+                )
             repairs_completed = int(pending.get("repairs_completed", 0))
-            reflection_requires_change = bool(
-                re.search(r"\bchange\s*:", reflection.decide, re.I)
+            pinned_decide = pending.get("pinned_decide")
+            reflection_requires_change = (
+                bool(pinned_decide)
+                if pinned_decide is not None
+                else bool(re.search(r"\bchange\s*:", reflection.decide, re.I))
             )
             if (
                 reflection_requires_change
@@ -230,7 +292,7 @@ def blocking_checkpoint(
                 return 2, _repair_action_feedback(
                     decision.reason,
                     next_attempt=next_attempt,
-                    limit=int(state["max_retries"]),
+                    limit=repair_rounds,
                 )
             if not decision.allow:
                 pending["guard_failures"] = int(
@@ -295,6 +357,8 @@ def blocking_checkpoint(
         "guard_failures": 0,
         "repairs_completed": 0,
         "awaiting_repair": False,
+        "pinned_status": None,
+        "pinned_decide": None,
         "recorded": False,
     }
     save_state(config.trace_output, state["session_id"], state)
@@ -507,11 +571,19 @@ def session_end(
     return 0, "ATLAS captured the Claude Code session trace."
 
 
+def _format_retries(state: dict[str, Any]) -> int:
+    return max(1, int(state.get("format_retries", 2)))
+
+
+def _repair_rounds(state: dict[str, Any]) -> int:
+    # Sessions persisted before the budget split carry only max_retries.
+    return max(0, int(state.get("repair_rounds", state.get("max_retries", 3))))
+
+
 def _retry_limit_reached(
     pending: dict[str, Any], state: dict[str, Any]
 ) -> bool:
-    limit = max(1, int(state.get("max_retries", 3)))
-    return int(pending.get("guard_failures", 0)) >= limit
+    return int(pending.get("guard_failures", 0)) >= _format_retries(state)
 
 
 def _repair_feedback(reason: str, prompt: str) -> str:
@@ -528,8 +600,7 @@ def _repair_feedback(reason: str, prompt: str) -> str:
 def _repair_limit_reached(
     pending: dict[str, Any], state: dict[str, Any]
 ) -> bool:
-    limit = max(0, int(state.get("max_retries", 3)))
-    return int(pending.get("repairs_completed", 0)) >= limit
+    return int(pending.get("repairs_completed", 0)) >= _repair_rounds(state)
 
 
 def _repair_action_feedback(
@@ -548,6 +619,18 @@ def _repair_action_feedback(
     )
 
 
+def _log_decision(config: ClaudeCodeConfig, payload: dict[str, Any]) -> None:
+    """Append one audit record to ``<trace_output>/decisions.log``."""
+    try:
+        decisions_log = Path(config.trace_output) / "decisions.log"
+        decisions_log.parent.mkdir(parents=True, exist_ok=True)
+        with decisions_log.open("a", encoding="utf-8") as fh:
+            ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            fh.write(json.dumps({"ts": ts, **payload}) + "\n")
+    except OSError:
+        pass
+
+
 def _release_retry_guard(
     config: ClaudeCodeConfig,
     state: dict[str, Any],
@@ -558,9 +641,10 @@ def _release_retry_guard(
     detail: str,
 ) -> tuple[int, str]:
     pending = state.get("pending", {}).get(key, {}) or {}
-    guard_failures = int(pending.get("guard_failures", 0))
+    format_failures = int(pending.get("guard_failures", 0))
     repairs_completed = int(pending.get("repairs_completed", 0))
-    limit = int(state.get("max_retries", 3))
+    format_retries = _format_retries(state)
+    repair_rounds = _repair_rounds(state)
 
     state["pending"].pop(key, None)
     if gate == "stop":
@@ -578,27 +662,26 @@ def _release_retry_guard(
     # remembering that a hook fired in some scrollback.
     summary = (
         f"[atlas] {gate} gate released after retry guard hit "
-        f"(guard_failures={guard_failures}, repairs_completed={repairs_completed}, "
-        f"limit={limit}). detail={detail!r}"
+        f"(format_failures={format_failures}/{format_retries}, "
+        f"repairs_completed={repairs_completed}/{repair_rounds}). "
+        f"detail={detail!r}"
     )
     print(summary, file=sys.stderr)
-    try:
-        decisions_log = Path(config.trace_output) / "decisions.log"
-        decisions_log.parent.mkdir(parents=True, exist_ok=True)
-        with decisions_log.open("a", encoding="utf-8") as fh:
-            ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-            fh.write(json.dumps({
-                "ts": ts,
-                "event": "retry_guard_release",
-                "gate": gate,
-                "session_id": state.get("session_id"),
-                "guard_failures": guard_failures,
-                "repairs_completed": repairs_completed,
-                "limit": limit,
-                "detail": detail,
-            }) + "\n")
-    except OSError:
-        pass
+    _log_decision(
+        config,
+        {
+            "event": "retry_guard_release",
+            "gate": gate,
+            "session_id": state.get("session_id"),
+            "guard_failures": format_failures,
+            "format_failures": format_failures,
+            "format_retries": format_retries,
+            "repairs_completed": repairs_completed,
+            "repair_rounds": repair_rounds,
+            "limit": repair_rounds,
+            "detail": detail,
+        },
+    )
 
     return (
         0,

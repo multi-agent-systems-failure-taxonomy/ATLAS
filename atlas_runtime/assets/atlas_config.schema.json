@@ -43,9 +43,21 @@
       "minLength": 1
     },
     "max_retries": {
-      "description": "Maximum pre-submission gate retry attempts.",
+      "description": "Legacy shared retry knob. Maps to repair_rounds when repair_rounds is not set explicitly.",
       "type": "integer",
       "minimum": 1
+    },
+    "format_retries": {
+      "description": "Budget for reflection parse/shape/consistency failures per checkpoint cycle before the gate releases.",
+      "type": "integer",
+      "minimum": 1,
+      "default": 2
+    },
+    "repair_rounds": {
+      "description": "Budget for substantive REPAIR_REQUIRED repair cycles per session gate. Overrides max_retries.",
+      "type": "integer",
+      "minimum": 1,
+      "default": 3
     },
     "generation_threshold": {
       "description": "Number of warm-up traces required before initial taxonomy generation.",

@@ -39,7 +39,7 @@ Decide:    Submit without repair.
 ## 3. The final gate
 
 Before the final answer is released, the pre-submission gate requires this
-exact format and allows at most `max_retries` repairs:
+exact format and allows at most `repair_rounds` repairs:
 
 ```text
 Final ATLAS status: READY_TO_SUBMIT
@@ -50,7 +50,7 @@ Repair attempts used: 1
 Final decision: submit
 ```
 
-A `REPAIR_REQUIRED` status blocks completion; after `max_retries`
+A `REPAIR_REQUIRED` status blocks completion; after `repair_rounds`
 unsuccessful attempts the agent must report the unresolved issue honestly
 instead of claiming clean success.
 
