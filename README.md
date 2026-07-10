@@ -42,7 +42,7 @@ evidence patterns are induced per system:
 | Axis | Scope | Example code |
 |---|---|---|
 | System-level | Arises in any agent system | `Context_Exhaustion`, `Premature_Termination` |
-| Role-specific | Tied to a discovered component role | a checker that rubber-stamps a solver's output |
+| Role-specific | Tied to a discovered component role | `Checker_Rubber_Stamps_Solver's_Output` |
 | Domain-specific | Requires task knowledge | `Algorithm_Mismatch`, `Physical_Law_Violation` |
 
 The same induced vocabulary is a reusable feedback interface for more than one
