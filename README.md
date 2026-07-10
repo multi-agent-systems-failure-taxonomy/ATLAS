@@ -65,7 +65,7 @@ On TRAIL (117 expert-annotated GAIA traces), induced codes align with the human
 gold at Cohen's kappa 0.725, more faithfully than TRAIL's hand-crafted
 vocabulary.
 
-## How it works
+## Runtime Integration - How it works
 
 ![ATLAS runtime loop](docs/atlas_runtime_loop.png)
 
