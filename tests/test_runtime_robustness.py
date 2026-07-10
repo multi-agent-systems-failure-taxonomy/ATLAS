@@ -51,6 +51,22 @@ class CorruptManifestTests(unittest.TestCase):
             # The next load starts clean instead of failing forever.
             self.assertEqual(workspace.load(), {})
 
+    def test_quarantine_inside_locked_manifest_releases_the_lock(self):
+        # Regression: the quarantine raised inside locked_manifest() before
+        # the lock-releasing try/finally, so the very next workspace call
+        # timed out on the leftover .manifest.lock (found live in the E2E).
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "program"
+            ProgramWorkspace(root)
+            (root / MANIFEST_NAME).write_text("{broken", encoding="utf-8")
+            with self.assertRaisesRegex(ProgramConflict, "corrupt"):
+                ProgramWorkspace(root)  # __init__ goes through locked_manifest
+            self.assertFalse((root / ".manifest.lock").exists())
+            # Immediate retry must succeed with a fresh manifest, not
+            # TimeoutError on a leaked lock.
+            fresh = ProgramWorkspace(root)
+            self.assertTrue(fresh.load().get("program_id"))
+
 
 if __name__ == "__main__":
     unittest.main()

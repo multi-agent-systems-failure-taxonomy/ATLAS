@@ -439,8 +439,10 @@ class ProgramWorkspace:
                 if time.monotonic() >= deadline:
                     raise TimeoutError(f"timed out waiting for program lock {lock}")
                 time.sleep(0.05)
-        manifest = self.load()
         try:
+            # load() may raise (e.g. corrupt-manifest quarantine); it must run
+            # inside the try so the lock is always released.
+            manifest = self.load()
             yield manifest
             temporary = self.root / f".{MANIFEST_NAME}.tmp"
             temporary.write_text(
