@@ -2,7 +2,24 @@
 
 from __future__ import annotations
 
+import json
+import os
+from pathlib import Path
 from typing import Any
+
+
+def write_json_atomic(path: Path, data: dict) -> None:
+    """Write JSON via a same-directory temp file and atomic replace.
+
+    Settings files (including the user's global Claude settings) must never
+    be left half-written by an interrupted process.
+    """
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(
+        json.dumps(data, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    os.replace(temporary, path)
 
 
 def build_session_state(

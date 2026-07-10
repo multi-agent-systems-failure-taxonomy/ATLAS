@@ -470,6 +470,79 @@ Final decision: submit
         self.assertEqual(loaded.repair_rounds, 3)
         self.assertEqual(loaded.format_retries, 2)
 
+    def test_finalize_crash_does_not_duplicate_trace(self):
+        # Regression: the trace was persisted inside end_session, but
+        # trace_captured was only saved after learning completed, so a crash
+        # or hook-timeout kill made the retry record a second copy.
+        event = {
+            **self.base,
+            "hook_event_name": "SessionEnd",
+            "reason": "prompt_input_exit",
+        }
+        append_text(self.transcript, "Some session activity.")
+        with patch(
+            "atlas_integration.claude_code.runtime.end_session",
+            side_effect=RuntimeError("learning crashed"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "learning crashed"):
+                session_end.handle(event, self.config)
+        pending = list((self.trace_output / "pending").glob("trace-*.json"))
+        self.assertEqual(len(pending), 1)
+        state = load_state(self.trace_output, self.base["session_id"])
+        self.assertTrue(state["trace_captured"])
+        self.assertFalse(state.get("finished"))
+
+        # The retry completes the lifecycle without re-recording the trace.
+        code, _message = session_end.handle(event, self.config)
+        self.assertEqual(code, 0)
+        pending = list((self.trace_output / "pending").glob("trace-*.json"))
+        self.assertEqual(len(pending), 1)
+        state = load_state(self.trace_output, self.base["session_id"])
+        self.assertTrue(state["finished"])
+        self.assertEqual(state["trace_capture"]["persisted_traces"], 1)
+
+    def test_hooks_force_background_learning(self):
+        # Learning must never run inline under Claude Code's per-hook
+        # timeout, regardless of the configured *_stops flags.
+        config = ClaudeCodeConfig(
+            trace_output=self.trace_output,
+            atlas_model="test-model",
+            store_dir=STORE_DIR,
+            generation_stops=True,
+            refinement_stops=True,
+        )
+        base = {**self.base, "session_id": "session-background"}
+        with patch.dict(os.environ, {"ATLAS_DISABLE_DASHBOARD": "1"}):
+            session_start.handle(
+                {**base, "hook_event_name": "SessionStart"}, config
+            )
+        state = load_state(self.trace_output, base["session_id"])
+        self.assertFalse(state["lifecycle"]["generation_stops"])
+        self.assertFalse(state["lifecycle"]["refinement_stops"])
+
+        captured = {}
+        import atlas_integration.claude_code.runtime as rt
+
+        real_end_session = rt.end_session
+
+        def spy(session, **kwargs):
+            captured["session"] = session
+            return real_end_session(session, **kwargs)
+
+        event = {
+            **base,
+            "hook_event_name": "SessionEnd",
+            "reason": "prompt_input_exit",
+        }
+        with patch(
+            "atlas_integration.claude_code.runtime.end_session",
+            side_effect=spy,
+        ):
+            code, _message = session_end.handle(event, config)
+        self.assertEqual(code, 0)
+        self.assertFalse(captured["session"].generation_stops)
+        self.assertFalse(captured["session"].refinement_stops)
+
     def test_three_completed_repairs_each_receive_fresh_re_evaluation(self):
         event = {
             **self.base,
@@ -949,12 +1022,15 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
             self.assertEqual(code, 0)
             state = load_state(root / "program", "configured")
             self.assertEqual(state["lifecycle"]["generation_threshold"], 7)
-            self.assertTrue(state["lifecycle"]["generation_stops"])
             self.assertTrue(state["lifecycle"]["skip_judge"])
             self.assertEqual(state["lifecycle"]["k_init"], 11)
             self.assertEqual(state["lifecycle"]["k"], 21)
-            self.assertTrue(state["lifecycle"]["refinement_stops"])
             self.assertTrue(state["lifecycle"]["advanced_refinement"])
+            # The *_stops flags are deliberately NOT honored on hook paths:
+            # learning must run in background workers, never inline under
+            # Claude Code's per-hook timeout.
+            self.assertFalse(state["lifecycle"]["generation_stops"])
+            self.assertFalse(state["lifecycle"]["refinement_stops"])
 
     def test_installed_version_has_required_contracts(self):
         version = verify_installed_hooks()

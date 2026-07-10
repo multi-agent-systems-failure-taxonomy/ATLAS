@@ -6,6 +6,8 @@ import argparse
 import json
 from pathlib import Path
 
+from atlas_integration.shared import write_json_atomic
+
 CURRENT_MARKERS = (
     "atlas_integration.claude_code.dispatcher",
     "atlas-skill.json",
@@ -83,7 +85,7 @@ def _clean_settings(path: Path, *, include_legacy: bool) -> int:
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"invalid Claude settings JSON: {path}") from exc
     removed = remove_atlas_hooks(settings, include_legacy=include_legacy)
-    path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
+    write_json_atomic(path, settings)
     return removed
 
 

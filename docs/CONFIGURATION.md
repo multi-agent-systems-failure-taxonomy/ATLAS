@@ -53,6 +53,11 @@ Everything else has a sensible default.
 | `advanced_refinement` | `false` | Add one support-judge repair pass during refinement. |
 | `freeze` | `false` | Inference-only mode: record traces and evidence but skip generation and refinement. Use for pinned-taxonomy A/B evaluations. |
 
+Hook integrations (Claude Code, Codex) always run generation and refinement
+in background workers regardless of `generation_stops` / `refinement_stops`:
+a hook process is killed at the harness's per-hook timeout, so inline learning
+is honored only by the single-LLM and CLI paths that own their process.
+
 See [TRACES_AND_LEARNING.md](TRACES_AND_LEARNING.md) for how these interact.
 
 ## Gate fields

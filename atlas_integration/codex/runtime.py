@@ -24,7 +24,6 @@ from atlas_runtime import (
     SessionDelivery,
     end_session,
     evaluate_pre_submission,
-    record_trace,
     start_session,
 )
 from atlas_runtime.evidence import record_reflection
@@ -65,11 +64,14 @@ def session_start(event: dict[str, Any], config: CodexConfig) -> dict:
         max_retries=config.max_retries,
         dashboard=config.dashboard,
         generation_threshold=config.generation_threshold,
-        generation_stops=config.generation_stops,
+        # Hook processes are killed at the harness's hook timeout, so
+        # learning always runs in background workers here; the *_stops flags
+        # only make sense for CLI/benchmark wrappers that own their process.
+        generation_stops=False,
         skip_judge=config.skip_judge,
         k_init=config.k_init,
         k=config.k,
-        refinement_stops=config.refinement_stops,
+        refinement_stops=False,
         advanced_refinement=config.advanced_refinement,
         freeze=config.freeze,
         evidence_export=config.evidence_export,
@@ -226,8 +228,7 @@ def _finish_runtime_session(
     transcript_path: str | None,
     reason: str,
 ) -> None:
-    if state.get("trace_captured"):
-        state["finished"] = True
+    if state.get("finished") and state.get("trace_captured"):
         return
     lifecycle = state["lifecycle"]
     workspace = ProgramWorkspace(config.trace_output)
@@ -246,12 +247,15 @@ def _finish_runtime_session(
         trace_root=Path(lifecycle["trace_root"]),
         max_retries=int(state["max_retries"]),
         generation_threshold=int(lifecycle["generation_threshold"]),
-        generation_stops=bool(lifecycle["generation_stops"]),
+        # Hook processes are killed at the harness's hook timeout: learning
+        # must never run inline here. Background workers only, regardless of
+        # the configured *_stops flags.
+        generation_stops=False,
         atlas_model=config.atlas_model,
         skip_judge=bool(lifecycle.get("skip_judge", False)),
         k_init=int(lifecycle["k_init"]),
         k=int(lifecycle["k"]),
-        refinement_stops=bool(lifecycle["refinement_stops"]),
+        refinement_stops=False,
         advanced_refinement=bool(lifecycle["advanced_refinement"]),
         freeze=bool(lifecycle.get("freeze", False)),
         evidence_export=(
@@ -260,31 +264,39 @@ def _finish_runtime_session(
             else None
         ),
     )
-    raw_trajectory = read_raw_transcript(transcript_path).strip()
-    if not raw_trajectory:
-        raw_trajectory = "Codex session ended before transcript content was available."
-    task = first_user_message(transcript_path).strip() or (
-        f"Codex task in {state.get('cwd') or 'unknown working directory'}"
-    )
-    record_trace(
-        session,
-        GenerationTrace(
-            problem_id=f"codex:{state['session_id']}",
-            task=task,
-            raw_trajectory=raw_trajectory,
-            metadata={
-                "harness": "codex",
-                "codex_session_id": state["session_id"],
-                "runtime_session_id": state["runtime_session_id"],
-                "taxonomy_id": state["taxonomy_id"],
-                "end_reason": reason,
-            },
-        ),
-    )
+    if not state.get("trace_captured"):
+        raw_trajectory = read_raw_transcript(transcript_path).strip()
+        if not raw_trajectory:
+            raw_trajectory = (
+                "Codex session ended before transcript content was available."
+            )
+        task = first_user_message(transcript_path).strip() or (
+            f"Codex task in {state.get('cwd') or 'unknown working directory'}"
+        )
+        workspace.pending.append_many_with_names(
+            [
+                GenerationTrace(
+                    problem_id=f"codex:{state['session_id']}",
+                    task=task,
+                    raw_trajectory=raw_trajectory,
+                    metadata={
+                        "harness": "codex",
+                        "codex_session_id": state["session_id"],
+                        "runtime_session_id": state["runtime_session_id"],
+                        "taxonomy_id": state["taxonomy_id"],
+                        "end_reason": reason,
+                    },
+                )
+            ]
+        )
+        # Persist the capture marker before any lifecycle work: a crash or
+        # hook-timeout kill in end_session below must not let a retry record
+        # a second copy of this trace.
+        state["trace_captured"] = True
+        save_state(config.trace_output, state["session_id"], state)
     result = end_session(session)
-    state["trace_captured"] = True
     state["trace_capture"] = {
-        "persisted_traces": result.persisted_traces,
+        "persisted_traces": 1,
         "integrated_traces": result.integrated_traces,
         "generation_action": result.generation.action,
         "refinement_action": result.refinement.action,

@@ -20,6 +20,7 @@ from atlas_runtime.config import (
     load_atlas_config,
     require_config_value,
 )
+from atlas_integration.shared import write_json_atomic
 from finding import resolver, store, webview
 
 from .config import (
@@ -191,7 +192,7 @@ def install(
 
     claude_dir.mkdir(parents=True, exist_ok=True)
     config_path = claude_dir / "atlas-skill.json"
-    _write_json_atomic(config_path, config.to_dict())
+    write_json_atomic(config_path, config.to_dict())
     command = _module_command(Path(python), config_path)
     remove_atlas_hooks(settings, include_legacy=False)
     hooks = settings.setdefault("hooks", {})
@@ -218,7 +219,7 @@ def install(
             command=custom_command,
             matcher=spec.matcher,
         )
-    _write_json_atomic(settings_path, settings)
+    write_json_atomic(settings_path, settings)
     migrated = None
     if migrate_legacy_global:
         global_settings = Path.home() / ".claude" / "settings.json"
@@ -247,7 +248,11 @@ def _append_registration(
             {
                 "type": "command",
                 "command": command,
-                "timeout": 15,
+                # Finalize hooks read the transcript and persist the trace;
+                # 15s was tight enough that a slow disk or huge transcript
+                # got the hook killed mid-finalize. Learning itself always
+                # runs in background workers, never under this timeout.
+                "timeout": 60,
             }
         ],
     }
@@ -291,15 +296,6 @@ def _hook_shell_path(path: Path) -> str:
     return resolved.replace("\\", "/") if os.name == "nt" else resolved
 
 
-def _write_json_atomic(path: Path, data: dict) -> None:
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(
-        json.dumps(data, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    os.replace(temporary, path)
-
-
 def remove_from_settings_file(
     settings_path: Path,
     *,
@@ -314,10 +310,7 @@ def remove_from_settings_file(
             f"cannot migrate invalid Claude settings JSON: {settings_path}"
         ) from exc
     removed = remove_atlas_hooks(settings, include_legacy=include_legacy)
-    settings_path.write_text(
-        json.dumps(settings, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    write_json_atomic(settings_path, settings)
     return {"settings": str(settings_path), "removed_hooks": removed}
 
 

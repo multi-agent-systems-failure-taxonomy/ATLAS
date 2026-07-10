@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from atlas_integration.shared import write_json_atomic
+
 from .install import (
     SKILL_MARKER_FILE,
     SKILL_NAME,
@@ -77,7 +79,7 @@ def _clean_hooks(path: Path) -> int:
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"invalid Codex hooks JSON: {path}") from exc
     removed = remove_atlas_hooks(hooks_doc)
-    path.write_text(json.dumps(hooks_doc, indent=2) + "\n", encoding="utf-8")
+    write_json_atomic(path, hooks_doc)
     return removed
 
 
