@@ -54,7 +54,7 @@ atlas-single-run = "atlas_integration.single_llm.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/multi-agent-systems-failure-taxonomy/ATLAS"
-Paper = "https://openreview.net/pdf?id=krDmXYWzmJ"
+Paper = "https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/docs/atlas_paper.pdf"
 
 [tool.setuptools]
 include-package-data = true
