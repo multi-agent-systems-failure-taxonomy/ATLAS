@@ -40,6 +40,38 @@ class TraceCliTests(unittest.TestCase):
         self.assertEqual(by_name["tax-alpha"]["total_records"], 1)
         self.assertEqual(by_name["program-pending"]["total_records"], 1)
 
+    def test_status_text_rendering_includes_needs_attention(self):
+        # Regression: needs_attention is a property, not a dataclass field,
+        # so asdict() dropped it and the text renderer raised KeyError.
+        import contextlib
+        import io
+
+        from atlas_runtime.traces_cli import main
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            TraceStore(root / "traces" / "tax-alpha").append_many(
+                [sample_trace("one")]
+            )
+            rows = collection_status(
+                trace_root=root / "traces",
+                trace_output=root / "program",
+            )
+            self.assertIn("needs_attention", rows[0])
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                code = main(
+                    [
+                        "status",
+                        "--trace-root", str(root / "traces"),
+                        "--trace-output", str(root / "program"),
+                    ]
+                )
+        self.assertEqual(code, 0)
+        rendered = stdout.getvalue()
+        self.assertIn("attention", rendered)
+        self.assertIn("false", rendered)
+
     def test_export_returns_canonical_trace_records(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

@@ -107,6 +107,9 @@ def _status_row(
     return {
         "collection": name,
         "path": str(path),
+        # asdict() only captures dataclass fields; needs_attention is a
+        # property the status renderer relies on.
+        "needs_attention": report.needs_attention,
         **asdict(report),
     }
 

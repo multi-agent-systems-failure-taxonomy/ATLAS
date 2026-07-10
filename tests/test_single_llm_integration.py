@@ -49,6 +49,48 @@ Final decision: {"submit" if status == "READY_TO_SUBMIT" else "repair"}
 
 
 class SingleLLMIntegrationTests(unittest.TestCase):
+    def test_learning_cadence_flows_from_config(self):
+        # Regression: SingleLLMConfig silently ignored the documented
+        # generation_threshold / k_init / k fields, so atlas.json learning
+        # cadence never reached the session.
+        import atlas_integration.single_llm.runtime as rt
+
+        captured = {}
+        real_start_session = rt.start_session
+
+        def spy(*args, **kwargs):
+            captured.update(kwargs)
+            return real_start_session(*args, **kwargs)
+
+        def call(messages):
+            prompt = messages[-1]["content"]
+            if "reflection required" in prompt:
+                return clean_reflection(messages, status="READY_TO_SUBMIT")
+            return "The answer is 42."
+
+        with tempfile.TemporaryDirectory() as td, patch.object(
+            rt, "start_session", side_effect=spy
+        ):
+            root = Path(td)
+            run_single_llm(
+                "Solve the task.",
+                call,
+                SingleLLMConfig(
+                    trace_output=root / "program",
+                    atlas_model="gpt-5",
+                    store_dir=STORE_DIR,
+                    trace_root=root / "traces",
+                    dashboard=False,
+                    generation_threshold=3,
+                    k_init=4,
+                    k=6,
+                    freeze=True,
+                ),
+            )
+        self.assertEqual(captured["generation_threshold"], 3)
+        self.assertEqual(captured["k_init"], 4)
+        self.assertEqual(captured["k"], 6)
+
     def test_checkpoint_then_final_gate_records_trace_and_evidence(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

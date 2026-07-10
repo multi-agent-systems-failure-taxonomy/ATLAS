@@ -58,6 +58,9 @@ class SingleLLMConfig:
     dashboard: bool = True
     repo: str | None = None
     repo_path: Path | None = None
+    generation_threshold: int = 5
+    k_init: int = 10
+    k: int = 20
     generation_stops: bool = False
     skip_judge: bool = False
     refinement_stops: bool = False
@@ -83,6 +86,13 @@ class SingleLLMConfig:
             raise ValueError("repair_rounds cannot be negative")
         if self.format_retries < 0:
             raise ValueError("format_retries cannot be negative")
+        for name, value in (
+            ("generation_threshold", self.generation_threshold),
+            ("k_init", self.k_init),
+            ("k", self.k),
+        ):
+            if value <= 0:
+                raise ValueError(f"{name} must be positive")
 
 
 @dataclass(frozen=True)
@@ -118,6 +128,9 @@ def run_single_llm(
         dashboard=config.dashboard,
         repo=config.repo,
         repo_path=config.repo_path,
+        generation_threshold=config.generation_threshold,
+        k_init=config.k_init,
+        k=config.k,
         generation_stops=config.generation_stops,
         skip_judge=config.skip_judge,
         refinement_stops=config.refinement_stops,

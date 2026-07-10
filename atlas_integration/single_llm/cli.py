@@ -209,6 +209,11 @@ def main(argv=None) -> int:
         "max_retries": config_value(args, config, "max_retries", 3),
         "format_retries": config_value(args, config, "format_retries", 2),
         "repair_rounds": config_value(args, config, "repair_rounds"),
+        "generation_threshold": config_value(
+            args, config, "generation_threshold", 5
+        ),
+        "k_init": config_value(args, config, "k_init", 10),
+        "k": config_value(args, config, "k", 20),
         "gate_exhaustion_policy": config_value(
             args, config, "gate_exhaustion_policy", "raise"
         ),
