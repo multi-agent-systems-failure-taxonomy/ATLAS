@@ -216,6 +216,18 @@ def main(argv=None) -> int:
         ),
         "k_init": config_value(args, config, "k_init", 10),
         "k": config_value(args, config, "k", 20),
+        "generation_stops": bool_config_value(
+            args, config, "generation_stops", False
+        ),
+        "skip_judge": bool_config_value(args, config, "skip_judge", False),
+        "refinement_stops": bool_config_value(
+            args, config, "refinement_stops", False
+        ),
+        "advanced_refinement": bool_config_value(
+            args, config, "advanced_refinement", False
+        ),
+        "repo": config_value(args, config, "repo"),
+        "repo_path": config_value(args, config, "repo_path"),
         "gate_exhaustion_policy": config_value(
             args, config, "gate_exhaustion_policy", "raise"
         ),

@@ -66,7 +66,10 @@ class ProgramWorkspace:
             "generation": {
                 "state": "idle",
                 "last_error": None,
-                "retry_after_count": 5,
+                # None means "no rejection yet": the configured
+                # generation_threshold decides when the first generation
+                # fires. A hardcoded count here would override the config.
+                "retry_after_count": None,
                 "last_check_snapshot_count": 0,
             },
             "refinement": {
@@ -364,9 +367,8 @@ class ProgramWorkspace:
             return True
 
     def generation_retry_after(self, default: int) -> int:
-        return int(
-            self.load().get("generation", {}).get("retry_after_count", default)
-        )
+        value = self.load().get("generation", {}).get("retry_after_count")
+        return int(value) if value is not None else int(default)
 
     def activate_if_idle(self, taxonomy_id: str) -> bool:
         """Atomically activate only when no task is running."""

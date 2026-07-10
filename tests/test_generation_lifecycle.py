@@ -315,6 +315,47 @@ class GenerationLifecycleTests(unittest.TestCase):
                 outcome["result"].taxonomy_id,
             )
 
+    def test_configured_threshold_controls_first_generation(self):
+        # Regression: the initial manifest hardcoded retry_after_count=5, so
+        # generation_threshold had no effect on the first generation in any
+        # integration (1 never fired early; 10 fired at 5 anyway).
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            output, store_dir, trace_root = root / "program", root / "tax", root / "traces"
+            copy_store(store_dir)
+            workspace = ProgramWorkspace(output)
+            workspace.pending.append_many([trace(1)])
+            launched = []
+
+            result = trigger_generation(
+                workspace,
+                store_dir=store_dir,
+                trace_root=trace_root,
+                threshold=1,
+                background_launcher=lambda: launched.append(True),
+            )
+
+            self.assertEqual(result.action, "started")
+            self.assertEqual(launched, [True])
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            output, store_dir, trace_root = root / "program", root / "tax", root / "traces"
+            copy_store(store_dir)
+            workspace = ProgramWorkspace(output)
+            workspace.pending.append_many(trace(number) for number in range(5))
+
+            result = trigger_generation(
+                workspace,
+                store_dir=store_dir,
+                trace_root=trace_root,
+                threshold=6,
+                background_launcher=lambda: self.fail("must not launch"),
+            )
+
+            self.assertEqual(result.action, "none")
+            self.assertIn("5/6", result.reason)
+
     def test_stale_background_generation_worker_can_be_retried(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
