@@ -1,0 +1,141 @@
+{
+  "taxonomy_id": "tax-20260708T201604Z-ce795cd7-c782e3",
+  "repo": "paper_eval",
+  "domain": "U.S. Government Financial Document Question Answering",
+  "codes": [
+    {
+      "id": "A.4",
+      "name": "Task_Refusal_Or_Abandonment",
+      "category": "A",
+      "severity": "critical",
+      "description": "The agent gives up — refusing to answer or abandoning the task partway — instead of committing to its best supported answer."
+    },
+    {
+      "id": "A.5",
+      "name": "Repetitive_Looping_Output",
+      "category": "A",
+      "description": "The agent repeats the same or near-identical content or actions in a loop, burning turns and tokens without progress."
+    },
+    {
+      "id": "A.6",
+      "name": "Runtime_Or_Tool_Execution_Failure",
+      "category": "A",
+      "severity": "critical",
+      "description": "A tool call (Bash, Grep, Glob, Read) fails or returns truncated output — bad arguments, missing files, output caps — and the agent proceeds on incomplete data instead of recovering."
+    },
+    {
+      "id": "A.10",
+      "name": "Instruction_Noncompliance",
+      "category": "A",
+      "description": "The agent violates explicit task or format instructions — wrong units, wrong precision, extra words inside the final-answer tag, or answering a different question than asked."
+    },
+    {
+      "id": "A.11",
+      "name": "Incomplete_Source_Data_Coverage",
+      "category": "A",
+      "description": "The provided corpus pages genuinely lack data the question needs; the agent should state exactly what is missing rather than silently approximate or fabricate.",
+      "detection_heuristics": [
+        "Agent explicitly states it cannot find required data after exhaustive search",
+        "Required data points are verifiably absent from all provided pages",
+        "Agent substitutes approximate or fabricated values citing unavailability"
+      ]
+    },
+    {
+      "id": "B.2",
+      "name": "Solver_Misinterpretation_Of_Question",
+      "category": "B",
+      "severity": "critical",
+      "applies_to_role": "solver",
+      "description": "The solver answers a subtly different question — conflating similar metrics ('total outstanding' vs 'public debt securities', gross vs net), wrong aggregation level, or misreading the question's key terms."
+    },
+    {
+      "id": "B.3",
+      "name": "Solver_Insufficient_Verification_And_Navigation",
+      "category": "B",
+      "applies_to_role": "solver",
+      "description": "The solver ignored a specific, available cross-check that contradicts or fails to confirm a value it used. Fires ONLY when the reflection names both the value in question and the specific overlooked source (row, column, total, or file). Generic 'could verify more' with no named discrepancy does NOT qualify.",
+      "detection_heuristics": [
+        "A named value disagrees with a named summary row, total, or second document",
+        "A named source that directly bears on the answer was demonstrably never read"
+      ]
+    },
+    {
+      "id": "B.5",
+      "name": "Datasource_Ambiguous_Or_Conflicting_Content",
+      "category": "B",
+      "applies_to_role": "datasource",
+      "description": "The corpus pages contain conflicting or revised values for the same statistic; the solver must notice and justify which revision it uses."
+    },
+    {
+      "id": "C.1",
+      "name": "Fabricated_Data_Values",
+      "category": "C",
+      "severity": "critical",
+      "description": "The reasoning cites specific numbers that were never verifiably read from the corpus — invented values, or values 'recalled' from unread or truncated content, presented with false confidence."
+    },
+    {
+      "id": "C.2",
+      "name": "Computation_Or_Formula_Error",
+      "category": "C",
+      "description": "A calculation is wrong: incorrect formula choice or structure (wrong variance/Gini form, arithmetic-vs-geometric mean) or plain arithmetic slips.",
+      "detection_heuristics": [
+        "Sum or product of listed values does not match the stated total",
+        "Stated inputs, correctly computed, yield a different result than claimed"
+      ]
+    },
+    {
+      "id": "C.3",
+      "name": "Question_Scope_Or_Constraint_Misapplied",
+      "category": "C",
+      "description": "Data selection ignores the question's stated scope — fiscal vs calendar year, inclusive/exclusive ranges, thresholds, maturity or issuance filters — so the wrong set of data points enters the calculation."
+    },
+    {
+      "id": "C.4",
+      "name": "Wrong_Data_Category_Extraction",
+      "category": "C",
+      "severity": "critical",
+      "description": "Values are read from the wrong row, column, or subcategory of a table — a different data series than the question specifies."
+    },
+    {
+      "id": "C.5",
+      "name": "Unit_Or_Scale_Conversion_Error",
+      "category": "C",
+      "description": "Units or scales (millions/billions/thousands, currencies, percent vs decimal) are converted wrongly or not at all."
+    },
+    {
+      "id": "C.6",
+      "name": "Rounding_Precision_Error",
+      "category": "C",
+      "severity": "minor",
+      "description": "Wrong decimal precision, or premature intermediate rounding that propagates into the final answer."
+    },
+    {
+      "id": "C.7",
+      "name": "Unjustified_Assumption_In_Reasoning",
+      "category": "C",
+      "severity": "critical",
+      "description": "The reasoning silently assumes values, substitutions, or relationships (rates, distributions, source equivalence) that the corpus and question do not support, and the assumption moves the answer."
+    }
+  ],
+  "curation": {
+    "parent_taxonomy_id": "tax-20260708T190652Z-18ebcc34-b78b36",
+    "curated": "v2.1 hand edit 2026-07-08",
+    "changes": [
+      "evidence-bounded B.3: fires only on a NAMED value + NAMED overlooked source. Rationale: open-ended B.3 fired on 100% of questions and drove unbounded repair demands (UID0007: 3-repair 20-min marathon, released still-unsatisfied)."
+    ],
+    "prior_curation": {
+      "parent_taxonomy_id": "tax-20260708T185701Z-4f8c1860-a1fa3a",
+      "curated": "hand-curated 2026-07-08 from the 50-trace oracle-baseline generation",
+      "changes": [
+        "fixed C.9 botched judge merge (committed as a duplicate of C.7; its arithmetic content restored and merged into C.2)",
+        "retired A.1-A.3 (infrastructure noise, auto-retried, not gate-actionable)",
+        "retired A.8 (artifact of harvest truncation markers, not real input truncation)",
+        "retired A.7/A.9 (zero occurrences in the 133-question baseline)",
+        "retired B.1 Solver_Wrong_Answer (outcome, not mechanism)",
+        "merged B.4 into B.3 (duplicate cross-check clauses; fabrication clause ceded to C.1)",
+        "merged C.8 into C.3 (constraint filters incl. temporal scope)",
+        "all descriptions trimmed to <=2 sentences for weak-model discrimination"
+      ]
+    }
+  }
+}

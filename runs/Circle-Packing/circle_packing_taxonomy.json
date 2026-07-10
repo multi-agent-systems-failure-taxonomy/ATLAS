@@ -1,0 +1,58 @@
+{
+  "repo": "skydiscoverexp",
+  "domain": "circle_packing_n26",
+  "codes": [
+    {
+      "id": "A.1",
+      "name": "Solution_Constraint_Violation",
+      "category": "A",
+      "description": "The evaluated output violates domain constraints (overlap, boundary violation, invalid shape/format), so evaluation rejects it or scores 0."
+    },
+    {
+      "id": "A.2",
+      "name": "Model_State_Desynchronization",
+      "category": "A",
+      "description": "The agent's belief about file or system state diverges from actual state (unapplied edits, stale copies, misunderstood code behavior)."
+    },
+    {
+      "id": "B.1",
+      "name": "Search_Diversity_Failure",
+      "category": "B",
+      "severity": "critical",
+      "description": "All search effort stays within one formulation, representation, or basin. Reseeding with new noise, scaling restarts, or swapping solvers on the SAME formulation is not diversity; leaving the class means changing the representation or the construction principle."
+    },
+    {
+      "id": "C.1",
+      "name": "Plateau_Without_Incumbent_Analysis",
+      "category": "C",
+      "description": "At a plateau, more searches are launched without first analyzing WHY the incumbent is locally maximal (binding constraints, slack, structure), or the approach is changed without diagnosing what caused the last failure."
+    },
+    {
+      "id": "C.2",
+      "name": "Unverified_Or_Bound_Inconsistent_Claim",
+      "category": "C",
+      "severity": "critical",
+      "description": "Acting on a claim that was never verified, or accepting/asserting results inconsistent with known bounds: celebrating a result better than the known record without suspicion, or declaring an optimum that a known record proves is not optimal."
+    },
+    {
+      "id": "C.3",
+      "name": "Best_Solution_Tracking_Failure",
+      "category": "C",
+      "description": "The best solution found is not promptly persisted/certified, risking loss or final output worse than an intermediate result."
+    },
+    {
+      "id": "C.4",
+      "name": "Scored_Evaluation_Budget_Waste",
+      "category": "C",
+      "description": "A scored evaluation is spent on something a free offline run could answer: exploration, debugging, or re-certifying an unchanged or already-scored candidate."
+    },
+    {
+      "id": "C.7",
+      "name": "Premature_Termination_With_Budget_Remaining",
+      "category": "C",
+      "severity": "critical",
+      "description": "The agent winds down or declares the task complete while substantial evaluation budget remains. Only about ending the work itself; wasteful evals while continuing are C.4."
+    }
+  ],
+  "taxonomy_id": "circle-packing-v8"
+}

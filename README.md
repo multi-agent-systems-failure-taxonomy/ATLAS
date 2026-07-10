@@ -1,226 +1,161 @@
 # ATLAS
 
-**Automatic Taxonomy Learning for Agent Systems.**
+### A failure-mode taxonomy layer for agents: reflect at meaningful boundaries, catch recurring mistakes, and learn from traces.
 
-ATLAS induces a compact, evidence-grounded failure taxonomy from an agent
-system's own execution traces — no human annotation required — and then
-classifies new traces against it. The induced codes are designed to be
-consumed by agent-improvement procedures (search, runtime reflection,
-trajectory selection) as a structured feedback interface.
+[![Docs](https://img.shields.io/badge/docs-website-2563EB)](https://multi-agent-systems-failure-taxonomy.github.io/ATLAS/)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-Codes are organized along three fixed axes; the codes themselves are
-induced per system:
+**Documentation:** [multi-agent-systems-failure-taxonomy.github.io/ATLAS](https://multi-agent-systems-failure-taxonomy.github.io/ATLAS/) · [Concepts](docs/CONCEPTS.md) · [Getting started](docs/GETTING_STARTED.md)
 
-| Axis | Scope | Examples |
-| --- | --- | --- |
-| **A** | System-level (any agent) | `Context_Exhaustion`, `Output_Truncation`, `Inter_Agent_Information_Loss` |
-| **B** | Role-specific | `Solver_Wrong_Approach`, `Checker_False_Acceptance`, `Refiner_Regression` |
-| **C** | Domain-specific | `Sign_Error_In_Algebra`, `Quantifier_Confusion`, `Off_By_One` |
+ATLAS helps agents notice their own recurring failure patterns before they
+submit work. It starts from MAST — the Multi-Agent System failure Taxonomy
+from ["Why Do Multi-Agent LLM Systems Fail?" (Cemri et al., 2025)](https://arxiv.org/abs/2503.13657),
+shipped here as a built-in 14-code adaptation — asks the agent for
+evidence-based reflection at configured gates, records the failure modes that
+actually appear, and later generates or refines a taxonomy specialized to your
+own traces.
 
-The pipeline infers the system's architecture, roles, capabilities, and
-task domain from the traces themselves.
+ATLAS is not another task solver. It is a runtime supervision layer that gives
+an agent a structured way to ask, "what mistake am I about to repeat?"
+
+## How it works
+
+![ATLAS runtime loop](docs/atlas_runtime_loop.png)
+
+1. A task starts. ATLAS selects the active taxonomy — an inherited stored
+   taxonomy, or built-in MAST when none is configured.
+2. At configured boundaries (checkpoints, tool failures, subagent stops), the
+   agent reflects against the taxonomy and repairs when evidence demands it.
+3. A final submission gate blocks completion until the reflection passes or
+   retries are exhausted honestly.
+4. One canonical trace is recorded at session end.
+5. After enough traces, ATLAS generates a task-specific taxonomy (or refines
+   the active one). Accepted taxonomies become inheritable records for future
+   runs.
+
+New to the terminology? Start with [docs/CONCEPTS.md](docs/CONCEPTS.md).
+
+## What it looks like
+
+At a checkpoint, the agent reflects on its recent trajectory against the
+active taxonomy in a fixed shape:
+
+```text
+Observe:   The last two Bash runs failed with the same ImportError; no
+           dependency check ran between attempts.
+Correlate: Retrying an identical command without new information.
+Map:       MAST-3 (Step repetition) — evidence supports the match.
+Decide:    One focused repair — verify the installed package version
+           before the next run.
+```
+
+Mapping no codes ("none apply") is a valid outcome. Before the final answer is
+released, a blocking gate requires the same reflection and allows a bounded
+number of repairs. Everything the gates record is browsable live in the
+[dashboard](docs/DASHBOARD.md).
+
+A full walkthrough with dashboard screenshots is in
+[docs/EXAMPLE_RUN.md](docs/EXAMPLE_RUN.md). Try the dashboard yourself with
+`python -m examples.dashboard_demo`.
 
 ## Install
 
-```bash
-git clone https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git
-cd ATLAS
-pip install -e .
-```
-
-Set one API key:
+Requirements: Python 3.10 or newer.
 
 ```bash
-export OPENAI_API_KEY=sk-...                            # OpenAI (default)
-export OPENAI_BASE_URL=...                              # any OpenAI-compatible endpoint
-export ANTHROPIC_API_KEY=...  ATLAS_MODEL=claude-haiku-4-7
+python -m pip install "git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git@ATLAS_SKILL"
 ```
 
-## Generate a taxonomy
+From a local checkout: `python -m pip install .`
 
-CLI:
+ATLAS's own learning calls support Anthropic, OpenAI(-compatible), Gemini, and
+AWS Bedrock model IDs. Optional extras (`[anthropic]`, `[bedrock]`) and
+credential setup live in [docs/INSTALLATION.md](docs/INSTALLATION.md).
 
-```bash
-python -m atlas generate --traces my_traces.jsonl --output ./out
-```
+## Quick start
 
-Python:
+Create `atlas.json` in the project that will run the agent:
 
-```python
-from atlas import generate_taxonomy
-
-taxonomy = generate_taxonomy(
-    traces="my_traces.jsonl",   # file, directory, or list of dicts
-    output_dir="./out",
-    max_codes=25,               # optional; 0 = no cap
-)
-```
-
-The taxonomy is written to `./out/taxonomy.json`. Per-stage intermediate
-files (`step1_domain_info.json` … `step8_final.json`) are written
-alongside it so you can inspect what each stage produced.
-
-## Classify a trace
-
-```python
-from atlas import classify_trace, load_traces
-
-trace = load_traces("new_failure.json", verbose=False)[0]
-diagnosis = classify_trace("./out/taxonomy.json", trace)
-print(diagnosis.code, diagnosis.label, diagnosis.evidence)
-```
-
-Or:
-
-```bash
-python -m atlas classify --taxonomy ./out/taxonomy.json --trace new.json
-```
-
-## Trace formats
-
-The loader auto-detects:
-
-| Format | Detection |
-| --- | --- |
-| ATLAS unified | `raw_trajectory` field |
-| tau-bench | `traj` + `task_id` + `reward` |
-| Codex CLI session | `type: session_meta/response_item/...` in JSONL |
-| Event log | `event` field per JSONL entry |
-| Conversation / Forgecode | `messages` list of role/content dicts |
-| KIRA trajectory | step dicts with `step_id` + `tool_calls` |
-| Plain text | any string |
-
-Mix formats freely; point the loader at a directory and it picks the
-right converter per file. For a custom shape, normalize once yourself:
-
-```python
-from atlas import normalize_traces, generate_taxonomy
-
-traces = [t.to_dict() for t in normalize_traces(my_records)]
-taxonomy = generate_taxonomy(traces, output_dir="./out")
-```
-
-## Output
-
-`taxonomy.json` has two layers:
-
-- **`annotation_layer`** — `code`, `name`, `definition`, `severity`. Pass
-  this to an LLM judge that classifies traces.
-- **`full_layer`** — adds `when_to_use`, `when_not_to_use`,
-  `detection_heuristics`, discovered architecture, roles, signals. Use
-  this when iterating on the taxonomy.
-
-```jsonc
+```json
 {
-  "metadata": {
-    "version": "1.0.0",
-    "traces_analyzed": 38,
-    "counts": { "category_a": 6, "category_b": 7, "category_c": 14, "total": 27 }
-  },
-  "category_definitions": {
-    "A": "System-level failures (agent-independent).",
-    "B": "Role-specific quality failures.",
-    "C": "Domain-specific reasoning failures."
-  },
-  "role_definitions": { "solver": {...}, "checker": {...} },
-  "annotation_layer": { "category_a": [...], "category_b": [...], "category_c": [...] },
-  "full_layer":       { /* heuristics, signals, architecture, domain_info */ }
+  "version": 1,
+  "trace_output": "./atlas-program",
+  "atlas_model": "gpt-5"
 }
 ```
 
-## Pipeline
+Every field, its default, and when to change it:
+[docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
-Eight stages, intermediate JSON saved after each:
+Then choose the integration that matches your pipeline:
 
-1. **Domain analysis** — task type, terminology, characteristic error patterns.
-2. **Structure extraction** — agents, roles, topology, trace format.
-3. **Signal extraction** — LLM-free behavioral checks (truncation,
-   looping, refusal, tool errors).
-4. **A-code generation** — architectural risk analysis + observed signals.
-5. **B-code generation** — per-role quality failure modes.
-6. **C-code generation** — domain-seeded + trace-grounded reasoning errors.
-7. **Cross-category dedup** — concepts that landed in two axes.
-8. **Check + fix** — naming rules, coverage gaps, overlap merges.
+| Use case | Command | Full docs |
+|---|---|---|
+| Claude Code project | `atlas-claude-install --project-dir . --config atlas.json` | [Claude Code](docs/CLAUDE_CODE.md) |
+| Codex project | `atlas-codex-install --project-dir . --config atlas.json` | [Codex](docs/CODEX.md) |
+| One LLM call from a script | `atlas-single-run --config atlas.json --task "..." --model gpt-5` | [Single LLM](docs/SINGLE_LLM.md) |
+| Existing trace folder | `atlas-import-traces --config atlas.json --traces ./traces` | [Taxonomies](docs/TAXONOMIES.md) |
+| Your own harness | `from atlas_runtime import start_session, ...` | [Integration](docs/INTEGRATION.md) |
 
-## Configuration
-
-| Env var | Default | Use |
-| --- | --- | --- |
-| `ATLAS_MODEL` | OpenAI default | LLM model id |
-| `ATLAS_TIMEOUT` | `180` | per-call timeout (s) |
-| `ATLAS_MAX_CODES` | `0` | cap on total codes; `0` = no cap |
-| `OPENAI_API_KEY` | — | required for OpenAI / compatible |
-| `OPENAI_BASE_URL` | — | alternative OpenAI-compatible endpoint |
-| `ANTHROPIC_API_KEY` | — | required when `ATLAS_MODEL` starts with `claude` |
-
-```python
-from atlas import PipelineConfig, TaxonomyPipeline
-
-config = PipelineConfig(model="claude-haiku-4-7", max_codes=20, save_intermediate_steps=False)
-taxonomy = TaxonomyPipeline(config=config, output_dir="./out").run(traces)
-```
-
-## Example taxonomies
-
-`examples/mast_data_taxonomies/` contains taxonomies pre-generated on
-traces from [MAST-Data](https://huggingface.co/datasets/mcemri/MAST-Data),
-one per (multi-agent system, benchmark) combination — AG2-MathChat,
-ChatDev, MetaGPT, AppWorld, HyperAgent, Magentic-One, OpenManus. Drop-in
-usable with `classify_trace`.
-
-A smaller `examples/sample_taxonomy.json` (generated from
-`examples/sample_traces.jsonl`) is included for smoke-testing without
-running the full pipeline.
-
-## Layout
-
-```
-atlas/
-├── api.py            # generate_taxonomy, classify_trace, classify_traces
-├── cli.py            # python -m atlas
-├── classifier.py     # TaxonomyClassifier, Diagnosis
-├── config.py         # PipelineConfig
-├── llm.py            # OpenAI/Anthropic wrapper + JSON extraction
-├── utils.py
-├── traces/
-│   ├── loader.py     # file/dir/iterable loader, auto-detection
-│   ├── normalizer.py # per-format converters
-│   └── signals.py    # LLM-free behavioral signals
-└── pipeline/
-    ├── pipeline.py   # eight-step orchestrator
-    ├── prompts.py
-    ├── domain.py     # step 1
-    ├── structure.py  # step 2
-    ├── generator.py  # steps 3–5
-    ├── dedup.py      # step 6
-    ├── validate.py   # step 7
-    └── check.py      # step 8
-```
-
-## Tests
+Check the setup:
 
 ```bash
-pip install -e ".[dev]"
-pytest
+atlas-doctor --config atlas.json
 ```
 
-Covers trace loading, normalization across formats, and the LLM-free
-signal extractor. The full pipeline is exercised via the example
-scripts (which require an API key).
+## Results
 
-## Citation
+Full evaluation artifacts — per-question result rows, the exact taxonomies
+used, and replication steps — live in [runs/](runs/):
 
-```
-@article{atlas2026,
-  title={Adaptive Failure Taxonomies as Feedback for LLM-Agent Improvement Procedures},
-  author={Cemri, Mert and Cojocaru, Andrei and Pan, Melissa and Liu, Shu and
-          Agarwal, Shubham and Krentsel, Alexander and Tang, Jay and
-          Ramchandran, Kannan and Gonzalez, Joseph E. and Zaharia, Matei and
-          Dimakis, Alex and Stoica, Ion},
-  year={2026}
-}
-```
+| Experiment | Headline |
+|---|---|
+| [OfficeQA Pro, agent harness](runs/OfficeQA/) | 44.4% → **51.9%** official scorer (Bedrock Haiku 4.5, 133 questions, same harness both arms) |
+| [Circle packing (n=26)](runs/Circle-Packing/) | On [SkyDiscover](https://github.com/skydiscover-ai/skydiscover)'s search harness: baselines never reach 0.997 of AlphaEvolve's record; with ATLAS the search reaches it in **20 evals** (peak 0.999735) |
+
+## Documentation
+
+| Topic | Page |
+|---|---|
+| Vocabulary and the runtime loop | [docs/CONCEPTS.md](docs/CONCEPTS.md) |
+| Real reflections, gates, and dashboard output | [docs/EXAMPLE_RUN.md](docs/EXAMPLE_RUN.md) |
+| First successful run | [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) |
+| Every `atlas.json` field | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) |
+| Install options and credentials | [docs/INSTALLATION.md](docs/INSTALLATION.md) |
+| Claude Code hooks | [docs/CLAUDE_CODE.md](docs/CLAUDE_CODE.md) |
+| Codex hooks | [docs/CODEX.md](docs/CODEX.md) |
+| Single-call / benchmark integration | [docs/SINGLE_LLM.md](docs/SINGLE_LLM.md) |
+| Harness-author contract and privacy | [docs/INTEGRATION.md](docs/INTEGRATION.md) |
+| Config files, prompts, hooks, judges | [docs/CUSTOMIZATION.md](docs/CUSTOMIZATION.md) |
+| Taxonomy records and inheritance | [docs/TAXONOMIES.md](docs/TAXONOMIES.md) |
+| Traces, generation, refinement | [docs/TRACES_AND_LEARNING.md](docs/TRACES_AND_LEARNING.md) |
+| Live dashboard and UID filtering | [docs/DASHBOARD.md](docs/DASHBOARD.md) |
+| Local dashboard Web API | [docs/WEB_API.md](docs/WEB_API.md) |
+| Harness-neutral runtime API | [docs/API_OR_RUNTIME.md](docs/API_OR_RUNTIME.md) |
+| Common failures and fixes | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) |
+| Documentation index | [docs/README.md](docs/README.md) |
+
+## Main commands
+
+| Command | Purpose |
+|---|---|
+| `atlas-find` | List stored taxonomies or pick one interactively. |
+| `atlas-dashboard` | Open the read-only localhost dashboard. |
+| `atlas-traces` | Inspect trace state. |
+| `atlas-import-traces` | Generate/store a taxonomy from existing traces. |
+| `atlas-register-taxonomy` | Add a taxonomy JSON record to the store. |
+| `atlas-doctor` | Validate config, paths, integrations, and optional dependencies. |
+| `atlas-status` | Show program health: active taxonomy, pending traces, learning state, usage totals, and recent decisions. |
+| `atlas-claude-install` / `atlas-claude-uninstall` | Manage Claude Code hooks. |
+| `atlas-codex-install` / `atlas-codex-uninstall` | Manage Codex hooks. |
+| `atlas-single-run` | Wrap one direct LLM task call with ATLAS. |
+
+## Contributing
+
+Development setup, verification commands, and package maps are in
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-Apache 2.0.
+Apache-2.0. See [LICENSE](LICENSE).

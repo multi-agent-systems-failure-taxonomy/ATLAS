@@ -1,0 +1,12 @@
+# Taxonomy-generation prompt assets
+
+These Markdown files are the model-facing instructions for the vendored ATLAS
+taxonomy-generation pipeline.
+
+Python code in `vendor.atlas.pipeline` still owns orchestration, trace
+sampling, JSON validation, fallback behavior, and storage. These assets own the
+natural-language instructions sent to the taxonomy-generation model.
+
+Use `vendor.atlas.pipeline.prompts.render_prompt_asset(name, **context)` when
+running through Python, or read these files directly from another harness that
+wants to supply the variables itself.

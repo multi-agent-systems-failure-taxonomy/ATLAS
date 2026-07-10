@@ -1,3 +1,0 @@
-openai>=1.0
-# Optional — only needed when using a claude-* model via the Anthropic SDK.
-# anthropic>=0.40

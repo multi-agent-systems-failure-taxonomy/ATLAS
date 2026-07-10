@@ -1,44 +1,82 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+# setuptools>=77 + a modern pip is required to read PEP 621 metadata. Old
+# Ubuntu pip (22.0.2 on Ubuntu 22.04) sometimes ignores the [project] table
+# entirely and silently builds a wheel named UNKNOWN-0.0.0; the floor here
+# is intentionally higher than strictly needed so build-isolation envs end
+# up fetching a setuptools recent enough to behave. See README installation
+# troubleshooting if you still hit the UNKNOWN-wheel symptom.
+requires = ["setuptools>=77", "wheel>=0.42"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "atlas"
+name = "atlas-skill"
 version = "1.0.0"
-description = "ATLAS: induce failure taxonomies from LLM-agent execution traces."
+description = "Adaptive failure-mode taxonomy runtime with Claude Code and single-LLM integrations."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
-authors = [
-    { name = "Mert Cemri" },
-]
-keywords = ["multi-agent", "taxonomy", "llm", "failure-analysis", "agents"]
+authors = [{ name = "ATLAS authors" }]
+keywords = ["agents", "failure-taxonomy", "claude-code", "llm"]
 classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: Apache Software License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3 :: Only",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Development Status :: 4 - Beta",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
 ]
-dependencies = [
-    "openai>=1.0",
-]
+dependencies = ["openai>=1.40"]
 
 [project.optional-dependencies]
 anthropic = ["anthropic>=0.40"]
-dev = ["pytest>=7", "pytest-cov>=4"]
+bedrock = ["boto3>=1.43"]
+test = ["pytest>=7"]
+docs = ["mkdocs-material>=9.5"]
 
 [project.scripts]
-atlas = "atlas.cli:main"
+atlas-find = "finding.cli:main"
+atlas-dashboard = "atlas_runtime.dashboard:main"
+atlas-import-traces = "atlas_runtime.import_generation:main"
+atlas-register-taxonomy = "atlas_runtime.register_taxonomy:main"
+atlas-doctor = "atlas_runtime.doctor:main"
+atlas-traces = "atlas_runtime.traces_cli:main"
+atlas-status = "atlas_runtime.status:main"
+atlas-claude-install = "atlas_integration.claude_code.install:main"
+atlas-claude-uninstall = "atlas_integration.claude_code.uninstall:main"
+atlas-claude-add-hook = "atlas_integration.claude_code.manage_hooks:add_main"
+atlas-claude-remove-hook = "atlas_integration.claude_code.manage_hooks:remove_main"
+atlas-claude-list-hooks = "atlas_integration.claude_code.manage_hooks:list_main"
+atlas-codex-install = "atlas_integration.codex.install:main"
+atlas-codex-uninstall = "atlas_integration.codex.uninstall:main"
+atlas-single-run = "atlas_integration.single_llm.cli:main"
 
-[project.urls]
-Homepage = "https://github.com/multi-agent-systems-failure-taxonomy/ATLAS"
+[tool.setuptools]
+include-package-data = true
 
 [tool.setuptools.packages.find]
-include = ["atlas*"]
+where = ["."]
+include = [
+  "atlas_runtime*",
+  "atlas_integration*",
+  "finding*",
+  "judge_types*",
+  "vendor*",
+]
+exclude = ["examples*", "tests*"]
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "-q"
+[tool.setuptools.package-data]
+finding = ["mast.json", "assets/*.html"]
+atlas_runtime = ["assets/*.md", "assets/*.html", "assets/*.json"]
+"atlas_integration.claude_code" = ["assets/*.md", "assets/*.json"]
+"atlas_integration.codex" = ["assets/*.md", "assets/*.yaml"]
+"atlas_integration.single_llm" = ["assets/*.md"]
+judge_types = ["assets/*/*.md"]
+"judge_types.reflection_judge" = ["assets/*.md", "assets/*.json"]
+vendor = ["atlas/LICENSE", "atlas/VENDORED.md"]
+"vendor.atlas" = ["assets/*.md"]
+"vendor.atlas.pipeline" = ["assets/*.md", "assets/*.json"]
+
+[tool.setuptools.data-files]
+"share/atlas-skill" = ["SKILL.md"]
