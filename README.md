@@ -11,22 +11,65 @@
 
 **Documentation:** [multi-agent-systems-failure-taxonomy.github.io/ATLAS](https://multi-agent-systems-failure-taxonomy.github.io/ATLAS/) · [Concepts](docs/CONCEPTS.md) · [Getting started](docs/GETTING_STARTED.md)
 
-ATLAS helps agents notice their own recurring failure patterns before they
-submit work. It starts from MAST — the Multi-Agent System failure Taxonomy
-from ["Why Do Multi-Agent LLM Systems Fail?" (Cemri et al., 2025)](https://arxiv.org/abs/2503.13657),
-shipped here as a built-in 14-code adaptation — asks the agent for
-evidence-based reflection at configured gates, records the failure modes that
-actually appear, and later generates or refines a taxonomy specialized to your
-own traces.
+Procedures that improve LLM agents act on the failures in execution traces: a
+best-of-N selector picks the best of several attempts, a program-search loop
+rewrites the agent after failed runs, and a runtime monitor reflects before an
+action commits. All three need feedback that names *why* a trajectory failed, in
+a form that aggregates across runs. Scalar rewards discard the reason. Free-form
+reflections are unstructured and per-trace. Hand-authored taxonomies such as
+MAST, from ["Why Do Multi-Agent LLM Systems Fail?" (Cemri et al., 2025)](https://arxiv.org/abs/2503.13657),
+fix the vocabulary before observing the agent, its roles, or the target domain.
 
-ATLAS is not another task solver. It is a runtime supervision layer that gives
-an agent a structured way to ask, "what mistake am I about to repeat?"
+ATLAS induces the vocabulary instead. It reads a target system's own traces and
+generates a compact set of evidence-grounded failure codes, with no
+hand-authored codes and no per-trace annotation, then passes those codes back to
+the improvement procedure alongside each trace. This repository packages that
+idea as a runtime skill: it supervises an agent against a taxonomy at meaningful
+boundaries, records the failures that actually occur, and generates or refines a
+taxonomy specialized to your own traces. When no taxonomy is configured it starts
+from a built-in 14-code adaptation of MAST.
+
+ATLAS is not a task solver. It is a diagnostic feedback layer that gives an agent
+a structured way to ask, "what mistake am I about to repeat?"
+
+## Adaptive failure taxonomies
+
+An ATLAS taxonomy is a set of 15 to 30 failure codes induced from a system's own
+traces, organized along three fixed axes. The axes follow MAST's empirical
+clustering of failure modes; the concrete codes, role labels, descriptions, and
+evidence patterns are induced per system:
+
+| Axis | Scope | Example code |
+|---|---|---|
+| System-level | Arises in any agent system | `Context_Exhaustion`, `Premature_Termination` |
+| Role-specific | Tied to a discovered component role | a checker that rubber-stamps a solver's output |
+| Domain-specific | Requires task knowledge | `Algorithm_Mismatch`, `Physical_Law_Violation` |
+
+The same induced vocabulary is a reusable feedback interface for more than one
+improvement procedure. The paper,
+[Adaptive Failure Taxonomies as Feedback for LLM-Agent Improvement Procedures](https://openreview.net/pdf?id=krDmXYWzmJ),
+evaluates three:
+
+1. **Best-of-N trajectory selection.** As judges on Terminal-Bench 2.0,
+   ATLAS-Judge reaches 89.9% accuracy (+15 points over Pass@1) and beats judges
+   that use a fixed taxonomy or none.
+2. **Evolutionary agent-system optimization.** As mutation feedback,
+   taxonomy-coded diagnoses beat free-form reflection across competitive
+   programming, math, STEM QA, and discrete reasoning (OlympiadBench 87.9% to
+   91.9% on a 655-problem held-out set).
+3. **Runtime feedback.** For SWE-agent on SWE-bench Verified Mini, codes improve
+   over free-form reflection in both in-prompt and external-judge use. This
+   runtime setting is what the skill in this repository implements.
+
+On TRAIL (117 expert-annotated GAIA traces), induced codes align with the human
+gold at Cohen's kappa 0.725, more faithfully than TRAIL's hand-crafted
+vocabulary.
 
 ## How it works
 
 ![ATLAS runtime loop](docs/atlas_runtime_loop.png)
 
-1. A task starts. ATLAS selects the active taxonomy — an inherited stored
+1. A task starts. ATLAS selects the active taxonomy: an inherited stored
    taxonomy, or built-in MAST when none is configured.
 2. At configured boundaries (checkpoints, tool failures, subagent stops), the
    agent reflects against the taxonomy and repairs when evidence demands it.
@@ -48,8 +91,8 @@ active taxonomy in a fixed shape:
 Observe:   The last two Bash runs failed with the same ImportError; no
            dependency check ran between attempts.
 Correlate: Retrying an identical command without new information.
-Map:       MAST-3 (Step repetition) — evidence supports the match.
-Decide:    One focused repair — verify the installed package version
+Map:       MAST-3 (Step repetition); evidence supports the match.
+Decide:    One focused repair: verify the installed package version
            before the next run.
 ```
 
@@ -109,8 +152,8 @@ atlas-doctor --config atlas.json
 
 ## Results
 
-Full evaluation artifacts — per-question result rows, the exact taxonomies
-used, and replication steps — live in [runs/](runs/):
+Full evaluation artifacts (per-question result rows, the exact taxonomies used,
+and replication steps) live in [runs/](runs/):
 
 | Experiment | Headline |
 |---|---|
