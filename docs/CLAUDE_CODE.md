@@ -81,6 +81,19 @@ Use `blocking` when the agent must satisfy the reflection contract before contin
 recurring command. `--checkpoint-key fixed` is useful for recurring gates that
 should open one checkpoint and close it on the next matching event.
 
+## Gates fail open
+
+If an ATLAS hook itself crashes or is killed at Claude Code's per-hook
+timeout, the agent continues normally and that gate silently does not fire.
+This is deliberate: an ATLAS bug must never leave your session unable to
+finish. The trade-off is that a skipped gate is quiet — when gating matters
+(A/B runs, benchmarks), verify it happened rather than assuming:
+
+- `[atlas]` lines on stderr report retry-guard releases and internal errors;
+- `<trace_output>/decisions.log` records every gate decision and release;
+- `atlas-status --config atlas.json` shows reflections recorded per session —
+  a finished session with no final-gate evidence means the gate was skipped.
+
 ## Uninstall hooks
 
 ```bash

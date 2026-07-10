@@ -22,6 +22,7 @@ fake receives (user, system) strings + kwargs and returns a parsed dict.
 
 from __future__ import annotations
 
+import copy
 import json
 import time
 from typing import Any, Callable, Mapping, Optional
@@ -270,11 +271,31 @@ class AtlasReflectionJudge:
         return second
 
     def _partial_validate(self, partial: dict) -> list[str]:
-        """Validator for the analysis-only output (Stage 1-7)."""
-        wrapped = self._wrap_for_validation(partial)
-        errs = validate_output(wrapped)
-        return [e for e in errs if "taxonomy_mappings" not in e
-                and "unmapped=true requires" not in e]
+        """Validator for the analysis-only output (Stage 1-7).
+
+        Mapping-stage requirements (taxonomy_mappings; unmapped support
+        fields) do not apply to analysis-only stages. Instead of filtering
+        error messages by substring — which also swallowed errors about
+        genuinely malformed mapping fields — inject neutral placeholders for
+        the mapping-stage fields that are ABSENT, then run the full validator
+        unfiltered. Any mapping field the stage did emit is validated for
+        real.
+        """
+        doctored = copy.deepcopy(dict(partial))
+        for fp in doctored.get("failure_points") or []:
+            if not isinstance(fp, dict):
+                continue
+            if "taxonomy_mappings" not in fp:
+                fp["taxonomy_mappings"] = []
+            if (
+                fp.get("unmapped")
+                and "ruled_out_codes" not in fp
+                and "proposed_failure_mode" not in fp
+            ):
+                # The unmapped rationale arrives with the mapping stage;
+                # defer that rule only when the stage supplied neither part.
+                fp["unmapped"] = False
+        return validate_output(self._wrap_for_validation(doctored))
 
     @staticmethod
     def _wrap_for_validation(analysis: dict) -> dict:

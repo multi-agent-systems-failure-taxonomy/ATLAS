@@ -14,6 +14,15 @@ atlas-doctor --config atlas.json --claude-code
 atlas-doctor --config atlas.json --codex
 ```
 
+## A gate did not fire
+
+Blocking gates fail open by design: if the hook process crashes or is killed
+at the harness's per-hook timeout, the agent continues and the gate is
+silently skipped — an ATLAS bug must never brick your session. To confirm
+gating actually happened, check `[atlas]` stderr lines, the per-gate records
+in `<trace_output>/decisions.log`, and `atlas-status` (a finished session
+with no final-gate evidence means the gate was skipped).
+
 ## `atlas_model` cannot be called
 
 Install the provider extra you need and make sure credentials are in the environment.

@@ -197,5 +197,92 @@ class DeriveSelectionSummaryTests(unittest.TestCase):
         self.assertEqual(out["unmapped_failure_points"][0]["proposed_name"], "NewMode")
 
 
+class PartialValidateTests(unittest.TestCase):
+    """The analysis-stage validator must defer mapping-stage requirements
+    without swallowing errors about genuinely malformed mapping fields."""
+
+    @staticmethod
+    def _judge():
+        from atlas_runtime.taxonomy_data import Taxonomy
+
+        tax = Taxonomy.from_flat({"repo": "x", "domain": "y", "codes": []})
+        return AtlasReflectionJudge(tax, judge_model="stub", llm_call=lambda *a, **k: {})
+
+    @staticmethod
+    def _analysis_failure_point(**overrides):
+        fp = {
+            "failure_point_id": "fp-1",
+            "summary": "a concrete failure",
+            "observed_evidence": "the command failed with exit 1",
+            "reason_observed_or_inferred": "observed",
+            "evidence_strength": "high",
+            "judge_confidence": 0.8,
+            "causal_role": "root_cause",
+            "recovery_status": "unrecovered",
+            "present_in_final_output": "yes",
+            "objective_relevance": "main_objective_relevant",
+            "severity": "major",
+            "outcome_link": "likely",
+            "candidate_attribution": "high",
+            "external_attribution": "none",
+            "actionability": "high",
+        }
+        fp.update(overrides)
+        return fp
+
+    def test_absent_mapping_fields_are_deferred(self):
+        judge = self._judge()
+        partial = {
+            "trace_summary": {"overall_judgment": "failure"},
+            "events": [],
+            "failure_points": [self._analysis_failure_point()],
+            "relations": [],
+        }
+        self.assertEqual(judge._partial_validate(partial), [])
+
+    def test_malformed_taxonomy_mappings_are_no_longer_swallowed(self):
+        # Regression: the old substring filter dropped ANY error mentioning
+        # taxonomy_mappings, including this genuinely broken one.
+        judge = self._judge()
+        partial = {
+            "trace_summary": {"overall_judgment": "failure"},
+            "events": [],
+            "failure_points": [
+                self._analysis_failure_point(
+                    taxonomy_mappings=[{"bogus": True}],
+                )
+            ],
+            "relations": [],
+        }
+        errs = judge._partial_validate(partial)
+        self.assertTrue(any("taxonomy_mappings" in e for e in errs))
+
+    def test_unmapped_with_partial_rationale_is_validated(self):
+        judge = self._judge()
+        partial = {
+            "trace_summary": {"overall_judgment": "failure"},
+            "events": [],
+            "failure_points": [
+                self._analysis_failure_point(
+                    unmapped=True,
+                    ruled_out_codes=[{"code": "A.1"}],  # missing reason
+                )
+            ],
+            "relations": [],
+        }
+        errs = judge._partial_validate(partial)
+        self.assertTrue(any("ruled_out_codes" in e for e in errs))
+
+    def test_unmapped_without_any_rationale_is_deferred(self):
+        judge = self._judge()
+        partial = {
+            "trace_summary": {"overall_judgment": "failure"},
+            "events": [],
+            "failure_points": [self._analysis_failure_point(unmapped=True)],
+            "relations": [],
+        }
+        self.assertEqual(judge._partial_validate(partial), [])
+
+
 if __name__ == "__main__":
     unittest.main()
