@@ -52,6 +52,10 @@ atlas-codex-install = "atlas_integration.codex.install:main"
 atlas-codex-uninstall = "atlas_integration.codex.uninstall:main"
 atlas-single-run = "atlas_integration.single_llm.cli:main"
 
+[project.urls]
+Homepage = "https://github.com/multi-agent-systems-failure-taxonomy/ATLAS"
+Paper = "https://openreview.net/pdf?id=krDmXYWzmJ"
+
 [tool.setuptools]
 include-package-data = true
 
