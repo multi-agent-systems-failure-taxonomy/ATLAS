@@ -22,7 +22,7 @@ owning model execution.
 Install:
 
 ```bash
-python -m pip install "git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git@ATLAS_SKILL"
+python -m pip install "git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
 ```
 
 Create `atlas.json` in the project that will run the agent:

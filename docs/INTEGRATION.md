@@ -6,8 +6,8 @@ trace capture, generation, refinement, and lineage.
 
 If you only want a ready-made integration, start with:
 
-- Claude Code: [`atlas_integration/claude_code/`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/ATLAS_SKILL/atlas_integration/claude_code/)
-- Single LLM call: [`atlas_integration/single_llm/`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/ATLAS_SKILL/atlas_integration/single_llm/)
+- Claude Code: [`atlas_integration/claude_code/`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/atlas_integration/claude_code/)
+- Single LLM call: [`atlas_integration/single_llm/`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/atlas_integration/single_llm/)
 
 ## The boundary
 

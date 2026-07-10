@@ -91,4 +91,4 @@ This removes ATLAS hook config from the project. It does not delete learned taxo
 
 ## More implementation detail
 
-See [atlas_integration/claude_code/README.md](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/ATLAS_SKILL/atlas_integration/claude_code/README.md) for the adapter file map.
+See [atlas_integration/claude_code/README.md](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/atlas_integration/claude_code/README.md) for the adapter file map.

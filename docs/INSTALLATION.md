@@ -11,7 +11,7 @@ ATLAS supports a dependency-light base install plus optional model-provider extr
 ## Install from GitHub
 
 ```bash
-python -m pip install "git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git@ATLAS_SKILL"
+python -m pip install "git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
 ```
 
 ## Install from a local checkout
@@ -32,13 +32,13 @@ python -m pip install -e ".[test]"
 Anthropic SDK:
 
 ```bash
-python -m pip install "atlas-skill[anthropic] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git@ATLAS_SKILL"
+python -m pip install "atlas-skill[anthropic] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
 ```
 
 AWS Bedrock Converse through boto3:
 
 ```bash
-python -m pip install "atlas-skill[bedrock] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git@ATLAS_SKILL"
+python -m pip install "atlas-skill[bedrock] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
 ```
 
 For Bedrock, set credentials in the environment:

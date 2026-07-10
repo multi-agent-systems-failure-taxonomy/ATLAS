@@ -10,7 +10,7 @@ If you want the full reference, start from the [documentation home](index.md).
 From GitHub:
 
 ```bash
-python -m pip install "git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git@ATLAS_SKILL"
+python -m pip install "git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
 ```
 
 From a local checkout:
@@ -23,13 +23,13 @@ python -m pip install .
 Optional Anthropic SDK support:
 
 ```bash
-python -m pip install "atlas-skill[anthropic] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git@ATLAS_SKILL"
+python -m pip install "atlas-skill[anthropic] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
 ```
 
 Optional AWS Bedrock bearer-token support:
 
 ```bash
-python -m pip install "atlas-skill[bedrock] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git@ATLAS_SKILL"
+python -m pip install "atlas-skill[bedrock] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
 ```
 
 For Bedrock, set `AWS_BEARER_TOKEN_BEDROCK` and `AWS_REGION` /

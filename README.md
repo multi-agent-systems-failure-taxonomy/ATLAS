@@ -64,7 +64,7 @@ A full walkthrough with dashboard screenshots is in
 Requirements: Python 3.10 or newer.
 
 ```bash
-python -m pip install "git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git@ATLAS_SKILL"
+python -m pip install "git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
 ```
 
 From a local checkout: `python -m pip install .`
@@ -155,6 +155,13 @@ used, and replication steps — live in [runs/](runs/):
 
 Development setup, verification commands, and package maps are in
 [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Related
+
+The original ATLAS taxonomy-induction pipeline (the research code this skill
+builds on) lives on the
+[`paper-pipeline`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/tree/paper-pipeline)
+branch and is vendored unchanged under [vendor/atlas](vendor/atlas/).
 
 ## License
 

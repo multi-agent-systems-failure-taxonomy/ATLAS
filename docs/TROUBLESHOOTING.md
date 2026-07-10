@@ -21,13 +21,13 @@ Install the provider extra you need and make sure credentials are in the environ
 Anthropic:
 
 ```bash
-python -m pip install "atlas-skill[anthropic] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git@ATLAS_SKILL"
+python -m pip install "atlas-skill[anthropic] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
 ```
 
 Bedrock:
 
 ```bash
-python -m pip install "atlas-skill[bedrock] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git@ATLAS_SKILL"
+python -m pip install "atlas-skill[bedrock] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
 export AWS_BEARER_TOKEN_BEDROCK="..."
 export AWS_REGION="us-east-1"
 ```

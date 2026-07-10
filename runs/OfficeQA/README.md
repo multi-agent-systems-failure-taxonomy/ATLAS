@@ -42,7 +42,7 @@ refinement), so both arms are a clean A/B.
    Read/Grep/Glob/Bash, system prompt from the paper's Appendix E.5, answers
    in `<FINAL_ANSWER>` tags.
 3. **ATLAS arm**: install the ATLAS skill
-   (`pip install "git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git@ATLAS_SKILL"`),
+   (`pip install "git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"`),
    register the included taxonomy
    (`atlas-register-taxonomy --file officeqa_taxonomy.json --id <id>`), and
    install the Claude Code hooks with that taxonomy inherited

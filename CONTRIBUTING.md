@@ -3,7 +3,7 @@
 ## Development setup
 
 ```bash
-git clone -b ATLAS_SKILL https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git
+git clone https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git
 cd ATLAS
 python -m pip install -e .
 ```
@@ -37,7 +37,7 @@ assets where possible; start with
 - Markdown pages in [docs/](docs/) are the source of truth. The website is
   built from them with MkDocs Material ([mkdocs.yml](mkdocs.yml)) and deployed
   by [.github/workflows/docs.yml](.github/workflows/docs.yml) on pushes to
-  `ATLAS_SKILL`.
+  `main`.
 - Preview locally:
 
   ```bash

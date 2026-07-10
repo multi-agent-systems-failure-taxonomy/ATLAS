@@ -41,7 +41,7 @@ seeded from the previous segment's best solution.
    Code search strategy on the circle-packing (n=26) task, with Claude Code
    on Bedrock (`CLAUDE_CODE_USE_BEDROCK=1`, Claude Haiku 4.5).
 2. **ATLAS arm**: install the ATLAS skill
-   (`pip install "git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git@ATLAS_SKILL"`),
+   (`pip install "git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"`),
    register the included taxonomy
    (`atlas-register-taxonomy --file circle_packing_taxonomy.json --id <id>`),
    and install the Claude Code hooks with that taxonomy inherited

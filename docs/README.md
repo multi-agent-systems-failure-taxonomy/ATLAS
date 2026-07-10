@@ -40,7 +40,7 @@ The documentation website at
 [multi-agent-systems-failure-taxonomy.github.io/ATLAS](https://multi-agent-systems-failure-taxonomy.github.io/ATLAS/)
 is built from these Markdown pages with MkDocs Material (see
 [mkdocs.yml](../mkdocs.yml)) and deployed by GitHub Actions on every push to
-`ATLAS_SKILL`. The site home is [index.md](index.md); this README stays the
+`main`. The site home is [index.md](index.md); this README stays the
 index for GitHub's file view.
 
 ## Lower-level package maps
