@@ -470,6 +470,46 @@ Final decision: submit
         self.assertEqual(loaded.repair_rounds, 3)
         self.assertEqual(loaded.format_retries, 2)
 
+    def test_traces_are_redacted_by_default(self):
+        append_text(
+            self.transcript,
+            "Set api_key=super-secret-token-123 before the run.",
+        )
+        event = {
+            **self.base,
+            "hook_event_name": "SessionEnd",
+            "reason": "prompt_input_exit",
+        }
+        code, _message = session_end.handle(event, self.config)
+        self.assertEqual(code, 0)
+        pending = list((self.trace_output / "pending").glob("trace-*.json"))
+        self.assertEqual(len(pending), 1)
+        body = pending[0].read_text(encoding="utf-8")
+        self.assertNotIn("super-secret-token-123", body)
+        self.assertIn("[REDACTED]", body)
+
+    def test_trace_redaction_can_be_disabled(self):
+        config = ClaudeCodeConfig(
+            trace_output=self.trace_output,
+            atlas_model="test-model",
+            store_dir=STORE_DIR,
+            redact_traces=False,
+        )
+        base = {**self.base, "session_id": "session-noredact"}
+        with patch.dict(os.environ, {"ATLAS_DISABLE_DASHBOARD": "1"}):
+            session_start.handle(
+                {**base, "hook_event_name": "SessionStart"}, config
+            )
+        append_text(self.transcript, "token check api_key=keepme-value")
+        code, _message = session_end.handle(
+            {**base, "hook_event_name": "SessionEnd", "reason": "exit"},
+            config,
+        )
+        self.assertEqual(code, 0)
+        pending = list((self.trace_output / "pending").glob("trace-*.json"))
+        bodies = "".join(p.read_text(encoding="utf-8") for p in pending)
+        self.assertIn("keepme-value", bodies)
+
     def test_finalize_crash_does_not_duplicate_trace(self):
         # Regression: the trace was persisted inside end_session, but
         # trace_captured was only saved after learning completed, so a crash

@@ -419,6 +419,13 @@ def run_dashboard(
     url = f"http://{host}:{actual_port}/"
     if on_serving is not None:
         on_serving(host, actual_port)
+    if host not in ("127.0.0.1", "localhost", "::1"):
+        print(
+            f"WARNING: dashboard is binding to {host!r} and serves trace and "
+            "evidence text UNAUTHENTICATED. Do not expose it beyond localhost "
+            "without an external authentication layer.",
+            file=sys.stderr,
+        )
     print(f"ATLAS taxonomy dashboard: {url}")
     if open_browser:
         webbrowser.open(url)

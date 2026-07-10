@@ -192,6 +192,11 @@ At minimum, redact:
 - user/private data not needed to understand the failure pattern;
 - benchmark labels or outcomes if they would leak oracle information.
 
+The bundled adapters (Claude Code, Codex, single-LLM) apply the shipped
+conservative redactor by default; set `redact_traces: false` to opt out.
+Custom harnesses remain responsible for their own redaction, including any
+project-specific patterns.
+
 The runtime strips known outcome fields from learning inputs, but it cannot
 guess secrets inside `raw_trajectory`. Treat redaction as a harness
 responsibility.

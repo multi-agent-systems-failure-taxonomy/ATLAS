@@ -305,6 +305,7 @@ def main(argv: list[str] | None = None) -> int:
         refinement_stops=bool_config_value(args, config_doc, "refinement_stops", False),
         advanced_refinement=bool_config_value(args, config_doc, "advanced_refinement", False),
         freeze=bool_config_value(args, config_doc, "freeze", False),
+        redact_traces=bool_config_value(args, config_doc, "redact_traces", True),
         evidence_export=(
             Path(config_value(args, config_doc, "evidence_export"))
             if config_value(args, config_doc, "evidence_export")

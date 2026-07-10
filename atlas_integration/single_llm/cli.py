@@ -238,6 +238,7 @@ def main(argv=None) -> int:
             args, config, "recent_activity_chars", 12000
         ),
         "freeze": bool_config_value(args, config, "freeze", False),
+        "redact_traces": bool_config_value(args, config, "redact_traces", True),
         "evidence_export": (
             Path(config_value(args, config, "evidence_export"))
             if config_value(args, config, "evidence_export")

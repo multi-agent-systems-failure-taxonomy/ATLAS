@@ -117,6 +117,11 @@
       "type": "boolean",
       "default": false
     },
+    "redact_traces": {
+      "description": "If true (default), first-party adapters redact credential-looking substrings from traces before persistence.",
+      "type": "boolean",
+      "default": true
+    },
     "atlas_model": {
       "description": "Model used by ATLAS generation, judging, and refinement. Separate from the user's task model.",
       "type": "string"

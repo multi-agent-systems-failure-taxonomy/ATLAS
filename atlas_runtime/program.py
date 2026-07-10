@@ -93,7 +93,27 @@ class ProgramWorkspace:
     def load(self) -> dict[str, Any]:
         if not self.manifest_path.exists():
             return {}
-        return json.loads(self.manifest_path.read_text(encoding="utf-8"))
+        text = self.manifest_path.read_text(encoding="utf-8")
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError as exc:
+            # A corrupt manifest must not brick every command with a raw
+            # traceback. Quarantine it for manual inspection and fail with an
+            # actionable error; the next run starts a fresh manifest (the
+            # taxonomy store and trace collections are untouched).
+            quarantine = self.manifest_path.with_name(
+                f"{MANIFEST_NAME}.corrupt-{int(time.time())}"
+            )
+            try:
+                os.replace(self.manifest_path, quarantine)
+            except OSError:
+                quarantine = self.manifest_path
+            raise ProgramConflict(
+                f"program manifest at {self.manifest_path} was corrupt "
+                f"({exc}); it was moved to {quarantine}. The next run will "
+                "create a fresh manifest; restore the quarantined file "
+                "manually if this program's taxonomy binding matters."
+            ) from exc
 
     @property
     def program_id(self) -> str:

@@ -80,7 +80,7 @@ def record_reflection(
 
 
 @contextmanager
-def _file_lock(path: Path, *, timeout: float = 5.0):
+def _file_lock(path: Path, *, timeout: float = 5.0, stale_after: float = 30.0):
     lock = path.with_suffix(path.suffix + ".lock")
     deadline = time.monotonic() + timeout
     while True:
@@ -88,6 +88,15 @@ def _file_lock(path: Path, *, timeout: float = 5.0):
             lock.mkdir(parents=True)
             break
         except FileExistsError:
+            # A writer killed mid-write leaves the lock directory behind
+            # forever, silently disabling evidence recording for the whole
+            # program. Break stale locks, mirroring locked_manifest().
+            try:
+                if time.time() - lock.stat().st_mtime > stale_after:
+                    lock.rmdir()
+                    continue
+            except OSError:
+                pass
             if time.monotonic() >= deadline:
                 raise TimeoutError(f"timed out waiting for {lock}")
             time.sleep(0.05)

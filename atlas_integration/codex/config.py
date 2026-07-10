@@ -143,6 +143,7 @@ class CodexConfig:
     advanced_refinement: bool = False
     freeze: bool = False
     evidence_export: Path | None = None
+    redact_traces: bool = True
     hooks: tuple[CodexHookSpec, ...] = field(default_factory=default_hooks)
 
     def __post_init__(self) -> None:
@@ -208,6 +209,7 @@ class CodexConfig:
                 if data.get("evidence_export")
                 else None
             ),
+            redact_traces=bool(data.get("redact_traces", True)),
             hooks=parse_codex_hooks(scoped.get("hooks", data.get("codex_hooks"))),
         )
 
@@ -234,6 +236,7 @@ class CodexConfig:
             "evidence_export": (
                 str(self.evidence_export) if self.evidence_export else None
             ),
+            "redact_traces": self.redact_traces,
             "codex": {
                 "hooks": {spec.event: spec.to_dict() for spec in self.hooks},
             },

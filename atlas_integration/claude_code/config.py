@@ -235,6 +235,7 @@ class ClaudeCodeConfig:
     advanced_refinement: bool = False
     freeze: bool = False
     evidence_export: Path | None = None
+    redact_traces: bool = True
     failure_throttle_calls: int = 5
     failure_recency_seconds: int = 30
     built_in_hooks: tuple[BuiltInHookSpec, ...] = field(
@@ -372,6 +373,7 @@ class ClaudeCodeConfig:
                 if data.get("evidence_export")
                 else None
             ),
+            redact_traces=bool(data.get("redact_traces", True)),
             failure_throttle_calls=max(
                 1, int(data.get("failure_throttle_calls", 5))
             ),
@@ -407,6 +409,7 @@ class ClaudeCodeConfig:
             "evidence_export": (
                 str(self.evidence_export) if self.evidence_export else None
             ),
+            "redact_traces": self.redact_traces,
             "failure_throttle_calls": self.failure_throttle_calls,
             "failure_recency_seconds": self.failure_recency_seconds,
             "claude_code": {

@@ -529,6 +529,7 @@ def main(argv=None) -> int:
         "refinement_stops": bool_config_value(args, config, "refinement_stops", False),
         "advanced_refinement": bool_config_value(args, config, "advanced_refinement", False),
         "freeze": bool_config_value(args, config, "freeze", False),
+        "redact_traces": bool_config_value(args, config, "redact_traces", True),
         "evidence_export": config_value(args, config, "evidence_export"),
         "failure_throttle_calls": config_value(args, config, "failure_throttle_calls", 5),
         "failure_recency_seconds": config_value(args, config, "failure_recency_seconds", 30),

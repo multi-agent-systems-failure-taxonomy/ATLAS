@@ -24,6 +24,7 @@ from atlas_runtime import (
     SessionDelivery,
     end_session,
     evaluate_pre_submission,
+    redact_trace,
     start_session,
 )
 from atlas_runtime.evidence import record_reflection
@@ -273,22 +274,21 @@ def _finish_runtime_session(
         task = first_user_message(transcript_path).strip() or (
             f"Codex task in {state.get('cwd') or 'unknown working directory'}"
         )
-        workspace.pending.append_many_with_names(
-            [
-                GenerationTrace(
-                    problem_id=f"codex:{state['session_id']}",
-                    task=task,
-                    raw_trajectory=raw_trajectory,
-                    metadata={
-                        "harness": "codex",
-                        "codex_session_id": state["session_id"],
-                        "runtime_session_id": state["runtime_session_id"],
-                        "taxonomy_id": state["taxonomy_id"],
-                        "end_reason": reason,
-                    },
-                )
-            ]
+        trace = GenerationTrace(
+            problem_id=f"codex:{state['session_id']}",
+            task=task,
+            raw_trajectory=raw_trajectory,
+            metadata={
+                "harness": "codex",
+                "codex_session_id": state["session_id"],
+                "runtime_session_id": state["runtime_session_id"],
+                "taxonomy_id": state["taxonomy_id"],
+                "end_reason": reason,
+            },
         )
+        if config.redact_traces:
+            trace = redact_trace(trace)
+        workspace.pending.append_many_with_names([trace])
         # Persist the capture marker before any lifecycle work: a crash or
         # hook-timeout kill in end_session below must not let a retry record
         # a second copy of this trace.

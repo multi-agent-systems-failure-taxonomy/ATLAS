@@ -19,6 +19,7 @@ from atlas_runtime import (
     pin_gate_decision,
     pre_submission,
     record_trace,
+    redact_trace,
     start_session,
 )
 from atlas_runtime.checkpoint_prompt import (
@@ -67,6 +68,7 @@ class SingleLLMConfig:
     advanced_refinement: bool = False
     freeze: bool = False
     evidence_export: Path | None = None
+    redact_traces: bool = True
     gate_exhaustion_policy: str = "raise"
     recent_activity_messages: int = 8
     recent_activity_chars: int = 12000
@@ -239,19 +241,19 @@ def run_single_llm(
                 }
             )
 
-        record_trace(
-            session,
-            GenerationTrace(
-                problem_id=run_id,
-                task=task,
-                raw_trajectory=_render_messages(messages),
-                metadata={
-                    "harness": "single_llm",
-                    "taxonomy_id": session.delivery.taxonomy_id,
-                    "checkpoint_count": checkpoint_count,
-                },
-            ),
+        trace = GenerationTrace(
+            problem_id=run_id,
+            task=task,
+            raw_trajectory=_render_messages(messages),
+            metadata={
+                "harness": "single_llm",
+                "taxonomy_id": session.delivery.taxonomy_id,
+                "checkpoint_count": checkpoint_count,
+            },
         )
+        if config.redact_traces:
+            trace = redact_trace(trace)
+        record_trace(session, trace)
         ended = end_session(session)
         return SingleLLMResult(
             answer=answer,

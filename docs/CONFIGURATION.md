@@ -39,6 +39,7 @@ Everything else has a sensible default.
 | `inherit` | unset | `taxonomy_id` to start from. Unset (or the string `"none"`) starts from built-in MAST. |
 | `dashboard` | `true` | Let integrations launch the localhost dashboard automatically. |
 | `evidence_export` | unset | Optional external snapshot sink for session-end evidence. A `.json` value is written as that exact file; any other value is treated as a directory receiving one `<program_id>.json` per program. |
+| `redact_traces` | `true` | First-party adapters strip credential-looking substrings (API keys, tokens, cookies) from traces before persistence. Disable only when traces are known clean and exact text matters. |
 
 ## Learning fields
 

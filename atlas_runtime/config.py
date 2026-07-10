@@ -36,6 +36,7 @@ BOOL_FIELDS = {
     "advanced_refinement",
     "dashboard",
     "freeze",
+    "redact_traces",
 }
 STRING_FIELDS = {
     "atlas_model",

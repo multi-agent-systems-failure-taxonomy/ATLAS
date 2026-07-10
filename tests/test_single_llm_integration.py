@@ -257,6 +257,36 @@ Final decision: submit
             self.assertEqual(result.answer, "The final answer is 42.")
             self.assertTrue(result.gate_allowed)
 
+    def test_traces_are_redacted_by_default(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+
+            def call(messages):
+                prompt = messages[-1]["content"]
+                if "reflection required" in prompt:
+                    return clean_reflection(messages, status="READY_TO_SUBMIT")
+                return "Answer ready. api_key=leaky-secret-42"
+
+            run_single_llm(
+                "Solve the task.",
+                call,
+                SingleLLMConfig(
+                    trace_output=root / "program",
+                    atlas_model="gpt-5",
+                    store_dir=STORE_DIR,
+                    trace_root=root / "traces",
+                    dashboard=False,
+                ),
+                problem_id="redact-task",
+            )
+            pending = list(
+                (root / "program" / "pending").glob("trace-*.json")
+            )
+            self.assertEqual(len(pending), 1)
+            body = pending[0].read_text(encoding="utf-8")
+            self.assertNotIn("leaky-secret-42", body)
+            self.assertIn("[REDACTED]", body)
+
     def test_release_policy_returns_best_answer_after_gate_cap(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
