@@ -51,5 +51,30 @@ class WebViewTests(unittest.TestCase):
         self.assertEqual(self.result["value"], "none")
 
 
+class RenderTableBraceRegressionTests(unittest.TestCase):
+    def test_braces_in_repo_and_domain_do_not_crash_table(self):
+        # Regression: repo/domain carrying `{`/`}` used to blow up the picker
+        # index because `.format` ran over the already-interpolated rows.
+        import tempfile
+
+        from finding import store
+
+        store_dir = Path(tempfile.mkdtemp())
+        store.register(
+            {
+                "taxonomy_id": "t-braces",
+                "repo": "acme/{svc}",
+                "domain": "web {SPA}",
+                "codes": [
+                    {"id": "A.1", "name": "n", "description": "d", "category": "A"}
+                ],
+            },
+            store_dir,
+        )
+        html = webview._render_table(store_dir)
+        self.assertIn("acme/{svc}", html)
+        self.assertIn("web {SPA}", html)
+
+
 if __name__ == "__main__":
     unittest.main()

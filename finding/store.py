@@ -74,7 +74,14 @@ def list_all(store_dir=DEFAULT_STORE_DIR) -> list[dict]:
     store_dir = Path(store_dir)
     records: list[dict] = []
     for path in sorted(store_dir.glob("*.json")):
-        data = json.loads(path.read_text(encoding="utf-8-sig"))
+        # A single corrupt or hand-edited file must not brick the whole
+        # listing (which backs --list and the picker); skip what we can't read.
+        try:
+            data = json.loads(path.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(data, dict):
+            continue
         records.append({field: data.get(field) for field in HEADER_FIELDS})
     records.sort(key=lambda r: r["taxonomy_id"] or "")
     return records
@@ -85,7 +92,13 @@ def fetch_by_id(taxonomy_id: str, store_dir=DEFAULT_STORE_DIR) -> dict:
     path = _record_path(taxonomy_id, store_dir)
     if not path.is_file():
         raise TaxonomyNotFound(taxonomy_id)
-    return json.loads(path.read_text(encoding="utf-8-sig"))
+    try:
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
+    except json.JSONDecodeError as exc:
+        raise InvalidTaxonomy(f"stored taxonomy {taxonomy_id!r} is not valid JSON") from exc
+    if not isinstance(data, dict):
+        raise InvalidTaxonomy(f"stored taxonomy {taxonomy_id!r} is not a JSON object")
+    return data
 
 
 def register(record: dict, store_dir=DEFAULT_STORE_DIR, *, replace: bool = False) -> Path:
@@ -107,7 +120,9 @@ def register(record: dict, store_dir=DEFAULT_STORE_DIR, *, replace: bool = False
             f"taxonomy {taxonomy_id!r} already exists; pass replace=True explicitly"
         )
 
-    temporary = store_dir / f".{taxonomy_id}.json.tmp"
+    # Unique temp name per writer so two processes registering the same id
+    # do not share (and tear) one temp file before the atomic replace.
+    temporary = store_dir / f".{taxonomy_id}.{os.getpid()}.json.tmp"
     payload = json.dumps(record, indent=2, ensure_ascii=False) + "\n"
     temporary.write_text(payload, encoding="utf-8")
     temporary.replace(target)

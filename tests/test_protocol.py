@@ -210,5 +210,24 @@ class ProtocolTests(unittest.TestCase):
         self.assertIs(unchanged, missing)
 
 
+    def test_failure_statuses_containing_success_substrings_block(self):
+        # Regression: "incomplete"/"unsuccessful"/"not passed" must not be
+        # normalized to READY just because they contain complete/success/pass.
+        for status in ("incomplete", "unsuccessful", "not passed", "not verified"):
+            self.assertEqual(
+                protocol._normalize_status(status),
+                protocol.REPAIR,
+                msg=f"{status!r} should block, not approve",
+            )
+            decision = protocol.evaluate_pre_submission(
+                f"Final ATLAS status: {status}\nRepair attempts used: 0\n"
+            )
+            self.assertFalse(decision.allow, msg=f"gate approved {status!r}")
+
+    def test_genuine_success_statuses_still_allow(self):
+        for status in ("READY_TO_SUBMIT", "complete", "verified", "passed"):
+            self.assertEqual(protocol._normalize_status(status), protocol.READY)
+
+
 if __name__ == "__main__":
     unittest.main()

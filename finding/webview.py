@@ -55,14 +55,18 @@ def _render_table(store_dir) -> str:
                 domain=html.escape(str(rec["domain"])),
             )
         )
+    # Build the "none" link on its own so `.format` never runs over `rows`,
+    # which contain user-controlled repo/domain text that may include `{`/`}`.
+    none_link = (
+        '<a class="none" href="/choose?id={none}">Use none / start from 0</a>'
+    ).format(none=html.escape(NONE_SENTINEL))
     body = (
         "<h1>Inherit a taxonomy</h1>"
         "<p class='meta'>Pick a taxonomy to inherit, or start from 0. "
         "The table is global across all repos.</p>"
         "<table><thead><tr><th>repo</th><th>taxonomy_id</th><th>domain</th></tr>"
-        "</thead><tbody>" + "".join(rows) + "</tbody></table>"
-        '<a class="none" href="/choose?id={none}">Use none / start from 0</a>'
-    ).format(none=NONE_SENTINEL)
+        "</thead><tbody>" + "".join(rows) + "</tbody></table>" + none_link
+    )
     return _PAGE.format(title="Inherit a taxonomy", body=body)
 
 

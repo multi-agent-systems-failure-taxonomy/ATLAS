@@ -177,11 +177,13 @@ def main(argv=None) -> int:
         parser.error(str(exc))
     if args.inherit_pick and args.inherit is not None:
         parser.error("--inherit-pick cannot be combined with --inherit")
-    task = (
-        args.task
-        if args.task is not None
-        else Path(args.task_file).read_text(encoding="utf-8-sig")
-    )
+    if args.task is not None:
+        task = args.task
+    else:
+        try:
+            task = Path(args.task_file).read_text(encoding="utf-8-sig")
+        except OSError as exc:
+            parser.error(f"cannot read --task-file {args.task_file!r}: {exc}")
     store_dir = config_value(args, config, "store_dir", store.DEFAULT_STORE_DIR)
     inherit = (
         resolver.NO_ID
