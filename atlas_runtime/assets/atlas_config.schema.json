@@ -228,6 +228,46 @@
       "description": "Claude Code adapter-specific settings.",
       "type": "object",
       "properties": {
+        "project_scope": {
+          "description": "Use trace_output directly or derive one program per project.",
+          "enum": ["explicit", "auto"],
+          "default": "explicit"
+        },
+        "project_id": {
+          "description": "Optional stable project identity override for auto scope.",
+          "type": ["string", "null"],
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+        },
+        "task_group": {
+          "description": "Project-local taxonomy and trace group.",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "default": "default"
+        },
+        "session_selector": {
+          "description": "Whether a new Claude Code conversation asks the user to select its taxonomy.",
+          "enum": ["off", "prompt"],
+          "default": "off"
+        },
+        "learning_backend": {
+          "description": "Taxonomy learning transport. claude_subagent reuses local Claude Code authentication.",
+          "enum": ["provider", "claude_subagent"],
+          "default": "provider"
+        },
+        "worker_model": {
+          "description": "Optional model override for the isolated Claude taxonomy worker.",
+          "type": ["string", "null"]
+        },
+        "claude_cli_path": {
+          "description": "Optional explicit Claude Code CLI executable path.",
+          "type": ["string", "null"]
+        },
+        "worker_timeout_seconds": {
+          "description": "Maximum runtime for one isolated Claude taxonomy worker.",
+          "type": "integer",
+          "minimum": 1,
+          "default": 1800
+        },
         "built_in_hooks": {
           "description": "Claude Code built-in hook configuration.",
           "anyOf": [
@@ -262,6 +302,46 @@
       "description": "Codex adapter-specific settings.",
       "type": "object",
       "properties": {
+        "project_scope": {
+          "description": "Use trace_output directly or derive one program per project.",
+          "enum": ["explicit", "auto"],
+          "default": "explicit"
+        },
+        "project_id": {
+          "description": "Optional stable project identity override for auto scope.",
+          "type": ["string", "null"],
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+        },
+        "task_group": {
+          "description": "Project-local taxonomy and trace group.",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "default": "default"
+        },
+        "session_selector": {
+          "description": "Whether a new Codex conversation explicitly asks the user to select its taxonomy.",
+          "enum": ["off", "prompt"],
+          "default": "off"
+        },
+        "learning_backend": {
+          "description": "Taxonomy learning transport for Codex conversations. codex_subagent reuses local Codex authentication and requires no external API key.",
+          "enum": ["provider", "codex_subagent"],
+          "default": "provider"
+        },
+        "worker_model": {
+          "description": "Optional model override for the isolated Codex taxonomy worker.",
+          "type": ["string", "null"]
+        },
+        "codex_cli_path": {
+          "description": "Optional explicit Codex CLI executable path; normally discovered from CODEX_CLI_PATH.",
+          "type": ["string", "null"]
+        },
+        "worker_timeout_seconds": {
+          "description": "Maximum runtime for one isolated Codex taxonomy worker.",
+          "type": "integer",
+          "minimum": 1,
+          "default": 1800
+        },
         "hooks": {
           "description": "Codex hook configuration.",
           "anyOf": [

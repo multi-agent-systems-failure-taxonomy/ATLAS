@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from finding import store
 from atlas_runtime.traces import DEFAULT_TRACE_ROOT
+from atlas_runtime.project_scope import project_program_path, validate_scope_id
 
 CODEX_HOOK_EVENTS = (
     "SessionStart",
+    "UserPromptSubmit",
     "Stop",
     "SubagentStop",
     "PostToolUse",
@@ -144,6 +146,14 @@ class CodexConfig:
     freeze: bool = False
     evidence_export: Path | None = None
     redact_traces: bool = True
+    project_scope: str = "explicit"
+    project_id: str | None = None
+    task_group: str = "default"
+    session_selector: str = "off"
+    learning_backend: str = "provider"
+    worker_model: str | None = None
+    codex_cli_path: Path | None = None
+    worker_timeout_seconds: int = 1800
     hooks: tuple[CodexHookSpec, ...] = field(default_factory=default_hooks)
 
     def __post_init__(self) -> None:
@@ -151,11 +161,29 @@ class CodexConfig:
             raise ValueError("Codex integration requires trace_output")
         if not str(self.atlas_model).strip():
             raise ValueError("Codex integration requires atlas_model")
+        if self.project_scope not in {"explicit", "auto"}:
+            raise ValueError("project_scope must be 'explicit' or 'auto'")
+        if self.session_selector not in {"off", "prompt"}:
+            raise ValueError("session_selector must be 'off' or 'prompt'")
+        if self.learning_backend not in {"provider", "codex_subagent"}:
+            raise ValueError(
+                "learning_backend must be 'provider' or 'codex_subagent'"
+            )
+        if self.learning_backend == "codex_subagent" and (
+            self.generation_stops or self.refinement_stops
+        ):
+            raise ValueError(
+                "codex_subagent learning requires background generation and refinement"
+            )
+        validate_scope_id(self.task_group, label="task_group")
+        if self.project_id is not None:
+            validate_scope_id(self.project_id, label="project_id")
         for name, value in (
             ("max_retries", self.max_retries),
             ("generation_threshold", self.generation_threshold),
             ("k_init", self.k_init),
             ("k", self.k),
+            ("worker_timeout_seconds", self.worker_timeout_seconds),
         ):
             if value <= 0:
                 raise ValueError(f"{name} must be positive")
@@ -210,7 +238,44 @@ class CodexConfig:
                 else None
             ),
             redact_traces=bool(data.get("redact_traces", True)),
+            project_scope=str(scoped.get("project_scope", "explicit")),
+            project_id=(
+                str(scoped["project_id"]).strip()
+                if scoped.get("project_id")
+                else None
+            ),
+            task_group=str(scoped.get("task_group", "default")),
+            session_selector=str(scoped.get("session_selector", "off")),
+            learning_backend=str(scoped.get("learning_backend", "provider")),
+            worker_model=(
+                str(scoped["worker_model"]).strip()
+                if scoped.get("worker_model")
+                else None
+            ),
+            codex_cli_path=(
+                Path(str(scoped["codex_cli_path"])).expanduser().resolve()
+                if scoped.get("codex_cli_path")
+                else None
+            ),
+            worker_timeout_seconds=max(
+                1,
+                int(scoped.get("worker_timeout_seconds", 1800)),
+            ),
             hooks=parse_codex_hooks(scoped.get("hooks", data.get("codex_hooks"))),
+        )
+
+    def for_event(self, event: dict) -> "CodexConfig":
+        """Return the event-scoped config used by user-level global hooks."""
+        if self.project_scope == "explicit":
+            return self
+        return replace(
+            self,
+            trace_output=project_program_path(
+                self.trace_output,
+                cwd=event.get("cwd"),
+                task_group=self.task_group,
+                project_id=self.project_id,
+            ),
         )
 
     def to_dict(self) -> dict:
@@ -238,6 +303,16 @@ class CodexConfig:
             ),
             "redact_traces": self.redact_traces,
             "codex": {
+                "project_scope": self.project_scope,
+                "project_id": self.project_id,
+                "task_group": self.task_group,
+                "session_selector": self.session_selector,
+                "learning_backend": self.learning_backend,
+                "worker_model": self.worker_model,
+                "codex_cli_path": (
+                    str(self.codex_cli_path) if self.codex_cli_path else None
+                ),
+                "worker_timeout_seconds": self.worker_timeout_seconds,
                 "hooks": {spec.event: spec.to_dict() for spec in self.hooks},
             },
         }

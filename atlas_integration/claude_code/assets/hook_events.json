@@ -3,6 +3,7 @@
   "custom_hook_checkpoint_keys": ["tool_use_id", "command", "fixed"],
   "built_in_hook_events": [
     "SessionStart",
+    "UserPromptSubmit",
     "SessionEnd",
     "Stop",
     "TaskCompleted",

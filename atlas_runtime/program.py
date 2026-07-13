@@ -178,13 +178,20 @@ class ProgramWorkspace:
                 self._new_manifest()["refinement"],
             )
             refs = refinement.setdefault("trace_refs", [])
-            refs.extend(
+            existing = {
+                (str(item.get("taxonomy_id")), str(item.get("filename")))
+                for item in refs
+                if isinstance(item, dict)
+            }
+            additions = [
                 {"taxonomy_id": taxonomy_id, "filename": name}
                 for name in filenames
-            )
+                if (taxonomy_id, name) not in existing
+            ]
+            refs.extend(additions)
             refinement["traces_since_refinement"] = int(
                 refinement.get("traces_since_refinement", 0)
-            ) + len(filenames)
+            ) + len(additions)
             return int(refinement["traces_since_refinement"])
 
     def refinement_state(self) -> dict[str, Any]:

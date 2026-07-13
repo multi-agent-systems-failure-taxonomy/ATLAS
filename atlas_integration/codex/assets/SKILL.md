@@ -21,7 +21,16 @@ Use ATLAS as a lightweight runtime discipline while doing the user's task.
   3. Map to taxonomy codes only when evidence supports the match.
   4. Decide whether to make one focused repair or continue.
 - Treat `none apply` as valid. Do not invent a failure mode or force an edit.
+- When the SessionStart context says taxonomy selection is pending, show the
+  supplied selector verbatim and do no task work until the user chooses. After
+  selection, resume any held task without asking the user to repeat it.
+- When the selector reports `No taxonomy`, do not emit ATLAS checkpoints or
+  describe ATLAS as active for that conversation.
 - Before final submission, complete a final ATLAS gate and only report ready when no unresolved taxonomy-relevant issue remains.
+- End each substantive Codex final answer with the compact checkpoint required
+  by the active runtime context: `Checkpoint`, `Relevant codes`, `Evidence`,
+  and `Next action`. Keep the longer Observe/Correlate/Map/Decide reflection
+  internal unless a hook explicitly requests it.
 
 ## If the ATLAS package is available
 

@@ -39,22 +39,36 @@ def read_transcript(path: Path | str | None, *, after: int = 0) -> str:
     return "\n".join(chunk for chunk in chunks if chunk.strip())
 
 
-def read_raw_transcript(path: Path | str | None) -> str:
-    """Return the complete Claude JSONL so learning retains tool interactions."""
+def read_raw_transcript(
+    path: Path | str | None,
+    *,
+    after: int = 0,
+) -> str:
+    """Return raw JSONL after a byte cursor, retaining tool interactions."""
     if not path:
         return ""
     try:
-        return Path(path).read_text(encoding="utf-8")
+        source = Path(path)
+        with source.open("rb") as handle:
+            handle.seek(min(max(0, after), source.stat().st_size))
+            return handle.read().decode("utf-8", "replace")
     except OSError:
         return ""
 
 
-def first_user_message(path: Path | str | None) -> str:
-    """Return the first human-authored message from a Claude JSONL transcript."""
+def first_user_message(
+    path: Path | str | None,
+    *,
+    after: int = 0,
+) -> str:
+    """Return the first human-authored message after a byte cursor."""
     if not path:
         return ""
     try:
-        lines = Path(path).read_text(encoding="utf-8").splitlines()
+        source = Path(path)
+        with source.open("rb") as handle:
+            handle.seek(min(max(0, after), source.stat().st_size))
+            lines = handle.read().decode("utf-8", "replace").splitlines()
     except OSError:
         return ""
     for line in lines:

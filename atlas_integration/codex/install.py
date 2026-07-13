@@ -250,10 +250,39 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--openai-base-url", "--openai_base_url", dest="openai_base_url")
     parser.add_argument("--openai-api-key-env", "--openai_api_key_env", dest="openai_api_key_env")
     parser.add_argument(
+        "--project-scope",
+        choices=("explicit", "auto"),
+        default=None,
+        help="use trace_output directly or derive one program per project",
+    )
+    parser.add_argument("--project-id", default=None)
+    parser.add_argument("--task-group", default=None)
+    parser.add_argument(
+        "--session-selector",
+        choices=("off", "prompt"),
+        default=None,
+        help="ask for a taxonomy when a new Codex conversation starts",
+    )
+    parser.add_argument(
+        "--learning-backend",
+        choices=("provider", "codex_subagent"),
+        default=None,
+        help="use provider API calls or the authenticated Codex subagent worker",
+    )
+    parser.add_argument("--worker-model", default=None)
+    parser.add_argument("--codex-cli-path", type=Path, default=None)
+    parser.add_argument("--worker-timeout-seconds", type=int, default=None)
+    parser.add_argument(
         "--disable-hook",
         action="append",
         default=[],
-        choices=("SessionStart", "Stop", "SubagentStop", "PostToolUse"),
+        choices=(
+            "SessionStart",
+            "UserPromptSubmit",
+            "Stop",
+            "SubagentStop",
+            "PostToolUse",
+        ),
         help="do not install a built-in Codex hook event",
     )
     parser.add_argument(
@@ -310,6 +339,46 @@ def main(argv: list[str] | None = None) -> int:
             Path(config_value(args, config_doc, "evidence_export"))
             if config_value(args, config_doc, "evidence_export")
             else None
+        ),
+        project_scope=(
+            args.project_scope
+            or str(adapter_config.get("project_scope", "explicit"))
+        ),
+        project_id=(
+            args.project_id
+            if args.project_id is not None
+            else adapter_config.get("project_id")
+        ),
+        task_group=(
+            args.task_group
+            or str(adapter_config.get("task_group", "default"))
+        ),
+        session_selector=(
+            args.session_selector
+            or str(adapter_config.get("session_selector", "off"))
+        ),
+        learning_backend=(
+            args.learning_backend
+            or str(adapter_config.get("learning_backend", "provider"))
+        ),
+        worker_model=(
+            args.worker_model
+            if args.worker_model is not None
+            else adapter_config.get("worker_model")
+        ),
+        codex_cli_path=(
+            args.codex_cli_path
+            if args.codex_cli_path is not None
+            else (
+                Path(str(adapter_config["codex_cli_path"]))
+                if adapter_config.get("codex_cli_path")
+                else None
+            )
+        ),
+        worker_timeout_seconds=(
+            args.worker_timeout_seconds
+            if args.worker_timeout_seconds is not None
+            else int(adapter_config.get("worker_timeout_seconds", 1800))
         ),
         hooks=parse_codex_hooks(hooks_doc),
     )

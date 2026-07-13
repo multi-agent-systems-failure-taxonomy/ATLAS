@@ -11,6 +11,10 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from atlas_integration.claude_code.config import ClaudeCodeConfig
+    from atlas_integration.claude_code.learning_jobs import (
+        drain_learning_notices,
+        reconcile_learning_jobs,
+    )
     from atlas_integration.claude_code.custom import (
         custom_advisory,
         custom_blocking_checkpoint,
@@ -23,10 +27,12 @@ if __package__ in (None, ""):
         stop,
         subagent_stop,
         task_completed,
+        user_prompt_submit,
     )
 else:
     from .config import ClaudeCodeConfig
     from .custom import custom_advisory, custom_blocking_checkpoint
+    from .learning_jobs import drain_learning_notices, reconcile_learning_jobs
     from .hooks import (
         post_tool_use,
         post_tool_use_failure,
@@ -35,10 +41,12 @@ else:
         stop,
         subagent_stop,
         task_completed,
+        user_prompt_submit,
     )
 
 HANDLERS = {
     "SessionStart": session_start.handle,
+    "UserPromptSubmit": user_prompt_submit.handle,
     "SessionEnd": session_end.handle,
     "Stop": stop.handle,
     "TaskCompleted": task_completed.handle,
@@ -63,10 +71,10 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     try:
         event = json.load(sys.stdin)
-        config = ClaudeCodeConfig.load(args.config)
-        if config.openai_base_url:
+        config = ClaudeCodeConfig.load(args.config).for_event(event)
+        if config.learning_backend == "provider" and config.openai_base_url:
             os.environ["OPENAI_BASE_URL"] = config.openai_base_url
-        if config.openai_api_key_env:
+        if config.learning_backend == "provider" and config.openai_api_key_env:
             value = os.environ.get(config.openai_api_key_env)
             if not value:
                 raise RuntimeError(
@@ -74,6 +82,13 @@ def main(argv=None) -> int:
                     f"{config.openai_api_key_env!r} is not set"
                 )
             os.environ["OPENAI_API_KEY"] = value
+        event_name = event.get("hook_event_name")
+        if config.learning_backend == "claude_subagent":
+            reconcile_learning_jobs(
+                _workspace(config, event),
+                store_dir=config.store_dir,
+                trace_root=config.trace_root,
+            )
         if args.custom:
             spec = config.find_custom_hook(args.custom)
             if spec is None:
@@ -89,12 +104,26 @@ def main(argv=None) -> int:
             else:
                 code, output = 0, custom_advisory(event, config, spec=spec)
         else:
-            event_name = event.get("hook_event_name")
             if event_name not in HANDLERS:
                 raise ValueError(
                     f"unsupported Claude Code hook event {event_name!r}"
                 )
             code, output = HANDLERS[event_name](event, config)
+        if code == 0 and config.learning_backend == "claude_subagent":
+            workspace = _workspace(config, event)
+            reconcile_learning_jobs(
+                workspace,
+                store_dir=config.store_dir,
+                trace_root=config.trace_root,
+            )
+            output = _merge_notices(
+                output,
+                event_name=str(event_name or "SessionStart"),
+                notices=drain_learning_notices(
+                    workspace,
+                    _conversation_id(event),
+                ),
+            )
         if output:
             rendered = (
                 json.dumps(output, ensure_ascii=False)
@@ -106,6 +135,52 @@ def main(argv=None) -> int:
     except Exception as exc:
         print(f"ATLAS Claude Code hook error: {exc}", file=sys.stderr)
         return 1
+
+
+def _workspace(config: ClaudeCodeConfig, event: dict):
+    from atlas_runtime import ProgramWorkspace
+
+    return ProgramWorkspace(config.trace_output, repo_path=event.get("cwd"))
+
+
+def _conversation_id(event: dict) -> str:
+    value = event.get("session_id") or event.get("conversation_id")
+    if value:
+        return str(value)
+    return str(event.get("transcript_path") or "claude-session")
+
+
+def _merge_notices(
+    output: dict | str | None,
+    *,
+    event_name: str,
+    notices: list[str],
+) -> dict | str | None:
+    if not notices:
+        return output
+    notice_text = "\n\n".join(item.strip() for item in notices if item.strip())
+    if isinstance(output, dict):
+        merged = dict(output)
+    else:
+        merged = {}
+        if isinstance(output, str) and output.strip():
+            merged["systemMessage"] = output.strip()
+    messages = []
+    current_message = merged.get("systemMessage")
+    if isinstance(current_message, str) and current_message.strip():
+        messages.append(current_message.strip())
+    messages.append(notice_text)
+    merged["systemMessage"] = "\n\n".join(messages)
+    specific = dict(merged.get("hookSpecificOutput") or {})
+    specific.setdefault("hookEventName", event_name)
+    contexts = []
+    current_context = specific.get("additionalContext")
+    if isinstance(current_context, str) and current_context.strip():
+        contexts.append(current_context.strip())
+    contexts.append(notice_text)
+    specific["additionalContext"] = "\n\n".join(contexts)
+    merged["hookSpecificOutput"] = specific
+    return merged
 
 
 if __name__ == "__main__":

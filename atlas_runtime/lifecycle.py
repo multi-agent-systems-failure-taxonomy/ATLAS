@@ -208,11 +208,13 @@ def end_session(
     refinement_judge: RefinementJudge | None = None,
     refinement_repairer: RefinementRepairer | None = None,
     refinement_background_launcher: Callable[[], None] | None = None,
+    pre_persisted_trace_names: list[str] | tuple[str, ...] | None = None,
 ) -> SessionEndResult:
     """Finish the task, persist traces, and run the applicable transition."""
     _require_active(session)
-    trace_names = session.workspace.pending.append_many_with_names(
-        session._pending_traces
+    trace_names = list(pre_persisted_trace_names or ())
+    trace_names.extend(
+        session.workspace.pending.append_many_with_names(session._pending_traces)
     )
     persisted = len(trace_names)
     session._pending_traces.clear()

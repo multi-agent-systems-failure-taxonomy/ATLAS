@@ -56,6 +56,7 @@ from .dashboard import (
     stop_dashboard_if_idle,
 )
 from .repository import discover_repo
+from .project_scope import canonical_project_root, project_key, project_program_path
 from .redaction import redact_text, redact_trace
 from .traces import (
     GenerationTrace,
@@ -84,6 +85,9 @@ __all__ = [
     "build_dashboard_server",
     "current_taxonomy",
     "discover_repo",
+    "canonical_project_root",
+    "project_key",
+    "project_program_path",
     "ensure_dashboard",
     "Session",
     "SessionDelivery",
