@@ -40,15 +40,15 @@ from atlas_runtime.reflection import (
 from finding import mast, resolver
 
 from atlas_integration.shared import build_session_state
-
-from .config import CodexConfig
-from .learning_jobs import enqueue_learning_job
-from .prompts import STANDING_PROMPT, failure_nudge, reflection_prompt
-from .selector import (
+from atlas_integration.interactive.learning_jobs import enqueue_learning_job
+from atlas_integration.interactive.selector import (
     build_selection,
     parse_selection_choice,
     selection_interstitial,
 )
+
+from .config import CodexConfig
+from .prompts import STANDING_PROMPT, failure_nudge, reflection_prompt
 from .state import load_state, save_state
 
 FAILURE_PATTERNS = (

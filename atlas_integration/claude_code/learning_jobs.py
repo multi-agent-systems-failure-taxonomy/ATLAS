@@ -9,7 +9,7 @@ from typing import Callable
 
 from atlas_runtime import ProgramWorkspace
 
-from atlas_integration.codex.learning_jobs import (
+from atlas_integration.interactive.learning_jobs import (
     LearningJobError,
     drain_learning_notices,
     enqueue_learning_job,

@@ -33,7 +33,7 @@ from atlas_runtime.reflection import (
 from finding import mast, resolver
 
 from atlas_integration.shared import build_session_state
-from atlas_integration.codex.selector import (
+from atlas_integration.interactive.selector import (
     build_selection,
     parse_selection_choice,
     render_selection,

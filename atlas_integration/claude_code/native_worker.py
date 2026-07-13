@@ -10,14 +10,14 @@ import time
 from pathlib import Path
 from typing import Any
 
-from atlas_integration.codex.learning_jobs import (
+from atlas_integration.interactive.learning_jobs import (
     LearningJobError,
     _job_lock,
     _read_json,
     _short_error,
     _write_json_atomic,
 )
-from atlas_integration.codex.native_worker import build_prompt, candidate_schema
+from atlas_integration.interactive.worker_contract import build_prompt, candidate_schema
 
 
 def build_claude_command(job: dict[str, Any]) -> list[str]:

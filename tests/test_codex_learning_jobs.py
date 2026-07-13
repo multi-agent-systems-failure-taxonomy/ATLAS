@@ -112,6 +112,32 @@ class CodexLearningJobTests(unittest.TestCase):
         self.assertIn("taxonomy generation triggered", notices[0])
         self.assertEqual(drain_learning_notices(self.workspace, "conversation-1"), [])
 
+    def test_legacy_codex_learning_state_migrates_without_losing_notices(self) -> None:
+        notice = {
+            "id": "legacy-notice",
+            "conversation_id": "conversation-1",
+            "text": "Legacy learning notice",
+        }
+        with self.workspace.locked_manifest() as manifest:
+            manifest["codex_learning"] = {
+                "active_job_id": None,
+                "jobs": {"legacy-job": {"state": "failed"}},
+                "notices": [notice],
+            }
+
+        self.assertEqual(
+            drain_learning_notices(self.workspace, "conversation-1"),
+            ["Legacy learning notice"],
+        )
+
+        manifest = self.workspace.load()
+        self.assertNotIn("codex_learning", manifest)
+        self.assertEqual(
+            manifest["interactive_learning"]["jobs"],
+            {"legacy-job": {"state": "failed"}},
+        )
+        self.assertEqual(manifest["interactive_learning"]["notices"], [])
+
     def test_generation_activates_valid_receipt_and_preserves_later_trace(self) -> None:
         source_names = self._append_pending(1, 5)
         _, job_dir = self._enqueue()
