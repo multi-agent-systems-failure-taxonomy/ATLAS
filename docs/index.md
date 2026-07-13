@@ -13,9 +13,10 @@ Runs start from **MAST** — the Multi-Agent System failure Taxonomy from
 ["Why Do Multi-Agent LLM Systems Fail?" (Cemri et al., 2025)](https://arxiv.org/abs/2503.13657),
 shipped as a built-in 14-code adaptation. At configured gates the agent
 reflects on its recent trajectory (Observe → Correlate → Map → Decide), a
-blocking final gate runs before submission, and completed traces feed taxonomy
-generation and refinement. ATLAS is not a task solver; your harness keeps
-owning model execution.
+final gate validates submission, and completed traces feed taxonomy generation
+and refinement. Blocking adapters can hold the answer for repair; Codex uses a
+compact single-pass Stop checkpoint. ATLAS is not a task solver; your harness
+keeps owning model execution.
 
 ## Quickstart
 

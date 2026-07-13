@@ -73,8 +73,10 @@ vocabulary.
    taxonomy, or built-in MAST when none is configured.
 2. At configured boundaries (checkpoints, tool failures, subagent stops), the
    agent reflects against the taxonomy and repairs when evidence demands it.
-3. A final submission gate blocks completion until the reflection passes or
-   retries are exhausted honestly.
+3. A final submission gate validates completion. Blocking adapters hold the
+   answer until reflection passes or retries are exhausted honestly; Codex
+   uses a compact single-pass checkpoint because its desktop Stop continuation
+   is not guaranteed to redeliver the hook.
 4. One canonical trace is recorded at session end.
 5. After enough traces, ATLAS generates a task-specific taxonomy (or refines
    the active one). Accepted taxonomies become inheritable records for future
@@ -96,9 +98,10 @@ Decide:    One focused repair: verify the installed package version
            before the next run.
 ```
 
-Mapping no codes ("none apply") is a valid outcome. Before the final answer is
-released, a blocking gate requires the same reflection and allows a bounded
-number of repairs. Everything the gates record is browsable live in the
+Mapping no codes ("none apply") is a valid outcome. Blocking integrations
+require the same reflection and allow a bounded number of repairs. Codex keeps
+the long reflection internal and records the compact final checkpoint in one
+Stop callback. Everything the gates record is browsable live in the
 [dashboard](docs/DASHBOARD.md).
 
 A full walkthrough with dashboard screenshots is in
@@ -139,6 +142,7 @@ Then choose the integration that matches your pipeline:
 | Use case | Command | Full docs |
 |---|---|---|
 | Claude Code project | `atlas-claude-install --project-dir . --config atlas.json` | [Claude Code](docs/CLAUDE_CODE.md) |
+| Claude Code all projects | `atlas-claude-install --user-level --config atlas.json` | [Claude Code](docs/CLAUDE_CODE.md) |
 | Codex project | `atlas-codex-install --project-dir . --config atlas.json` | [Codex](docs/CODEX.md) |
 | One LLM call from a script | `atlas-single-run --config atlas.json --task "..." --model gpt-5` | [Single LLM](docs/SINGLE_LLM.md) |
 | Existing trace folder | `atlas-import-traces --config atlas.json --traces ./traces` | [Taxonomies](docs/TAXONOMIES.md) |

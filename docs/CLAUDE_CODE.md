@@ -1,6 +1,46 @@
 # Claude Code integration
 
-The Claude Code integration installs project-local hooks that call the ATLAS runtime at session start, checkpoints, and final submission.
+The Claude Code integration installs hooks that call the ATLAS runtime at
+session start, user-prompt submission, checkpoints, and final submission. It
+supports both project-local operation and a user-level interactive mode shared
+with Codex.
+
+## Install for every Claude Code conversation
+
+```powershell
+atlas-claude-install `
+  --user-level `
+  --trace-output "$HOME\.atlas-skill\interactive" `
+  --trace-root "$HOME\.atlas-skill\traces" `
+  --atlas-model claude-session `
+  --project-scope auto `
+  --task-group default `
+  --session-selector prompt `
+  --learning-backend claude_subagent
+```
+
+This merges ATLAS into `~/.claude/settings.json` and writes
+`~/.claude/atlas-skill.json`; unrelated settings and plugins are preserved.
+Claude and Codex resolve the same project/task-group program when their base
+`trace_output`, project root, and task group match.
+
+No external model API key is required for `claude_subagent`. The worker invokes
+the authenticated local `claude -p` automation surface with safe mode, tools
+disabled, no session persistence, and a strict JSON schema. It receives a
+frozen outcome-blind trace snapshot and writes only a proposal receipt. A
+foreground hook validates evidence and activates between episodes.
+
+One completed assistant episode is one trace. Generation starts after five
+eligible traces by default, first refinement review after `k_init` (ten), and
+later reviews every `k` traces (twenty). MAST or the current learned taxonomy
+remains active while the worker runs. Trigger and completion notices appear in
+Claude's visible `systemMessage` and agent-facing `additionalContext`.
+
+Remove only the user-level ATLAS registration with:
+
+```powershell
+atlas-claude-uninstall --user-level
+```
 
 ## Install hooks
 
@@ -12,12 +52,17 @@ Then start Claude Code in that project.
 
 ATLAS will:
 
-1. resolve an inherited taxonomy if configured, otherwise use built-in MAST;
-2. deliver standing ATLAS context at session start;
+1. ask for MAST, a compatible stored taxonomy, or `No taxonomy` when enabled;
+2. hold the first substantive prompt until that choice is resolved;
 3. fire checkpoint reflections at configured boundaries;
 4. block final completion until the final gate passes or exhausts the retry envelope;
-5. record a canonical trace at session end;
-6. trigger taxonomy generation or refinement when thresholds are reached.
+5. record one canonical episode trace at each accepted Stop boundary;
+6. trigger durable generation or refinement jobs when thresholds are reached.
+
+If a detached worker disappears without a receipt, the coordinator expires its
+lease, keeps the current taxonomy active, and permits a retry from the same
+frozen evidence. Automatic secret redaction before trace persistence remains a
+production hardening item; do not place credentials in task transcripts.
 
 ## Customize built-in hooks
 

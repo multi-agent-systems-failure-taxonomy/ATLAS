@@ -133,9 +133,10 @@ inside Codex and trust the ATLAS hooks before relying on them.
 Default Codex events:
 
 1. `SessionStart`: deliver standing ATLAS context.
-2. `Stop`: block final completion until the ATLAS final gate passes.
-3. `SubagentStop`: checkpoint subagent trajectories.
-4. `PostToolUse`: add advisory nudges after selected failed tool outputs.
+2. `UserPromptSubmit`: resolve taxonomy selection and episode boundaries.
+3. `Stop`: capture the compact final checkpoint and commit the episode once.
+4. `SubagentStop`: capture a checkpoint when present without blocking.
+5. `PostToolUse`: add advisory nudges after selected failed tool outputs.
 
 Optional skill guidance:
 

@@ -101,6 +101,32 @@ Credential expectations per provider are covered in
 The legacy top-level `built_in_hooks`, `custom_hooks`, and `codex_hooks`
 fields are still accepted as compatibility aliases for the scoped forms.
 
+Codex user-level interactive hooks may also set:
+
+| Field | Default | Purpose |
+|---|---|---|
+| `codex.project_scope` | `"explicit"` | `"auto"` derives a separate program from each canonical project root. |
+| `codex.project_id` | unset | Optional stable identity override, useful for intentionally joined worktrees. |
+| `codex.task_group` | `"default"` | Project-local trace, taxonomy, and refinement group. |
+| `codex.session_selector` | `"off"` | Set to `"prompt"` to ask for MAST, a compatible stored taxonomy, or ATLAS-off at the start of a new Codex conversation. |
+| `codex.learning_backend` | `"provider"` | Set to `"codex_subagent"` for durable, project-scoped learning through the signed-in Codex CLI without a separate API key. |
+| `codex.worker_model` | unset | Optional model override for the isolated native taxonomy worker. |
+| `codex.codex_cli_path` | unset | Optional explicit Codex executable; normally discovered from `CODEX_CLI_PATH`. |
+| `codex.worker_timeout_seconds` | `1800` | Maximum runtime for one native generation or refinement worker. |
+
+Claude Code accepts parallel interactive fields:
+
+| Field | Default | Purpose |
+|---|---|---|
+| `claude_code.project_scope` | `"explicit"` | `"auto"` derives a program from the canonical project root. |
+| `claude_code.project_id` | unset | Optional stable project identity override. |
+| `claude_code.task_group` | `"default"` | Project-local taxonomy and refinement group, shared with Codex when equal. |
+| `claude_code.session_selector` | `"off"` | `"prompt"` asks for MAST, a compatible taxonomy, or ATLAS-off. |
+| `claude_code.learning_backend` | `"provider"` | `"claude_subagent"` uses authenticated local Claude Code without a separate API key. |
+| `claude_code.worker_model` | unset | Optional native worker model override. |
+| `claude_code.claude_cli_path` | auto | Optional explicit Claude Code executable path. |
+| `claude_code.worker_timeout_seconds` | `1800` | Worker timeout and stale-job lease basis. |
+
 ## Display metadata
 
 | Field | Default | Purpose |
