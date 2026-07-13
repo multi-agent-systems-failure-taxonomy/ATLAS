@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -926,6 +928,122 @@ Final decision: submit
         state = load_state(self.trace_output, self.base["session_id"])
         self.assertTrue(state["trace_captured"])
         self.assertEqual(state["trace_capture"]["persisted_traces"], 1)
+
+    def test_successive_completed_turns_become_distinct_episode_traces(self):
+        def complete_turn(task: str, answer: str) -> None:
+            append_user_text(self.transcript, task)
+            append_text(self.transcript, answer)
+            event = {
+                **self.base,
+                "hook_event_name": "Stop",
+                "stop_hook_active": False,
+                "last_assistant_message": answer,
+            }
+            code, prompt = stop.handle(event, self.config)
+            self.assertEqual(code, 2)
+            append_text(
+                self.transcript,
+                none_reflection(checkpoint_id(prompt))
+                + "\nFinal ATLAS status: READY_TO_SUBMIT\n"
+                + "Codes checked: none\n"
+                + "Evidence: targeted verification passed\n"
+                + "Repair attempts used: 0\n"
+                + "Final decision: submit\n",
+            )
+            self.assertEqual(
+                stop.handle(
+                    {**event, "stop_hook_active": True},
+                    self.config,
+                )[0],
+                0,
+            )
+
+        complete_turn("FIRST CLAUDE TASK MARKER", "FIRST CLAUDE ANSWER MARKER")
+        complete_turn("SECOND CLAUDE TASK MARKER", "SECOND CLAUDE ANSWER MARKER")
+        duplicate = stop.handle(
+            {
+                **self.base,
+                "hook_event_name": "Stop",
+                "stop_hook_active": False,
+                "last_assistant_message": "SECOND CLAUDE ANSWER MARKER",
+            },
+            self.config,
+        )
+        self.assertEqual(duplicate, (0, "ATLAS episode already committed."))
+
+        traces = sorted(
+            ProgramWorkspace(self.trace_output).pending.iter_traces(),
+            key=lambda trace: trace.metadata["episode_sequence"],
+        )
+        self.assertEqual(len(traces), 2)
+        self.assertEqual(
+            [trace.metadata["episode_sequence"] for trace in traces],
+            [1, 2],
+        )
+        self.assertEqual(traces[0].task, "FIRST CLAUDE TASK MARKER")
+        self.assertEqual(traces[1].task, "SECOND CLAUDE TASK MARKER")
+        self.assertIn("FIRST CLAUDE ANSWER MARKER", traces[0].raw_trajectory)
+        self.assertNotIn("FIRST CLAUDE ANSWER MARKER", traces[1].raw_trajectory)
+        self.assertIn("SECOND CLAUDE ANSWER MARKER", traces[1].raw_trajectory)
+        state = load_state(self.trace_output, self.base["session_id"])
+        self.assertEqual(state["episode_sequence"], 2)
+        self.assertEqual(state["conversation_taxonomy_root"], "mast")
+
+    def test_five_completed_episodes_queue_exactly_one_native_generation_job(self):
+        config = replace(
+            self.config,
+            learning_backend="claude_subagent",
+            generation_threshold=5,
+            claude_cli_path=Path(sys.executable),
+        )
+        workspace = ProgramWorkspace(self.trace_output)
+        with workspace.locked_manifest() as manifest:
+            manifest["generation"]["retry_after_count"] = 5
+
+        with (
+            patch(
+                "atlas_integration.claude_code.runtime.enqueue_claude_learning_job",
+                return_value="claude-generation-five",
+            ) as enqueue,
+            patch(
+                "atlas_runtime.generation._atlas_generate",
+                side_effect=AssertionError("provider generation must not run"),
+            ) as provider,
+        ):
+            for index in range(1, 6):
+                task = f"CLAUDE TASK {index}"
+                answer = f"CLAUDE ANSWER {index}"
+                append_user_text(self.transcript, task)
+                append_text(self.transcript, answer)
+                event = {
+                    **self.base,
+                    "hook_event_name": "Stop",
+                    "stop_hook_active": False,
+                    "last_assistant_message": answer,
+                }
+                code, prompt = stop.handle(event, config)
+                self.assertEqual(code, 2)
+                append_text(
+                    self.transcript,
+                    none_reflection(checkpoint_id(prompt))
+                    + "\nFinal ATLAS status: READY_TO_SUBMIT\n"
+                    + "Codes checked: none\n"
+                    + "Evidence: targeted verification passed\n"
+                    + "Repair attempts used: 0\n"
+                    + "Final decision: submit\n",
+                )
+                self.assertEqual(
+                    stop.handle(
+                        {**event, "stop_hook_active": True},
+                        config,
+                    )[0],
+                    0,
+                )
+
+        self.assertEqual(enqueue.call_count, 1)
+        self.assertEqual(enqueue.call_args.kwargs["kind"], "generation")
+        provider.assert_not_called()
+        self.assertEqual(len(list(workspace.pending.iter_traces())), 5)
 
     def test_session_end_captures_once_when_stop_did_not_finish(self):
         append_user_text(self.transcript, "Investigate an interrupted task.")

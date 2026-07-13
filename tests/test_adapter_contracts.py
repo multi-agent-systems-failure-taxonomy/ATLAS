@@ -33,6 +33,7 @@ class AdapterCase:
     session_start: Callable[[dict, Any], Any]
     stop_first: Callable[[dict, Any], tuple[int, str] | dict]
     stop_second: Callable[[dict, Any], tuple[int, str] | dict]
+    single_pass: bool = False
 
 
 def _append_transcript(path: Path, text: str, *, role: str = "assistant") -> None:
@@ -102,6 +103,7 @@ class AdapterContractTests(unittest.TestCase):
                 session_start=codex_start,
                 stop_first=codex_stop,
                 stop_second=codex_stop,
+                single_pass=True,
             ),
         )
 
@@ -125,7 +127,19 @@ class AdapterContractTests(unittest.TestCase):
                     self.assertIn("ATLAS runtime interaction is active", rendered_start)
 
                     _append_transcript(transcript, "Solve the task.", role="user")
-                    _append_transcript(transcript, "Verified final answer.")
+                    if case.single_pass:
+                        _append_transcript(
+                            transcript,
+                            """Verified final answer.
+
+Checkpoint: shared adapter contract verified
+Relevant codes: none apply
+Evidence: verification is present
+Next action: complete
+""",
+                        )
+                    else:
+                        _append_transcript(transcript, "Verified final answer.")
                     first = case.stop_first(
                         {**event, "hook_event_name": "Stop"},
                         config,
@@ -134,20 +148,21 @@ class AdapterContractTests(unittest.TestCase):
                         code, prompt = first
                         self.assertEqual(code, 2)
                     else:
-                        self.assertEqual(first["decision"], "block")
-                        prompt = first["reason"]
-                    cid = _checkpoint_id(prompt)
-                    _append_transcript(transcript, _clean_final_report(cid))
-
-                    second = case.stop_second(
-                        {**event, "hook_event_name": "Stop"},
-                        config,
-                    )
-                    if isinstance(second, tuple):
-                        code, _message = second
-                        self.assertEqual(code, 0)
+                        self.assertTrue(first["continue"])
+                    if case.single_pass:
+                        second = first
                     else:
-                        self.assertTrue(second["continue"])
+                        cid = _checkpoint_id(prompt)
+                        _append_transcript(transcript, _clean_final_report(cid))
+                        second = case.stop_second(
+                            {**event, "hook_event_name": "Stop"},
+                            config,
+                        )
+                        if isinstance(second, tuple):
+                            code, _message = second
+                            self.assertEqual(code, 0)
+                        else:
+                            self.assertTrue(second["continue"])
 
                     evidence = json.loads(
                         (config.trace_output / EVIDENCE_FILE).read_text(
