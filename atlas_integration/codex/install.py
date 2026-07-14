@@ -130,10 +130,10 @@ def install_skill(
     agents_dir = skill_dir / "agents"
     openai_yaml = agents_dir / "openai.yaml"
     marker = skill_dir / SKILL_MARKER_FILE
-    if skill_md.exists() and not force:
+    if skill_md.exists() and not force and not _is_managed_skill(marker, name):
         raise FileExistsError(
-            f"{skill_md} already exists; pass --force to replace the ATLAS "
-            "managed files"
+            f"{skill_md} already exists and is not marked as ATLAS-managed; "
+            "pass --force to replace the known skill files"
         )
     result = CodexSkillInstallResult(
         skill_dir=skill_dir,
@@ -162,6 +162,21 @@ def install_skill(
         encoding="utf-8",
     )
     return result
+
+
+def _is_managed_skill(marker: Path, name: str) -> bool:
+    if not marker.is_file():
+        return False
+    try:
+        record = json.loads(marker.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return bool(
+        isinstance(record, dict)
+        and record.get("managed_by") == "atlas-skill"
+        and record.get("integration") == "codex"
+        and record.get("skill_name") == name
+    )
 
 
 def remove_atlas_hooks(hooks_doc: dict) -> int:

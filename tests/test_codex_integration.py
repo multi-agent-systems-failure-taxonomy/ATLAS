@@ -942,6 +942,30 @@ class CodexIntegrationTests(unittest.TestCase):
             self.assertIn(str(result.skill_md), summary["removed"])
             self.assertFalse(result.skill_md.exists())
 
+    def test_skill_reinstall_updates_an_atlas_managed_folder(self):
+        with tempfile.TemporaryDirectory() as temp:
+            skills_dir = Path(temp) / "skills"
+            first = install_skill(skills_dir=skills_dir)
+            first.skill_md.write_text("outdated managed skill", encoding="utf-8")
+
+            second = install_skill(skills_dir=skills_dir)
+
+            self.assertEqual(second.skill_dir, first.skill_dir)
+            self.assertNotEqual(
+                second.skill_md.read_text(encoding="utf-8"),
+                "outdated managed skill",
+            )
+
+    def test_skill_install_refuses_an_unmanaged_folder(self):
+        with tempfile.TemporaryDirectory() as temp:
+            skills_dir = Path(temp) / "skills"
+            skill_dir = skills_dir / SKILL_NAME
+            skill_dir.mkdir(parents=True)
+            (skill_dir / "SKILL.md").write_text("user skill", encoding="utf-8")
+
+            with self.assertRaises(FileExistsError):
+                install_skill(skills_dir=skills_dir)
+
     def test_skill_uninstall_refuses_unmarked_folder(self):
         with tempfile.TemporaryDirectory() as temp:
             skills_dir = Path(temp) / "skills"
