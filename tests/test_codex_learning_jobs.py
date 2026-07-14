@@ -106,7 +106,10 @@ class CodexLearningJobTests(unittest.TestCase):
         snapshot = json.loads(snapshot_before)
         self.assertEqual(len(snapshot["traces"]), 5)
         self.assertTrue(all("outcome" not in trace["metadata"] for trace in snapshot["traces"]))
-        self.assertEqual(self.launched, [job_dir])
+        self.assertEqual(
+            [path.resolve() for path in self.launched],
+            [job_dir.resolve()],
+        )
         notices = drain_learning_notices(self.workspace, "conversation-1")
         self.assertEqual(len(notices), 1)
         self.assertIn("taxonomy generation triggered", notices[0])

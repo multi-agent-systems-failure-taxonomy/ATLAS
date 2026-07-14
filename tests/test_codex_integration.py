@@ -260,7 +260,10 @@ class CodexIntegrationTests(unittest.TestCase):
             result = json.loads(output.getvalue())
             self.assertEqual(result["scope"], "user")
             config = CodexConfig.load(root / ".codex" / "atlas-skill.json")
-            self.assertEqual(config.trace_output, root / ".atlas-skill" / "interactive")
+            self.assertEqual(
+                config.trace_output.resolve(),
+                (root / ".atlas-skill" / "interactive").resolve(),
+            )
             self.assertEqual(config.atlas_model, "interactive-session")
             self.assertEqual(config.project_scope, "auto")
             self.assertEqual(config.session_selector, "prompt")

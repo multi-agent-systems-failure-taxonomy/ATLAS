@@ -1192,8 +1192,27 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
             self.assertFalse(state["lifecycle"]["generation_stops"])
             self.assertFalse(state["lifecycle"]["refinement_stops"])
 
-    def test_installed_version_has_required_contracts(self):
-        version = verify_installed_hooks()
+    def test_hook_contract_verifier_accepts_supported_version(self):
+        with tempfile.TemporaryDirectory() as td:
+            executable = Path(td) / "claude"
+            executable.write_bytes(
+                b"\n".join(
+                    [event.encode() for event in REQUIRED_EVENTS]
+                    + [
+                        b"prevent task completion",
+                        b"show stderr to subagent and continue having it run",
+                        b"show stderr to model and continue conversation",
+                        b"hookSpecificOutput.additionalContext",
+                    ]
+                )
+            )
+            completed = unittest.mock.Mock(stdout="2.1.185 (Claude Code)\n")
+            with patch(
+                "atlas_integration.claude_code.install.subprocess.run",
+                return_value=completed,
+            ):
+                version = verify_installed_hooks(executable)
+
         self.assertRegex(version, r"\d+\.\d+\.\d+")
 
     def test_installer_registers_all_events_without_duplication(self):
@@ -1310,7 +1329,10 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
             config = ClaudeCodeConfig.load(
                 root / ".claude" / "atlas-skill.json"
             )
-            self.assertEqual(config.trace_output, root / ".atlas-skill" / "interactive")
+            self.assertEqual(
+                config.trace_output.resolve(),
+                (root / ".atlas-skill" / "interactive").resolve(),
+            )
             self.assertEqual(config.atlas_model, "interactive-session")
             self.assertEqual(config.project_scope, "auto")
             self.assertEqual(config.session_selector, "prompt")

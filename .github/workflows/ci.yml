@@ -30,7 +30,7 @@ jobs:
           python-version: ${{ matrix.python }}
           cache: pip
       - run: python -m pip install --upgrade pip
-      - run: python -m pip install -e ".[test]"
+      - run: python -m pip install -e ".[test,anthropic,bedrock]"
       - run: python -m pytest -q
 
   package-and-docs:
