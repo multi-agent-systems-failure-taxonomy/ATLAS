@@ -197,6 +197,33 @@ class CodexLearningJobTests(unittest.TestCase):
         notices = drain_learning_notices(self.workspace, "conversation-1")
         self.assertIn("MAST remains active", notices[-1])
 
+    def test_oversized_candidate_is_rejected_without_activation(self) -> None:
+        self._append_pending(1, 5)
+        _, job_dir = self._enqueue()
+        snapshot = json.loads((job_dir / "snapshot.json").read_text(encoding="utf-8"))
+        candidate = self._candidate(snapshot)
+        template = candidate["codes"][0]
+        candidate["codes"] = [
+            {
+                **template,
+                "id": f"OPS-{index}",
+                "name": f"Failure mode {index}",
+            }
+            for index in range(31)
+        ]
+        self._complete_worker(job_dir, candidate)
+
+        reconcile_learning_jobs(
+            self.workspace,
+            store_dir=self.store_dir,
+            trace_root=self.trace_root,
+        )
+
+        self.assertIsNone(self.workspace.load()["taxonomy_id"])
+        job = json.loads((job_dir / "job.json").read_text(encoding="utf-8"))
+        self.assertEqual(job["state"], "rejected")
+        self.assertIn("at most 30 codes", job["last_error"])
+
     def test_failed_worker_retries_same_snapshot_and_job_id(self) -> None:
         self._append_pending(1, 5)
         job_id, job_dir = self._enqueue()

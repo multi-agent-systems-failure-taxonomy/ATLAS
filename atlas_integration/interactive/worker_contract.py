@@ -20,6 +20,7 @@ def candidate_schema() -> dict[str, Any]:
             "codes": {
                 "type": "array",
                 "minItems": 1,
+                "maxItems": 30,
                 "items": {
                     "type": "object",
                     "additionalProperties": False,

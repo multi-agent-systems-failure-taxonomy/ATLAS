@@ -478,6 +478,8 @@ def validate_candidate(candidate: Any, snapshot: dict[str, Any]) -> dict[str, An
         raise LearningJobError("candidate summary must be a non-empty string")
     if not isinstance(codes, list) or not codes:
         raise LearningJobError("candidate codes must be a non-empty list")
+    if len(codes) > 30:
+        raise LearningJobError("candidate must contain at most 30 codes")
     trace_ids = {str(trace.get("problem_id")) for trace in snapshot["traces"]}
     seen_ids: set[str] = set()
     seen_names: set[str] = set()
