@@ -160,23 +160,6 @@ def enqueue_learning_job(
         learning["active_job_id"] = job_id
         learning.setdefault("jobs", {})[job_id] = _job_summary(job)
 
-    try:
-        if launcher is not None:
-            launcher(job_dir)
-        else:
-            _spawn_worker(job_dir, worker_module=worker_module)
-    except Exception as exc:
-        with _job_lock(job_dir):
-            job = _read_json(job_path)
-            job.update(
-                state="failed",
-                last_error=f"could not launch {worker_label}: {exc}",
-                updated_at_unix=time.time(),
-            )
-            _write_json_atomic(job_path, job)
-        _clear_active_job(workspace, job_id)
-        raise
-
     rendered_worker_label = worker_label
     if worker_model:
         rendered_worker_label += f" ({worker_model})"
@@ -194,6 +177,24 @@ def enqueue_learning_job(
             "Current taxonomy remains active while learning continues."
         ),
     )
+
+    try:
+        if launcher is not None:
+            launcher(job_dir)
+        else:
+            _spawn_worker(job_dir, worker_module=worker_module)
+    except Exception as exc:
+        with _job_lock(job_dir):
+            job = _read_json(job_path)
+            job["attempts"] = max(int(job.get("attempts", 0)), attempt)
+        _finish_unsuccessful(
+            workspace,
+            job_dir,
+            job,
+            "failed",
+            f"could not launch {worker_label}: {exc}",
+        )
+        raise
     return job_id
 
 

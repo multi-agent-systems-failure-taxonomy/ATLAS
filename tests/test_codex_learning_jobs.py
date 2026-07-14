@@ -245,6 +245,36 @@ class CodexLearningJobTests(unittest.TestCase):
         notices = drain_learning_notices(self.workspace, "conversation-1")
         self.assertIn("MAST remains active", notices[-1])
 
+    def test_launch_failure_emits_trigger_and_finished_notices(self) -> None:
+        self._append_pending(1, 5)
+
+        def broken_launcher(_job_dir: Path) -> None:
+            raise OSError("worker executable is unavailable")
+
+        with self.assertRaisesRegex(OSError, "worker executable"):
+            enqueue_learning_job(
+                self.workspace,
+                kind="generation",
+                store_dir=self.store_dir,
+                trace_root=self.trace_root,
+                task_group="default",
+                conversation_id="conversation-1",
+                codex_cli_path=sys.executable,
+                launcher=broken_launcher,
+            )
+
+        notices = drain_learning_notices(self.workspace, "conversation-1")
+        self.assertEqual(len(notices), 2)
+        self.assertIn("taxonomy generation triggered", notices[0])
+        self.assertIn("taxonomy generation finished", notices[1])
+        self.assertIn("MAST remains active", notices[1])
+        manifest = self.workspace.load()
+        self.assertIsNone(manifest["interactive_learning"]["active_job_id"])
+        job_path = next((self.program / "learning_jobs").glob("*/job.json"))
+        job = json.loads(job_path.read_text(encoding="utf-8"))
+        self.assertEqual(job["state"], "failed")
+        self.assertEqual(job["attempts"], 1)
+
     def test_active_episode_delays_activation(self) -> None:
         self._append_pending(1, 5)
         _, job_dir = self._enqueue()
