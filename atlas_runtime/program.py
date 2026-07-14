@@ -22,6 +22,13 @@ from .worker_state import (
 
 MANIFEST_NAME = ".atlas-program.json"
 
+# User-level interactive installs run taxonomy learning through the signed-in
+# host CLI, so their configured model is this placeholder rather than a real
+# learning model. It adopts whatever model a program already records instead
+# of conflicting with it: package-default renames must not brick every
+# project state written by an earlier release.
+INTERACTIVE_SESSION_MODEL = "interactive-session"
+
 
 class ProgramConflict(ValueError):
     """Raised when a run conflicts with the program's bound taxonomy."""
@@ -139,7 +146,12 @@ class ProgramWorkspace:
         with self.locked_manifest() as manifest:
             current = manifest.get("taxonomy_id")
             configured_model = manifest.get("atlas_model")
-            if configured_model and atlas_model and configured_model != atlas_model:
+            if (
+                configured_model
+                and atlas_model
+                and configured_model != atlas_model
+                and atlas_model != INTERACTIVE_SESSION_MODEL
+            ):
                 raise ProgramConflict(
                     f"program already uses ATLAS model {configured_model!r}, not "
                     f"{atlas_model!r}"

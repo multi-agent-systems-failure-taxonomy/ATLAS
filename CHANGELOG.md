@@ -2,6 +2,16 @@
 
 All notable user-facing changes are documented here.
 
+## Unreleased
+
+### Fixed
+
+- The user-level interactive placeholder model (`interactive-session`)
+  adopts whatever ATLAS model a program already records instead of raising
+  a conflict. Program state written by an earlier release (which recorded
+  the old default model) no longer fails every hook event in previously
+  used projects.
+
 ## 1.1.0b2 - 2026-07-14
 
 ### Fixed
