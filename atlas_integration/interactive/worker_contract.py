@@ -82,4 +82,3 @@ def build_prompt(snapshot: dict[str, Any]) -> str:
         "FROZEN SNAPSHOT JSON:\n"
         + json.dumps(snapshot, ensure_ascii=False)
     )
-
