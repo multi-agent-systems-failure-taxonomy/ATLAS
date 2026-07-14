@@ -292,7 +292,10 @@ class GenerationLifecycleTests(unittest.TestCase):
                     atlas_model="claude-sonnet-4-6",
                     skip_judge=True,
                     activation_poll_seconds=0.01,
-                    activation_timeout_seconds=2,
+                    # Generous ceilings: a loaded CI runner can stall the
+                    # main thread past a tight window, and an activation
+                    # timeout here reads as a spurious "failed" job.
+                    activation_timeout_seconds=30,
                 )
 
             thread = threading.Thread(target=worker)
@@ -300,7 +303,7 @@ class GenerationLifecycleTests(unittest.TestCase):
             time.sleep(0.05)
             self.assertIsNone(fifth.workspace.load()["taxonomy_id"])
             end_session(next_task)
-            thread.join(2)
+            thread.join(30)
             self.assertFalse(thread.is_alive())
             self.assertEqual(outcome["result"].action, "activated")
 

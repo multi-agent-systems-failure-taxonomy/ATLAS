@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from typing import Any
 
 from atlas_runtime.evidence import EVIDENCE_FILE, record_reflection
+from atlas_runtime.fsio import read_text_retry, write_text_atomic_retry
 
 SESSION_DIR = ".atlas-claude-code"
 
@@ -23,7 +23,10 @@ def state_path(trace_output: Path, session_id: str) -> Path:
 def load_state(trace_output: Path, session_id: str) -> dict[str, Any]:
     path = state_path(trace_output, session_id)
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        # A transient sharing violation must not read as "new session": that
+        # verdict re-runs SessionStart and re-prompts the taxonomy selector
+        # mid-conversation.
+        return json.loads(read_text_retry(path))
     except (OSError, json.JSONDecodeError):
         return {}
 
@@ -31,9 +34,7 @@ def load_state(trace_output: Path, session_id: str) -> dict[str, Any]:
 def save_state(trace_output: Path, session_id: str, state: dict[str, Any]) -> None:
     path = state_path(trace_output, session_id)
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(".tmp")
-    temporary.write_text(
+    write_text_atomic_retry(
+        path,
         json.dumps(state, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
     )
-    os.replace(temporary, path)

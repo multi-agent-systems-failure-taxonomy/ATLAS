@@ -10,6 +10,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
+from .fsio import read_text_retry, replace_retry
 from .repository import discover_repo
 from .traces import TraceStore
 from .worker_state import (
@@ -93,7 +94,7 @@ class ProgramWorkspace:
     def load(self) -> dict[str, Any]:
         if not self.manifest_path.exists():
             return {}
-        text = self.manifest_path.read_text(encoding="utf-8")
+        text = read_text_retry(self.manifest_path)
         try:
             return json.loads(text)
         except json.JSONDecodeError as exc:
@@ -450,13 +451,16 @@ class ProgramWorkspace:
             # load() may raise (e.g. corrupt-manifest quarantine); it must run
             # inside the try so the lock is always released.
             manifest = self.load()
+            before = json.dumps(manifest, indent=2, ensure_ascii=False)
             yield manifest
-            temporary = self.root / f".{MANIFEST_NAME}.tmp"
-            temporary.write_text(
-                json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
-                encoding="utf-8",
-            )
-            os.replace(temporary, self.manifest_path)
+            rendered = json.dumps(manifest, indent=2, ensure_ascii=False)
+            # Read-only critical sections (activation polls, cadence checks)
+            # must not churn the file: every replace is a chance to collide
+            # with an unlocked reader on Windows.
+            if rendered != before or not self.manifest_path.exists():
+                temporary = self.root / f".{MANIFEST_NAME}.{os.getpid()}.tmp"
+                temporary.write_text(rendered + "\n", encoding="utf-8")
+                replace_retry(temporary, self.manifest_path)
         finally:
             try:
                 lock.rmdir()

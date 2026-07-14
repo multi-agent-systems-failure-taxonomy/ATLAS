@@ -21,6 +21,7 @@ from typing import Any, Callable, Iterator
 
 from finding import store
 
+from atlas_runtime.fsio import read_text_retry, replace_retry, write_text_atomic_retry
 from atlas_runtime.learning_calls import outcome_blind_trace
 from atlas_runtime.program import ProgramWorkspace
 from atlas_runtime.refinement import structural_diff
@@ -704,9 +705,9 @@ def _copy_trace_files(sources: list[Path], destination: Path) -> None:
             if target.read_bytes() != payload:
                 raise LearningJobError(f"trace collision for {source.name}")
             continue
-        temporary = destination / f".{source.name}.tmp"
+        temporary = destination / f".{source.name}.{os.getpid()}.tmp"
         temporary.write_bytes(payload)
-        os.replace(temporary, target)
+        replace_retry(temporary, target)
 
 
 def _taxonomy_id(job: dict[str, Any], candidate: dict[str, Any]) -> str:
@@ -899,7 +900,7 @@ def _hash_payload(value: Any) -> str:
 
 
 def _read_json(path: Path) -> dict[str, Any]:
-    value = json.loads(path.read_text(encoding="utf-8"))
+    value = json.loads(read_text_retry(path))
     if not isinstance(value, dict):
         raise LearningJobError(f"{path.name} must contain an object")
     return value
@@ -907,12 +908,10 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 def _write_json_atomic(path: Path, value: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.parent / f".{path.name}.{os.getpid()}.tmp"
-    temporary.write_text(
+    write_text_atomic_retry(
+        path,
         json.dumps(value, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
     )
-    os.replace(temporary, path)
 
 
 @contextmanager

@@ -1232,10 +1232,14 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
             for event in REQUIRED_EVENTS:
                 self.assertEqual(len(settings["hooks"][event]), 1)
                 command = settings["hooks"][event][0]["hooks"][0]["command"]
+                # Module invocation, never a dispatcher file path: the path
+                # goes stale when the install mode or location changes, and
+                # then every hook event fails.
                 self.assertIn(
-                    "atlas_integration/claude_code/dispatcher.py",
+                    "-m atlas_integration.claude_code.dispatcher",
                     command,
                 )
+                self.assertNotIn("dispatcher.py", command)
                 if os.name == "nt":
                     self.assertNotIn("\\", command)
 

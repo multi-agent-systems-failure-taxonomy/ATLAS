@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import json
-import os
 import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
+from .fsio import read_text_retry, write_text_atomic_retry
 from .reflection import ReflectionResult
 
 EVIDENCE_FILE = ".atlas-runtime-evidence.json"
@@ -28,7 +28,7 @@ def record_reflection(
     path = trace_output / EVIDENCE_FILE
     with _file_lock(path):
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
+            data = json.loads(read_text_retry(path))
         except (OSError, json.JSONDecodeError):
             data = {"version": 1, "taxonomies": {}, "checkpoints": []}
         taxonomy_id = str(state["taxonomy_id"])
@@ -71,12 +71,10 @@ def record_reflection(
                 ],
             }
         )
-        temporary = path.with_suffix(".tmp")
-        temporary.write_text(
+        write_text_atomic_retry(
+            path,
             json.dumps(data, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
         )
-        _replace_with_retry(temporary, path)
 
 
 @contextmanager
@@ -108,13 +106,3 @@ def _file_lock(path: Path, *, timeout: float = 5.0, stale_after: float = 30.0):
         except FileNotFoundError:
             pass
 
-
-def _replace_with_retry(source: Path, target: Path, *, attempts: int = 5) -> None:
-    for index in range(attempts):
-        try:
-            os.replace(source, target)
-            return
-        except PermissionError:
-            if index >= attempts - 1:
-                raise
-            time.sleep(0.05 * (index + 1))

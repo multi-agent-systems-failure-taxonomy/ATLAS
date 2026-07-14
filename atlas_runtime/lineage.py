@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import json
-import os
 import time
 from contextlib import contextmanager
 from pathlib import Path
+
+from .fsio import read_text_retry, write_text_atomic_retry
 
 STATE_DIR = "_state"
 SUCCESSORS_FILE = "successors.json"
@@ -20,7 +21,7 @@ class TaxonomyLineage:
     def load(self) -> dict[str, str]:
         if not self.path.exists():
             return {}
-        return json.loads(self.path.read_text(encoding="utf-8"))
+        return json.loads(read_text_retry(self.path))
 
     def resolve_latest(self, taxonomy_id: str) -> str:
         links = self.load()
@@ -69,12 +70,10 @@ class TaxonomyLineage:
         links = self.load()
         try:
             yield links
-            temporary = self.root / f".{SUCCESSORS_FILE}.tmp"
-            temporary.write_text(
+            write_text_atomic_retry(
+                self.path,
                 json.dumps(links, indent=2, ensure_ascii=False) + "\n",
-                encoding="utf-8",
             )
-            os.replace(temporary, self.path)
         finally:
             try:
                 lock.rmdir()

@@ -25,6 +25,7 @@ from urllib.request import Request, urlopen
 
 from finding import mast, store
 
+from .fsio import read_text_retry, write_text_atomic_retry
 from .lineage import TaxonomyLineage
 from .program import ProgramWorkspace
 
@@ -557,7 +558,7 @@ def _dashboard_is_live(state: dict[str, Any], program_id: str) -> bool:
 
 def _read_state(path: Path) -> dict[str, Any] | None:
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(read_text_retry(path))
         return data if isinstance(data, dict) else None
     except (OSError, json.JSONDecodeError):
         return None
@@ -610,8 +611,8 @@ def main(argv=None) -> int:
         if not args.state_file:
             parser.error("--state-file is required with --managed-token")
         state_path = Path(args.state_file)
-        temporary = state_path.with_suffix(".tmp")
-        temporary.write_text(
+        write_text_atomic_retry(
+            state_path,
             json.dumps(
                 {
                     "pid": os.getpid(),
@@ -622,9 +623,7 @@ def main(argv=None) -> int:
                 },
                 indent=2,
             ) + "\n",
-            encoding="utf-8",
         )
-        os.replace(temporary, state_path)
         try:
             server.serve_forever()
         finally:

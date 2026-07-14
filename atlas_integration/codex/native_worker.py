@@ -119,6 +119,16 @@ def run_worker(
     return exit_code
 
 
+# The worker contract is "reuse the signed-in CLI": its persisted login, not
+# the spawning session's transport. A session-scoped gateway URL inherited
+# from the host conversation misroutes the detached child's credentials. A
+# user's own OPENAI_API_KEY is a deliberate credential and stays.
+_SESSION_TRANSPORT_VARS = (
+    "OPENAI_BASE_URL",
+    "OPENAI_API_BASE",
+)
+
+
 def _run_codex(
     command: list[str],
     *,
@@ -126,6 +136,9 @@ def _run_codex(
     job_dir: Path,
     timeout_seconds: int,
 ):
+    env = os.environ.copy()
+    for name in _SESSION_TRANSPORT_VARS:
+        env.pop(name, None)
     events_path = job_dir / "events.jsonl"
     stderr_path = job_dir / "stderr.log"
     creationflags = 0
@@ -144,6 +157,7 @@ def _run_codex(
             timeout=timeout_seconds,
             check=False,
             creationflags=creationflags,
+            env=env,
         )
 
 
