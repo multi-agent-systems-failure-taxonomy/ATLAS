@@ -292,10 +292,15 @@ def _append_registration(
 
 
 def _module_command(python: Path, config: Path) -> str:
-    dispatcher = Path(__file__).resolve().with_name("dispatcher.py")
+    # Registered commands outlive the installation that wrote them, so they
+    # must not embed the dispatcher's file location: switching between a
+    # wheel and an editable install (or upgrading the package) relocates the
+    # file and every hook event starts failing. Module invocation resolves
+    # through whatever install is current.
     parts = [
         _hook_shell_path(python),
-        _hook_shell_path(dispatcher),
+        "-m",
+        "atlas_integration.claude_code.dispatcher",
         "--config",
         _hook_shell_path(config),
     ]
@@ -303,10 +308,10 @@ def _module_command(python: Path, config: Path) -> str:
 
 
 def _custom_command(python: Path, config: Path, spec_name: str) -> str:
-    dispatcher = Path(__file__).resolve().with_name("dispatcher.py")
     parts = [
         _hook_shell_path(python),
-        _hook_shell_path(dispatcher),
+        "-m",
+        "atlas_integration.claude_code.dispatcher",
         "--config",
         _hook_shell_path(config),
         "--custom",

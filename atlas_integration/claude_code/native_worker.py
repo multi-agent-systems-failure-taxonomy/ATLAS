@@ -117,6 +117,22 @@ def run_worker(job_dir: Path | str, *, runner=None) -> int:
     return exit_code
 
 
+# The worker contract is "reuse the signed-in CLI": its persisted login, not
+# the spawning session's transport. Hooks inherit the host conversation's
+# environment, and a session-scoped gateway URL or OAuth plumbing sent to a
+# detached child yields 401s long after the parent session is gone. A user's
+# own ANTHROPIC_API_KEY is a deliberate credential and stays.
+_SESSION_TRANSPORT_VARS = (
+    "CLAUDECODE",
+    "CLAUDE_CODE_ENTRYPOINT",
+    "CLAUDE_CODE_SESSION_ID",
+    "CLAUDE_CODE_OAUTH_SCOPES",
+    "CLAUDE_CODE_SDK_HAS_HOST_AUTH_REFRESH",
+    "ANTHROPIC_BASE_URL",
+    "ANTHROPIC_AUTH_TOKEN",
+)
+
+
 def _run_claude(
     command: list[str],
     *,
@@ -125,8 +141,8 @@ def _run_claude(
     timeout_seconds: int,
 ):
     env = os.environ.copy()
-    env.pop("CLAUDECODE", None)
-    env.pop("CLAUDE_CODE_ENTRYPOINT", None)
+    for name in _SESSION_TRANSPORT_VARS:
+        env.pop(name, None)
     creationflags = 0
     if os.name == "nt":
         creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW

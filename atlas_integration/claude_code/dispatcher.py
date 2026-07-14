@@ -29,6 +29,7 @@ if __package__ in (None, ""):
         task_completed,
         user_prompt_submit,
     )
+    from atlas_integration.shared import force_utf8_stdio
 else:
     from .config import ClaudeCodeConfig
     from .custom import custom_advisory, custom_blocking_checkpoint
@@ -43,6 +44,7 @@ else:
         task_completed,
         user_prompt_submit,
     )
+    from ..shared import force_utf8_stdio
 
 HANDLERS = {
     "SessionStart": session_start.handle,
@@ -57,6 +59,7 @@ HANDLERS = {
 
 
 def main(argv=None) -> int:
+    force_utf8_stdio()
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
     parser.add_argument(

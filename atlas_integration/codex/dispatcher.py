@@ -21,6 +21,7 @@ try:  # pragma: no cover - script execution fallback
         subagent_stop,
         user_prompt_submit,
     )
+    from atlas_integration.shared import force_utf8_stdio
 except ModuleNotFoundError:  # pragma: no cover
     from .config import CodexConfig
     from .learning_jobs import drain_learning_notices, reconcile_learning_jobs
@@ -32,6 +33,7 @@ except ModuleNotFoundError:  # pragma: no cover
         subagent_stop,
         user_prompt_submit,
     )
+    from ..shared import force_utf8_stdio
 
 HANDLERS = {
     "SessionStart": session_start,
@@ -43,6 +45,7 @@ HANDLERS = {
 
 
 def main(argv: list[str] | None = None) -> int:
+    force_utf8_stdio()
     parser = argparse.ArgumentParser(description="ATLAS Codex hook dispatcher.")
     parser.add_argument("--config", required=True)
     parser.add_argument("--event")

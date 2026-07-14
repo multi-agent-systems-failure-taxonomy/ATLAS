@@ -20,6 +20,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Iterator
 
+from .fsio import read_text_retry, replace_retry, write_text_atomic_retry
+
 DEFAULT_ATLAS_HOME = Path(
     os.environ.get("ATLAS_HOME", Path.home() / ".atlas-skill")
 ).expanduser()
@@ -122,7 +124,10 @@ class TraceStore:
     def iter_traces(self) -> Iterator[GenerationTrace]:
         for path in self.trace_files():
             try:
-                record = json.loads(path.read_text(encoding="utf-8"))
+                # A transiently locked file must not be silently dropped: a
+                # short snapshot changes the evidence hash and strands the
+                # learning job with a collision.
+                record = json.loads(read_text_retry(path))
                 yield GenerationTrace.from_dict(record)
             except (OSError, json.JSONDecodeError, TypeError, ValueError):
                 continue
@@ -154,9 +159,9 @@ class TraceStore:
                     digest = hashlib.sha256(payload).hexdigest()[:12]
                     target = destination.root / f"{source.stem}-{digest}.json"
                 if not target.exists():
-                    temporary = destination.root / f".{target.name}.tmp"
+                    temporary = destination.root / f".{target.name}.{os.getpid()}.tmp"
                     temporary.write_bytes(payload)
-                    os.replace(temporary, target)
+                    replace_retry(temporary, target)
                 if target.read_bytes() != payload:
                     raise OSError(f"trace verification failed for {target}")
                 source.unlink()
@@ -182,12 +187,10 @@ class TraceStore:
 
     @staticmethod
     def _write_atomic(path: Path, record: dict[str, Any]) -> None:
-        temporary = path.parent / f".{path.name}.tmp"
-        temporary.write_text(
+        write_text_atomic_retry(
+            path,
             json.dumps(record, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
         )
-        os.replace(temporary, path)
 
     @contextmanager
     def _write_lock(self, *, timeout: float = 5.0, stale_after: float = 60.0):

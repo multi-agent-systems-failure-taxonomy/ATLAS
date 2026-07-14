@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .fsio import read_text_retry, write_text_atomic_retry
+
 GENERATION_WORKER_STATE = "generation_worker.json"
 REFINEMENT_WORKER_STATE = "refinement_worker.json"
 DEFAULT_WORKER_STALE_AFTER_SECONDS = 300.0
@@ -36,12 +38,10 @@ def write_worker_state(
         "heartbeat_at": _format_time(timestamp),
         "heartbeat_unix": timestamp,
     }
-    temporary = target.with_suffix(target.suffix + ".tmp")
-    temporary.write_text(
+    write_text_atomic_retry(
+        target,
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
     )
-    os.replace(temporary, target)
 
 
 def touch_worker_heartbeat(path: Path | str, kind: str) -> None:
@@ -63,12 +63,10 @@ def touch_worker_heartbeat(path: Path | str, kind: str) -> None:
             "heartbeat_unix": now,
         }
     )
-    temporary = target.with_suffix(target.suffix + ".tmp")
-    temporary.write_text(
+    write_text_atomic_retry(
+        target,
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
     )
-    os.replace(temporary, target)
 
 
 def worker_state_is_stale(
@@ -133,8 +131,10 @@ class WorkerHeartbeat(AbstractContextManager["WorkerHeartbeat"]):
 
 
 def _read_payload(path: Path) -> dict[str, Any] | None:
+    # A transient sharing violation must not read as "stale worker": that
+    # verdict lets a supervisor requeue a job out from under a healthy worker.
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
+        value = json.loads(read_text_retry(path))
     except (OSError, json.JSONDecodeError):
         return None
     return value if isinstance(value, dict) else None

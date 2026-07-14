@@ -3,9 +3,29 @@
 from __future__ import annotations
 
 import json
-import os
+import sys
 from pathlib import Path
 from typing import Any
+
+from atlas_runtime.fsio import write_text_atomic_retry
+
+
+def force_utf8_stdio() -> None:
+    """Pin hook stdio to UTF-8.
+
+    Hook hosts write the event and read the response as UTF-8, but Python on
+    Windows defaults pipes to the ANSI code page — taxonomy text with
+    em-dashes reaches the conversation as mojibake, and non-ASCII prompts can
+    fail to decode at all.
+    """
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (OSError, ValueError):
+            continue
 
 
 def write_json_atomic(path: Path, data: dict) -> None:
@@ -14,12 +34,7 @@ def write_json_atomic(path: Path, data: dict) -> None:
     Settings files (including the user's global Claude settings) must never
     be left half-written by an interrupted process.
     """
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(
-        json.dumps(data, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    os.replace(temporary, path)
+    write_text_atomic_retry(path, json.dumps(data, indent=2) + "\n")
 
 
 def build_session_state(
