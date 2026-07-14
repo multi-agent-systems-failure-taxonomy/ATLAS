@@ -135,8 +135,9 @@ To also install the reusable Codex skill guidance:
 atlas-codex-install --project-dir . --config atlas.json --install-skill
 ```
 
-By default this writes `atlas-failure-modes` under `$CODEX_HOME/skills` if
-`CODEX_HOME` is set, otherwise under `~/.codex/skills`.
+By default this writes `atlas-failure-modes` under the documented user skill
+directory, `~/.agents/skills`. Pass `--skills-dir ./.agents/skills` for a
+repository-local copy.
 
 ## Uninstall
 
@@ -150,6 +151,10 @@ This removes only ATLAS hook registrations from `.codex/hooks.json` and deletes
 ```bash
 atlas-codex-uninstall --project-dir . --remove-skill
 ```
+
+For the zero-config user-level integration, use
+`atlas-codex-install --user-level` and reverse it with
+`atlas-codex-uninstall --user-level`.
 
 ## Programs
 

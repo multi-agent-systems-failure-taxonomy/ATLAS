@@ -77,7 +77,8 @@ vocabulary.
    answer until reflection passes or retries are exhausted honestly; Codex
    uses a compact single-pass checkpoint because its desktop Stop continuation
    is not guaranteed to redeliver the hook.
-4. One canonical trace is recorded at session end.
+4. One canonical trace is recorded per run; interactive conversations record
+   one trace for each completed assistant episode.
 5. After enough traces, ATLAS generates a task-specific taxonomy (or refines
    the active one). Accepted taxonomies become inheritable records for future
    runs.
@@ -118,11 +119,37 @@ python -m pip install "git+https://github.com/multi-agent-systems-failure-taxono
 
 From a local checkout: `python -m pip install .`
 
-ATLAS's own learning calls support Anthropic, OpenAI(-compatible), Gemini, and
-AWS Bedrock model IDs. Optional extras (`[anthropic]`, `[bedrock]`) and
-credential setup live in [docs/INSTALLATION.md](docs/INSTALLATION.md).
+ATLAS's provider-backed learning calls support Anthropic,
+OpenAI(-compatible), Gemini, and AWS Bedrock model IDs. Optional extras
+(`[anthropic]`, `[bedrock]`) and credential setup live in
+[docs/INSTALLATION.md](docs/INSTALLATION.md).
 
-## Quick start
+## Interactive quick start
+
+For ordinary Codex or Claude Code conversations, no `atlas.json` and no
+separate model API key are required:
+
+```bash
+# Codex, for all projects
+atlas-codex-install --user-level
+atlas-doctor --codex
+
+# Claude Code, for all projects
+atlas-claude-install --user-level
+atlas-doctor --claude-code
+```
+
+Run both installers to share learned taxonomy state across both hosts for the
+same Git project. The signed-in host CLI performs taxonomy generation and
+refinement in a detached worker while the main conversation continues. Codex
+also requires a separately runnable `codex` CLI; the doctor detects desktop
+installations that cannot launch background jobs.
+
+See [Interactive setup](docs/INTERACTIVE_SETUP.md) for the selector, episode
+trace contract, trigger/completion notices, shared project storage, and
+uninstall commands.
+
+## Project and pipeline quick start
 
 Create `atlas.json` in the project that will run the agent:
 
@@ -141,8 +168,9 @@ Then choose the integration that matches your pipeline:
 
 | Use case | Command | Full docs |
 |---|---|---|
+| Codex all projects | `atlas-codex-install --user-level` | [Interactive setup](docs/INTERACTIVE_SETUP.md) |
+| Claude Code all projects | `atlas-claude-install --user-level` | [Interactive setup](docs/INTERACTIVE_SETUP.md) |
 | Claude Code project | `atlas-claude-install --project-dir . --config atlas.json` | [Claude Code](docs/CLAUDE_CODE.md) |
-| Claude Code all projects | `atlas-claude-install --user-level --config atlas.json` | [Claude Code](docs/CLAUDE_CODE.md) |
 | Codex project | `atlas-codex-install --project-dir . --config atlas.json` | [Codex](docs/CODEX.md) |
 | One LLM call from a script | `atlas-single-run --config atlas.json --task "..." --model gpt-5` | [Single LLM](docs/SINGLE_LLM.md) |
 | Existing trace folder | `atlas-import-traces --config atlas.json --traces ./traces` | [Taxonomies](docs/TAXONOMIES.md) |
@@ -171,6 +199,7 @@ and replication steps) live in [runs/](runs/):
 | Vocabulary and the runtime loop | [docs/CONCEPTS.md](docs/CONCEPTS.md) |
 | Real reflections, gates, and dashboard output | [docs/EXAMPLE_RUN.md](docs/EXAMPLE_RUN.md) |
 | First successful run | [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) |
+| User-level Codex and Claude setup | [docs/INTERACTIVE_SETUP.md](docs/INTERACTIVE_SETUP.md) |
 | Every `atlas.json` field | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) |
 | Install options and credentials | [docs/INSTALLATION.md](docs/INSTALLATION.md) |
 | Claude Code hooks | [docs/CLAUDE_CODE.md](docs/CLAUDE_CODE.md) |
@@ -184,6 +213,7 @@ and replication steps) live in [runs/](runs/):
 | Local dashboard Web API | [docs/WEB_API.md](docs/WEB_API.md) |
 | Harness-neutral runtime API | [docs/API_OR_RUNTIME.md](docs/API_OR_RUNTIME.md) |
 | Common failures and fixes | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) |
+| Supported hosts and current limits | [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) |
 | Documentation index | [docs/README.md](docs/README.md) |
 
 ## Main commands

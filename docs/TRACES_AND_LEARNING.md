@@ -29,8 +29,8 @@ Sub-task and subagent checkpoints contribute runtime evidence but do not create
 extra generation traces by default. Empty sessions and ATLAS control turns are
 not learning traces.
 
-See [INTERACTIVE_CONVERSATIONS_RFC.md](INTERACTIVE_CONVERSATIONS_RFC.md) for
-project sharing, native-worker, selection, and refinement design.
+See [Interactive setup](INTERACTIVE_SETUP.md) for the user workflow and
+[the runtime RFC](INTERACTIVE_CONVERSATIONS_RFC.md) for design rationale.
 
 ## Trace output is mandatory
 

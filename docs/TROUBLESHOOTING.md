@@ -7,6 +7,13 @@ atlas-doctor --config atlas.json
 atlas-status --config atlas.json
 ```
 
+For a zero-config user-level installation, omit `--config`:
+
+```bash
+atlas-doctor --codex
+atlas-doctor --claude-code
+```
+
 Use harness-specific checks when relevant:
 
 ```bash
@@ -62,6 +69,28 @@ For Claude Code, list installed ATLAS custom hooks:
 ```bash
 atlas-claude-list-hooks --project-dir .
 ```
+
+## Native taxonomy learning cannot launch
+
+The conversation hooks can run even when the detached taxonomy worker cannot.
+Check the host-specific doctor output:
+
+```bash
+atlas-doctor --codex
+atlas-doctor --claude-code
+```
+
+For Codex, a desktop-app executable may be visible but denied to background
+processes. Install and sign in to the standalone Codex CLI, or set
+`codex.codex_cli_path` to a runnable executable. Confirm with
+`codex login status`.
+
+For Claude Code, confirm `claude auth status` succeeds. You may set
+`CLAUDE_CODE_EXECUTABLE` or `claude_code.claude_cli_path` when discovery finds
+the wrong executable.
+
+No external provider API key is needed for `codex_subagent` or
+`claude_subagent`; these backends reuse the host CLI account.
 
 ## Final gate retries unexpectedly
 

@@ -55,6 +55,7 @@ nav:
   - Get started:
       - Concepts: CONCEPTS.md
       - An example run: EXAMPLE_RUN.md
+      - Interactive setup: INTERACTIVE_SETUP.md
       - Getting started: GETTING_STARTED.md
       - Installation: INSTALLATION.md
       - Configuration reference: CONFIGURATION.md
@@ -70,5 +71,7 @@ nav:
       - Traces and learning: TRACES_AND_LEARNING.md
       - Taxonomies: TAXONOMIES.md
   - Reference:
+      - Compatibility: COMPATIBILITY.md
       - Customization: CUSTOMIZATION.md
       - Troubleshooting: TROUBLESHOOTING.md
+      - Interactive runtime design: INTERACTIVE_CONVERSATIONS_RFC.md

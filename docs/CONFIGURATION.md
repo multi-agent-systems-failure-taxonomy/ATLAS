@@ -101,6 +101,14 @@ Credential expectations per provider are covered in
 The legacy top-level `built_in_hooks`, `custom_hooks`, and `codex_hooks`
 fields are still accepted as compatibility aliases for the scoped forms.
 
+The defaults in the tables below describe explicit project installs.
+`atlas-codex-install --user-level` instead defaults to `project_scope: "auto"`,
+`session_selector: "prompt"`, and `learning_backend: "codex_subagent"`.
+`atlas-claude-install --user-level` uses the parallel Claude values with
+`learning_backend: "claude_subagent"`. Both user-level commands default to the
+shared root `~/.atlas-skill/interactive` and runtime identity
+`interactive-session`.
+
 Codex user-level interactive hooks may also set:
 
 | Field | Default | Purpose |

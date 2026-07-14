@@ -1,8 +1,31 @@
 # Codex integration
 
-The Codex integration installs project-local hooks that call ATLAS from Codex session and boundary events.
+The Codex integration installs user-level or project-local hooks that call
+ATLAS from Codex session and boundary events.
 
-## Install hooks
+## Install for every Codex conversation
+
+```bash
+atlas-codex-install --user-level
+atlas-doctor --codex
+```
+
+No `atlas.json` or separate model API key is required. The installer writes
+`~/.codex/hooks.json`, `~/.codex/atlas-skill.json`, and the guidance skill at
+`~/.agents/skills/atlas-failure-modes`.
+
+The defaults are automatic Git-project scoping, task group `default`, the
+conversation selector, generation after five traces, and detached
+`codex_subagent` learning. Open `/hooks` inside Codex and trust the installed
+ATLAS hooks.
+
+Native learning requires a separately runnable and signed-in `codex` CLI. A
+Codex desktop installation can support conversation hooks while its bundled
+executable remains unavailable to background processes. `atlas-doctor --codex`
+checks both execution and `codex login status` before the learning threshold is
+reached.
+
+## Install project-local hooks
 
 ```bash
 atlas-codex-install --project-dir . --config atlas.json
@@ -27,12 +50,13 @@ The default Codex setup uses:
 
 ## Conversation selector
 
-Enable the Codex-only in-chat selector with automatic project scoping:
+The user-level command enables the selector automatically. For a project-local
+install, configure it explicitly:
 
 ```json
 {
   "trace_output": "~/.atlas-skill/interactive",
-  "atlas_model": "gpt-5",
+  "atlas_model": "interactive-session",
   "codex": {
     "project_scope": "auto",
     "task_group": "default",
@@ -98,7 +122,9 @@ model.
 atlas-codex-install --project-dir . --config atlas.json --install-skill
 ```
 
-This copies the ATLAS guidance skill into the project-local Codex config so the agent has the same natural-language protocol as the hook adapter.
+This copies the ATLAS guidance skill into the documented user skill location,
+`~/.agents/skills`. Pass `--skills-dir ./.agents/skills` when you explicitly
+want a repository-local copy instead.
 
 ## Custom hook policy
 
@@ -125,11 +151,20 @@ Keep the compact final checkpoint on `Stop`; use advisory hooks for noisier even
 
 ## Uninstall hooks
 
+User-level:
+
+```bash
+atlas-codex-uninstall --user-level
+```
+
+Project-local:
+
 ```bash
 atlas-codex-uninstall --project-dir .
 ```
 
-This removes ATLAS hook config from the project. It does not delete learned taxonomies or trace folders.
+This removes ATLAS hook config and, for the user-level default, the managed
+guidance skill. It does not delete learned taxonomies or trace folders.
 
 ## More implementation detail
 

@@ -1,8 +1,7 @@
 # Interactive conversations runtime RFC
 
-Status: Codex and Claude Code episode traces, project scope, selectors, durable
-native learning jobs, adaptive refinement receipts, stale-worker recovery, and
-visible notices are implemented on the `design/interactive-runtime` branch.
+Status: Implemented for Codex and Claude Code in ATLAS 1.1.0b1. This document
+retains the design rationale and records remaining management-surface work.
 
 This RFC adds a conversation-oriented runtime without changing the existing
 batch and harness APIs. Batch callers continue to treat one launched task as
@@ -26,13 +25,14 @@ become independent traces.
 
 Other current limitations are:
 
-- `trace_output` must be coordinated manually for Codex and Claude Code to
-  share a program.
+- User-level Codex and Claude Code installers use the same default
+  `~/.atlas-skill/interactive` root so both hosts share a project program.
+  Explicit project configs can still choose separate roots.
 - Taxonomy inheritance is explicit or program-local; there is no semantic
   automatic selector for a new task group.
 - Native refinement review is count-triggered, though a review may now return
   `no_change` when evidence does not justify a successor.
-- Automatic secret redaction and per-turn learning exclusion remain pending.
+- Automatic secret redaction and per-turn learning exclusion are default-on.
 - Unified task-group selection, rollback controls, and dashboard management
   remain pending.
 

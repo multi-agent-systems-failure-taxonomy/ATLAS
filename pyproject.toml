@@ -10,16 +10,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "atlas-skill"
-version = "1.0.0"
-description = "Adaptive failure-mode taxonomy runtime with Claude Code and single-LLM integrations."
+version = "1.1.0b1"
+description = "Adaptive failure-mode taxonomy runtime for Codex, Claude Code, and custom agent harnesses."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
 authors = [{ name = "ATLAS authors" }]
-keywords = ["agents", "failure-taxonomy", "claude-code", "llm"]
+keywords = ["agents", "failure-taxonomy", "codex", "claude-code", "llm"]
 classifiers = [
   "Development Status :: 4 - Beta",
-  "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
@@ -54,6 +53,9 @@ atlas-single-run = "atlas_integration.single_llm.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/multi-agent-systems-failure-taxonomy/ATLAS"
+Documentation = "https://multi-agent-systems-failure-taxonomy.github.io/ATLAS/"
+Repository = "https://github.com/multi-agent-systems-failure-taxonomy/ATLAS"
+Issues = "https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/issues"
 Paper = "https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/docs/atlas_paper.pdf"
 
 [tool.setuptools]

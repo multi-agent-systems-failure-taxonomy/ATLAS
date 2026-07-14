@@ -8,6 +8,7 @@ This folder is the detailed reference for ATLAS. The repository homepage stays i
 |---|---|
 | Learn the vocabulary and the runtime loop | [CONCEPTS.md](CONCEPTS.md) |
 | See real reflections, gates, and dashboard output | [EXAMPLE_RUN.md](EXAMPLE_RUN.md) |
+| Install for all Codex or Claude Code conversations | [INTERACTIVE_SETUP.md](INTERACTIVE_SETUP.md) |
 | Get one project running quickly | [GETTING_STARTED.md](GETTING_STARTED.md) |
 | Install ATLAS and optional model providers | [INSTALLATION.md](INSTALLATION.md) |
 | Look up any `atlas.json` field | [CONFIGURATION.md](CONFIGURATION.md) |
@@ -20,6 +21,7 @@ This folder is the detailed reference for ATLAS. The repository homepage stays i
 |---|---|
 | Claude Code | [CLAUDE_CODE.md](CLAUDE_CODE.md) |
 | Codex | [CODEX.md](CODEX.md) |
+| User-level interactive setup | [INTERACTIVE_SETUP.md](INTERACTIVE_SETUP.md) |
 | Direct single-LLM calls, scripts, notebooks, benchmarks | [SINGLE_LLM.md](SINGLE_LLM.md) |
 | Custom harnesses | [API_OR_RUNTIME.md](API_OR_RUNTIME.md) |
 | Harness-author contract, privacy, and redaction | [INTEGRATION.md](INTEGRATION.md) |
@@ -33,6 +35,7 @@ This folder is the detailed reference for ATLAS. The repository homepage stays i
 | Live dashboard, task UID filtering, and local monitoring | [DASHBOARD.md](DASHBOARD.md) |
 | Local dashboard HTTP endpoints and response shapes | [WEB_API.md](WEB_API.md) |
 | Program health CLI and common runtime failures | [TROUBLESHOOTING.md](TROUBLESHOOTING.md) |
+| Supported hosts and current limits | [COMPATIBILITY.md](COMPATIBILITY.md) |
 
 ## Web docs
 

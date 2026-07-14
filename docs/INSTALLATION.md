@@ -8,6 +8,9 @@ ATLAS supports a dependency-light base install plus optional model-provider extr
 - A project directory where ATLAS can write local hook config, if you use a harness integration
 - A writable trace directory
 
+Native interactive taxonomy learning also requires a runnable, signed-in CLI
+for the selected host: `codex` for Codex or `claude` for Claude Code.
+
 ## Install from GitHub
 
 ```bash
@@ -26,6 +29,25 @@ For editable development:
 ```bash
 python -m pip install -e ".[test]"
 ```
+
+## Zero-config interactive install
+
+Install ATLAS once for every project in a host:
+
+```bash
+atlas-codex-install --user-level
+atlas-doctor --codex
+
+atlas-claude-install --user-level
+atlas-doctor --claude-code
+```
+
+These defaults use `~/.atlas-skill/interactive`, automatic Git-project
+scoping, the in-chat selector, and the host's authenticated CLI as a detached
+taxonomy worker. They do not require `atlas.json` or a separate provider API
+key. Run both installers to share project/task-group state across both hosts.
+
+See [Interactive setup](INTERACTIVE_SETUP.md) for behavior and uninstall steps.
 
 ## Optional provider extras
 
@@ -50,7 +72,7 @@ export AWS_REGION="us-east-1"
 
 ATLAS reads provider credentials from the environment. Do not put tokens in `atlas.json`.
 
-## Minimal project config
+## Minimal provider-backed project config
 
 Create `atlas.json` in the project using ATLAS:
 

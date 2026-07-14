@@ -8,15 +8,8 @@ with Codex.
 ## Install for every Claude Code conversation
 
 ```powershell
-atlas-claude-install `
-  --user-level `
-  --trace-output "$HOME\.atlas-skill\interactive" `
-  --trace-root "$HOME\.atlas-skill\traces" `
-  --atlas-model claude-session `
-  --project-scope auto `
-  --task-group default `
-  --session-selector prompt `
-  --learning-backend claude_subagent
+atlas-claude-install --user-level
+atlas-doctor --claude-code
 ```
 
 This merges ATLAS into `~/.claude/settings.json` and writes
@@ -61,8 +54,9 @@ ATLAS will:
 
 If a detached worker disappears without a receipt, the coordinator expires its
 lease, keeps the current taxonomy active, and permits a retry from the same
-frozen evidence. Automatic secret redaction before trace persistence remains a
-production hardening item; do not place credentials in task transcripts.
+frozen evidence. Automatic secret redaction runs before trace persistence by
+default. Redaction is a defense in depth measure, not permission to place
+credentials in task transcripts.
 
 ## Customize built-in hooks
 

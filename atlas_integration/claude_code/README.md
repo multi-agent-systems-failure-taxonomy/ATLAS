@@ -50,13 +50,8 @@ preserved.
 For the Codex-style interactive experience in every Claude Code project, use:
 
 ```powershell
-atlas-claude-install `
-  --user-level `
-  --trace-output "$HOME\.atlas-skill\interactive" `
-  --atlas-model claude-session `
-  --project-scope auto `
-  --session-selector prompt `
-  --learning-backend claude_subagent
+atlas-claude-install --user-level
+atlas-doctor --claude-code
 ```
 
 User-level installation writes `~/.claude/atlas-skill.json` and merges hooks
