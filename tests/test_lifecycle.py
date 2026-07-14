@@ -129,6 +129,48 @@ class LifecycleTests(unittest.TestCase):
                     store_dir=STORE_DIR,
                 )
 
+    def test_conflicting_atlas_model_is_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            first = start_session(
+                resolver.ABSENT,
+                trace_output=td,
+                store_dir=STORE_DIR,
+                atlas_model="gpt-5",
+            )
+            end_session(first)
+            with self.assertRaises(ProgramConflict):
+                start_session(
+                    resolver.ABSENT,
+                    trace_output=td,
+                    store_dir=STORE_DIR,
+                    atlas_model="claude-haiku",
+                )
+
+    def test_interactive_session_model_adopts_recorded_program_model(self):
+        # Regression: user-level installs pass the interactive placeholder
+        # model. Program state recorded by an earlier release (e.g. gpt-5)
+        # must be adopted, not treated as a conflict that fails every hook
+        # event in every previously used project.
+        with tempfile.TemporaryDirectory() as td:
+            first = start_session(
+                resolver.ABSENT,
+                trace_output=td,
+                store_dir=STORE_DIR,
+                atlas_model="gpt-5",
+            )
+            end_session(first)
+            adopted = start_session(
+                resolver.ABSENT,
+                trace_output=td,
+                store_dir=STORE_DIR,
+                atlas_model="interactive-session",
+            )
+            end_session(adopted)
+            manifest = json.loads(
+                (Path(td) / ".atlas-program.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(manifest["atlas_model"], "gpt-5")
+
     def test_gate_uses_session_retry_limit(self):
         with tempfile.TemporaryDirectory() as td:
             session = start_session(
