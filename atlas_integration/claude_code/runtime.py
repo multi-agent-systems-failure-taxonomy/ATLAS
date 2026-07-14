@@ -30,11 +30,18 @@ from atlas_runtime.reflection import (
     harvest_reflection,
     parse_reflection,
 )
-from finding import resolver
+from finding import mast, resolver
 
 from atlas_integration.shared import build_session_state
+from atlas_integration.interactive.selector import (
+    build_selection,
+    parse_selection_choice,
+    render_selection,
+    selection_interstitial,
+)
 
 from .config import ClaudeCodeConfig
+from .learning_jobs import enqueue_claude_learning_job
 from .prompts import STANDING_PROMPT, failure_nudge, reflection_prompt
 from .state import load_state, save_state
 from .transcript import (
@@ -61,16 +68,93 @@ FAILURE_PATTERNS = (
 def session_start(event: dict[str, Any], config: ClaudeCodeConfig) -> dict:
     session_id = _required(event, "session_id")
     existing = load_state(config.trace_output, session_id)
+    if config.session_selector == "prompt" and config.inherit is None:
+        selection = existing.get("selection") if existing else None
+        if selection:
+            status = selection.get("status")
+            if status == "pending":
+                return _selection_output("SessionStart", selection)
+            if status == "disabled":
+                return {"systemMessage": "ATLAS is disabled for this conversation."}
+            return _context(
+                "SessionStart",
+                _selected_context(selection) + "\n\n" + STANDING_PROMPT,
+            )
+        if not existing:
+            selection = build_selection(
+                trace_output=config.trace_output,
+                store_dir=config.store_dir,
+                cwd=event.get("cwd"),
+            )
+            state = {
+                "version": 1,
+                "session_id": session_id,
+                "conversation_id": session_id,
+                "cwd": str(event.get("cwd") or ""),
+                "episode_sequence": 0,
+                "main_cursor": transcript_size(event.get("transcript_path")),
+                "episode_cursor": transcript_size(event.get("transcript_path")),
+                "selection": selection,
+                "finished": True,
+                "trace_captured": False,
+            }
+            save_state(config.trace_output, session_id, state)
+            return _selection_output("SessionStart", selection)
     if existing and not existing.get("finished"):
         return _context("SessionStart", STANDING_PROMPT)
 
-    inherit = config.inherit if config.inherit is not None else resolver.ABSENT
+    sequence = int(existing.get("episode_sequence", 0)) + 1 if existing else 1
+    state, session = _start_episode(
+        event,
+        config,
+        sequence=sequence,
+        cursor=transcript_size(event.get("transcript_path")),
+        previous=existing,
+    )
+    save_state(config.trace_output, session_id, state)
+    context = STANDING_PROMPT
+    if session.delivery.dashboard_url:
+        context += f"\nLive ATLAS dashboard: {session.delivery.dashboard_url}\n"
+    return _context("SessionStart", context)
+
+
+def _start_episode(
+    event: dict[str, Any],
+    config: ClaudeCodeConfig,
+    *,
+    sequence: int,
+    cursor: int,
+    previous: dict[str, Any] | None = None,
+    taxonomy_id: str | None = None,
+    episode_task: str | None = None,
+) -> tuple[dict[str, Any], Session]:
+    """Start one runtime task inside a longer Claude conversation."""
+    session_id = _required(event, "session_id")
+
+    manifest_path = Path(config.trace_output) / ".atlas-program.json"
+    bound_taxonomy_id = None
+    if manifest_path.exists():
+        try:
+            bound_taxonomy_id = json.loads(
+                manifest_path.read_text(encoding="utf-8")
+            ).get("taxonomy_id")
+        except (OSError, json.JSONDecodeError):
+            bound_taxonomy_id = None
+    if bound_taxonomy_id:
+        taxonomy_id = str(bound_taxonomy_id)
+
+    if taxonomy_id == mast.MAST_ID:
+        inherit = resolver.ABSENT
+    elif taxonomy_id:
+        inherit = taxonomy_id
+    else:
+        inherit = config.inherit if config.inherit is not None else resolver.ABSENT
     session = start_session(
         inherit,
         trace_output=config.trace_output,
         store_dir=config.store_dir,
         trace_root=config.trace_root,
-        session_id=f"claude-code:{session_id}",
+        session_id=f"claude-code:{session_id}:episode:{sequence}",
         atlas_model=config.atlas_model,
         repo_path=event.get("cwd") or Path.cwd(),
         max_retries=config.repair_rounds,
@@ -93,7 +177,9 @@ def session_start(event: dict[str, Any], config: ClaudeCodeConfig) -> dict:
         session=session,
         cwd=str(event.get("cwd") or ""),
         max_retries=config.repair_rounds,
-        main_cursor=transcript_size(event.get("transcript_path")),
+        main_cursor=cursor,
+        episode_sequence=sequence,
+        episode_cursor=cursor,
         failure={
             "call_index": 0,
             "last_fired_call": -10**9,
@@ -103,11 +189,133 @@ def session_start(event: dict[str, Any], config: ClaudeCodeConfig) -> dict:
     )
     state["format_retries"] = config.format_retries
     state["repair_rounds"] = config.repair_rounds
-    save_state(config.trace_output, session_id, state)
-    context = STANDING_PROMPT
-    if session.delivery.dashboard_url:
-        context += f"\nLive ATLAS dashboard: {session.delivery.dashboard_url}\n"
-    return _context("SessionStart", context)
+    state["conversation_id"] = session_id
+    state["conversation_taxonomy_root"] = (
+        (previous or {}).get("conversation_taxonomy_root")
+        or session.delivery.taxonomy_id
+    )
+    if previous:
+        state["previous_taxonomy_id"] = previous.get("taxonomy_id")
+        if previous.get("selection"):
+            state["selection"] = previous["selection"]
+    if episode_task:
+        state["episode_task"] = episode_task
+    return state, session
+
+
+def user_prompt_submit(
+    event: dict[str, Any], config: ClaudeCodeConfig
+) -> dict | None:
+    """Resolve the session selector and preserve the held substantive prompt."""
+    if config.session_selector != "prompt" or config.inherit is not None:
+        return None
+    session_id = _required(event, "session_id")
+    state = load_state(config.trace_output, session_id)
+    if not state:
+        session_start({**event, "hook_event_name": "SessionStart"}, config)
+        state = load_state(config.trace_output, session_id)
+    selection = state.get("selection")
+    if not selection:
+        return None
+
+    status = selection.get("status")
+    prompt = _user_prompt(event)
+    if status == "disabled":
+        return None
+    if status == "pending":
+        choice = parse_selection_choice(prompt, selection)
+        if choice is None:
+            if prompt and not selection.get("pending_task"):
+                selection["pending_task"] = prompt
+                selection["held_cursor"] = transcript_size(
+                    event.get("transcript_path")
+                )
+                save_state(config.trace_output, session_id, state)
+            return _selection_block(selection)
+
+        selection["selected_kind"] = choice["kind"]
+        selection["selected_taxonomy_id"] = choice.get("taxonomy_id")
+        selection["selected_label"] = choice["label"]
+        pending_task = str(selection.get("pending_task") or "").strip()
+        if choice["kind"] == "disabled":
+            selection["status"] = "disabled"
+            state["finished"] = True
+            save_state(config.trace_output, session_id, state)
+            return _context_with_message(
+                "UserPromptSubmit",
+                _disabled_context(pending_task),
+                "ATLAS disabled for this conversation.",
+            )
+
+        selection["status"] = "selected"
+        if pending_task:
+            fresh, _session = _start_episode(
+                event,
+                config,
+                sequence=max(1, int(state.get("episode_sequence", 0)) + 1),
+                cursor=transcript_size(event.get("transcript_path")),
+                previous=state,
+                taxonomy_id=str(choice["taxonomy_id"]),
+                episode_task=pending_task,
+            )
+            save_state(config.trace_output, session_id, fresh)
+        else:
+            save_state(config.trace_output, session_id, state)
+        return _context_with_message(
+            "UserPromptSubmit",
+            _selection_accepted_context(selection, pending_task),
+            f"ATLAS selected {choice['label']}.",
+        )
+
+    if status == "selected" and (not state.get("lifecycle") or state.get("finished")):
+        if not prompt:
+            return None
+        fresh, _session = _start_episode(
+            event,
+            config,
+            sequence=max(1, int(state.get("episode_sequence", 0)) + 1),
+            cursor=transcript_size(event.get("transcript_path")),
+            previous=state,
+            taxonomy_id=str(selection["selected_taxonomy_id"]),
+            episode_task=prompt,
+        )
+        save_state(config.trace_output, session_id, fresh)
+        return _context(
+            "UserPromptSubmit",
+            _selected_context(selection) + "\n\n" + STANDING_PROMPT,
+        )
+    return None
+
+
+def _ensure_active_episode(
+    event: dict[str, Any],
+    config: ClaudeCodeConfig,
+    state: dict[str, Any],
+) -> dict[str, Any]:
+    selection = state.get("selection") or {}
+    if selection.get("status") in {"pending", "disabled"}:
+        return state
+    if not state.get("finished"):
+        return state
+    sequence = int(state.get("episode_sequence", 0)) + 1
+    cursor = int(
+        state.get("episode_cursor", state.get("main_cursor", 0))
+    )
+    if not read_raw_transcript(
+        event.get("transcript_path"),
+        after=cursor,
+    ).strip():
+        return state
+    fresh, _session = _start_episode(
+        event,
+        config,
+        sequence=sequence,
+        cursor=cursor,
+        previous=state,
+        taxonomy_id=selection.get("selected_taxonomy_id"),
+    )
+    save_state(config.trace_output, fresh["session_id"], fresh)
+    return fresh
 
 
 def blocking_checkpoint(
@@ -116,7 +324,11 @@ def blocking_checkpoint(
     *,
     gate: str,
 ) -> tuple[int, str]:
-    state = _state(event, config)
+    state = _ensure_active_episode(event, config, _state(event, config))
+    if _selection_inactive(state):
+        return 0, "ATLAS taxonomy selection is pending or disabled."
+    if state.get("finished"):
+        return 0, "ATLAS episode already committed."
     transcript_path = _transcript_path(event, gate)
     _harvest_advisory_reflections(
         state,
@@ -388,7 +600,11 @@ def post_tool(
     *,
     execution_failed: bool,
 ) -> dict | None:
-    state = _state(event, config)
+    state = _ensure_active_episode(event, config, _state(event, config))
+    if _selection_inactive(state):
+        return None
+    if state.get("finished"):
+        return None
     failure = state.setdefault("failure", {})
     failure["call_index"] = int(failure.get("call_index", 0)) + 1
     text = (
@@ -533,23 +749,37 @@ def _finish_runtime_session(
             else None
         ),
     )
-    if not state.get("trace_captured"):
-        raw_trajectory = read_raw_transcript(transcript_path).strip()
-        if not raw_trajectory:
-            raw_trajectory = (
-                "Claude Code session ended before transcript content was "
-                "available."
-            )
-        task = first_user_message(transcript_path).strip() or (
-            f"Claude Code task in {state.get('cwd') or 'unknown working directory'}"
+    cursor = int(state.get("episode_cursor", 0))
+    sequence = int(state.get("episode_sequence", 1))
+    persisted_trace_names = [
+        str(name) for name in state.get("persisted_trace_names", [])
+    ]
+    raw_trajectory = ""
+    if not persisted_trace_names:
+        raw_trajectory = read_raw_transcript(
+            transcript_path,
+            after=cursor,
+        ).strip()
+    if not persisted_trace_names and raw_trajectory:
+        task = str(state.get("episode_task") or "").strip() or first_user_message(
+            transcript_path,
+            after=cursor,
+        ).strip() or (
+            f"Claude Code episode {sequence} in "
+            f"{state.get('cwd') or 'unknown working directory'}"
         )
         trace = GenerationTrace(
-            problem_id=f"claude-code:{state['session_id']}",
+            problem_id=(
+                f"claude-code:{state['session_id']}:episode:{sequence}"
+            ),
             task=task,
             raw_trajectory=raw_trajectory,
             metadata={
                 "harness": "claude_code",
                 "claude_session_id": state["session_id"],
+                "conversation_id": state["session_id"],
+                "episode_sequence": sequence,
+                "trace_granularity": "episode",
                 "runtime_session_id": state["runtime_session_id"],
                 "taxonomy_id": state["taxonomy_id"],
                 "end_reason": reason,
@@ -557,20 +787,48 @@ def _finish_runtime_session(
         )
         if config.redact_traces:
             trace = redact_trace(trace)
-        workspace.pending.append_many_with_names([trace])
-        # Persist the capture marker before any lifecycle work: a crash or
-        # hook-timeout kill in end_session below must not let a retry record
-        # a second copy of this trace.
+        persisted_trace_names = workspace.pending.append_many_with_names([trace])
         state["trace_captured"] = True
+        state["persisted_trace_names"] = persisted_trace_names
         save_state(config.trace_output, state["session_id"], state)
-    result = end_session(session)
+    generation_launcher = None
+    refinement_launcher = None
+    if config.learning_backend == "claude_subagent":
+        common = {
+            "store_dir": config.store_dir,
+            "trace_root": config.trace_root,
+            "task_group": config.task_group,
+            "conversation_id": str(state["session_id"]),
+            "worker_model": config.worker_model,
+            "claude_cli_path": config.claude_cli_path,
+            "worker_timeout_seconds": config.worker_timeout_seconds,
+        }
+        generation_launcher = lambda: enqueue_claude_learning_job(
+            workspace,
+            kind="generation",
+            **common,
+        )
+        refinement_launcher = lambda: enqueue_claude_learning_job(
+            workspace,
+            kind="refinement",
+            **common,
+        )
+    result = end_session(
+        session,
+        background_launcher=generation_launcher,
+        refinement_background_launcher=refinement_launcher,
+        pre_persisted_trace_names=persisted_trace_names,
+    )
+    state["trace_captured"] = bool(persisted_trace_names)
     state["trace_capture"] = {
-        "persisted_traces": 1,
+        "persisted_traces": result.persisted_traces,
         "integrated_traces": result.integrated_traces,
         "generation_action": result.generation.action,
         "refinement_action": result.refinement.action,
         "reason": reason,
     }
+    state.pop("persisted_trace_names", None)
+    state["episode_cursor"] = transcript_size(transcript_path)
     state["finished"] = True
 
 
@@ -579,7 +837,9 @@ def session_end(
 ) -> tuple[int, str | None]:
     """Capture and close sessions that terminate without a successful Stop gate."""
     state = _state(event, config)
-    if state.get("finished") and state.get("trace_captured"):
+    if _selection_inactive(state):
+        return 0, None
+    if state.get("finished"):
         return 0, None
     _harvest_advisory_reflections(
         state,
@@ -752,6 +1012,76 @@ def _context(event_name: str, text: str) -> dict:
             "additionalContext": text,
         }
     }
+
+
+def _context_with_message(event_name: str, text: str, message: str) -> dict:
+    output = _context(event_name, text)
+    output["systemMessage"] = message
+    return output
+
+
+def _selection_output(event_name: str, selection: dict[str, Any]) -> dict:
+    return _context_with_message(
+        event_name,
+        selection_interstitial(selection),
+        render_selection(selection),
+    )
+
+
+def _selection_block(selection: dict[str, Any]) -> dict:
+    output = _selection_output("UserPromptSubmit", selection)
+    output["decision"] = "block"
+    output["reason"] = render_selection(selection)
+    return output
+
+
+def _selection_inactive(state: dict[str, Any]) -> bool:
+    return (state.get("selection") or {}).get("status") in {"pending", "disabled"}
+
+
+def _selected_context(selection: dict[str, Any]) -> str:
+    label = selection.get("selected_label") or selection.get("selected_taxonomy_id")
+    return (
+        f"ATLAS taxonomy is pinned to {label} for this conversation. "
+        "Do not ask for taxonomy selection again."
+    )
+
+
+def _selection_accepted_context(
+    selection: dict[str, Any], pending_task: str
+) -> str:
+    context = _selected_context(selection)
+    if pending_task:
+        context += (
+            " The user's held task follows. Continue it now without asking the "
+            f"user to repeat it:\n\n{pending_task}"
+        )
+    else:
+        context += " No task is held; acknowledge the choice and wait for a task."
+    return context + "\n\n" + STANDING_PROMPT
+
+
+def _disabled_context(pending_task: str) -> str:
+    context = (
+        "ATLAS is disabled for this conversation. Do not emit ATLAS checkpoints, "
+        "run ATLAS gates, or record ATLAS traces."
+    )
+    if pending_task:
+        context += (
+            " Continue the user's held task now without asking them to repeat it:\n\n"
+            + pending_task
+        )
+    else:
+        context += " Acknowledge the choice and wait for a task."
+    return context
+
+
+def _user_prompt(event: dict[str, Any]) -> str:
+    for key in ("prompt", "user_prompt", "message", "text"):
+        value = event.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
 
 
 def _required(event: dict[str, Any], name: str) -> str:

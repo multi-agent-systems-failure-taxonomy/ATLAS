@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import json
+import io
 import os
 import re
+import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -927,6 +931,122 @@ Final decision: submit
         self.assertTrue(state["trace_captured"])
         self.assertEqual(state["trace_capture"]["persisted_traces"], 1)
 
+    def test_successive_completed_turns_become_distinct_episode_traces(self):
+        def complete_turn(task: str, answer: str) -> None:
+            append_user_text(self.transcript, task)
+            append_text(self.transcript, answer)
+            event = {
+                **self.base,
+                "hook_event_name": "Stop",
+                "stop_hook_active": False,
+                "last_assistant_message": answer,
+            }
+            code, prompt = stop.handle(event, self.config)
+            self.assertEqual(code, 2)
+            append_text(
+                self.transcript,
+                none_reflection(checkpoint_id(prompt))
+                + "\nFinal ATLAS status: READY_TO_SUBMIT\n"
+                + "Codes checked: none\n"
+                + "Evidence: targeted verification passed\n"
+                + "Repair attempts used: 0\n"
+                + "Final decision: submit\n",
+            )
+            self.assertEqual(
+                stop.handle(
+                    {**event, "stop_hook_active": True},
+                    self.config,
+                )[0],
+                0,
+            )
+
+        complete_turn("FIRST CLAUDE TASK MARKER", "FIRST CLAUDE ANSWER MARKER")
+        complete_turn("SECOND CLAUDE TASK MARKER", "SECOND CLAUDE ANSWER MARKER")
+        duplicate = stop.handle(
+            {
+                **self.base,
+                "hook_event_name": "Stop",
+                "stop_hook_active": False,
+                "last_assistant_message": "SECOND CLAUDE ANSWER MARKER",
+            },
+            self.config,
+        )
+        self.assertEqual(duplicate, (0, "ATLAS episode already committed."))
+
+        traces = sorted(
+            ProgramWorkspace(self.trace_output).pending.iter_traces(),
+            key=lambda trace: trace.metadata["episode_sequence"],
+        )
+        self.assertEqual(len(traces), 2)
+        self.assertEqual(
+            [trace.metadata["episode_sequence"] for trace in traces],
+            [1, 2],
+        )
+        self.assertEqual(traces[0].task, "FIRST CLAUDE TASK MARKER")
+        self.assertEqual(traces[1].task, "SECOND CLAUDE TASK MARKER")
+        self.assertIn("FIRST CLAUDE ANSWER MARKER", traces[0].raw_trajectory)
+        self.assertNotIn("FIRST CLAUDE ANSWER MARKER", traces[1].raw_trajectory)
+        self.assertIn("SECOND CLAUDE ANSWER MARKER", traces[1].raw_trajectory)
+        state = load_state(self.trace_output, self.base["session_id"])
+        self.assertEqual(state["episode_sequence"], 2)
+        self.assertEqual(state["conversation_taxonomy_root"], "mast")
+
+    def test_five_completed_episodes_queue_exactly_one_native_generation_job(self):
+        config = replace(
+            self.config,
+            learning_backend="claude_subagent",
+            generation_threshold=5,
+            claude_cli_path=Path(sys.executable),
+        )
+        workspace = ProgramWorkspace(self.trace_output)
+        with workspace.locked_manifest() as manifest:
+            manifest["generation"]["retry_after_count"] = 5
+
+        with (
+            patch(
+                "atlas_integration.claude_code.runtime.enqueue_claude_learning_job",
+                return_value="claude-generation-five",
+            ) as enqueue,
+            patch(
+                "atlas_runtime.generation._atlas_generate",
+                side_effect=AssertionError("provider generation must not run"),
+            ) as provider,
+        ):
+            for index in range(1, 6):
+                task = f"CLAUDE TASK {index}"
+                answer = f"CLAUDE ANSWER {index}"
+                append_user_text(self.transcript, task)
+                append_text(self.transcript, answer)
+                event = {
+                    **self.base,
+                    "hook_event_name": "Stop",
+                    "stop_hook_active": False,
+                    "last_assistant_message": answer,
+                }
+                code, prompt = stop.handle(event, config)
+                self.assertEqual(code, 2)
+                append_text(
+                    self.transcript,
+                    none_reflection(checkpoint_id(prompt))
+                    + "\nFinal ATLAS status: READY_TO_SUBMIT\n"
+                    + "Codes checked: none\n"
+                    + "Evidence: targeted verification passed\n"
+                    + "Repair attempts used: 0\n"
+                    + "Final decision: submit\n",
+                )
+                self.assertEqual(
+                    stop.handle(
+                        {**event, "stop_hook_active": True},
+                        config,
+                    )[0],
+                    0,
+                )
+
+        self.assertEqual(enqueue.call_count, 1)
+        self.assertEqual(enqueue.call_args.kwargs["kind"], "generation")
+        provider.assert_not_called()
+        self.assertEqual(len(list(workspace.pending.iter_traces())), 5)
+
     def test_session_end_captures_once_when_stop_did_not_finish(self):
         append_user_text(self.transcript, "Investigate an interrupted task.")
         append_text(self.transcript, "Partial work before interruption.")
@@ -1072,8 +1192,27 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
             self.assertFalse(state["lifecycle"]["generation_stops"])
             self.assertFalse(state["lifecycle"]["refinement_stops"])
 
-    def test_installed_version_has_required_contracts(self):
-        version = verify_installed_hooks()
+    def test_hook_contract_verifier_accepts_supported_version(self):
+        with tempfile.TemporaryDirectory() as td:
+            executable = Path(td) / "claude"
+            executable.write_bytes(
+                b"\n".join(
+                    [event.encode() for event in REQUIRED_EVENTS]
+                    + [
+                        b"prevent task completion",
+                        b"show stderr to subagent and continue having it run",
+                        b"show stderr to model and continue conversation",
+                        b"hookSpecificOutput.additionalContext",
+                    ]
+                )
+            )
+            completed = unittest.mock.Mock(stdout="2.1.185 (Claude Code)\n")
+            with patch(
+                "atlas_integration.claude_code.install.subprocess.run",
+                return_value=completed,
+            ):
+                version = verify_installed_hooks(executable)
+
         self.assertRegex(version, r"\d+\.\d+\.\d+")
 
     def test_installer_registers_all_events_without_duplication(self):
@@ -1166,6 +1305,43 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
             ):
                 install(root, config)
             self.assertFalse((root / ".claude").exists())
+
+    def test_user_level_install_is_zero_config_and_native_by_default(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            with (
+                patch(
+                    "atlas_integration.claude_code.install.Path.home",
+                    return_value=root,
+                ),
+                patch(
+                    "atlas_integration.claude_code.install.verify_installed_hooks",
+                    return_value="9.9.9",
+                ),
+                redirect_stdout(io.StringIO()) as output,
+                redirect_stderr(io.StringIO()),
+            ):
+                code = install_main(["--user-level"])
+
+            self.assertEqual(code, 0)
+            result = json.loads(output.getvalue())
+            self.assertEqual(result["scope"], "user")
+            config = ClaudeCodeConfig.load(
+                root / ".claude" / "atlas-skill.json"
+            )
+            self.assertEqual(
+                config.trace_output.resolve(),
+                (root / ".atlas-skill" / "interactive").resolve(),
+            )
+            self.assertEqual(config.atlas_model, "interactive-session")
+            self.assertEqual(config.project_scope, "auto")
+            self.assertEqual(config.session_selector, "prompt")
+            self.assertEqual(config.learning_backend, "claude_subagent")
+            self.assertIsNone(config.openai_api_key_env)
+
+    def test_user_level_install_rejects_project_target(self):
+        with self.assertRaises(SystemExit):
+            install_main(["--user-level", "--project-dir", "."])
 
     def test_empty_inherit_form_resolves_picker_at_install_time(self):
         with tempfile.TemporaryDirectory() as td:

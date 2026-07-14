@@ -13,9 +13,10 @@ Runs start from **MAST** — the Multi-Agent System failure Taxonomy from
 ["Why Do Multi-Agent LLM Systems Fail?" (Cemri et al., 2025)](https://arxiv.org/abs/2503.13657),
 shipped as a built-in 14-code adaptation. At configured gates the agent
 reflects on its recent trajectory (Observe → Correlate → Map → Decide), a
-blocking final gate runs before submission, and completed traces feed taxonomy
-generation and refinement. ATLAS is not a task solver; your harness keeps
-owning model execution.
+final gate validates submission, and completed traces feed taxonomy generation
+and refinement. Blocking adapters can hold the answer for repair; Codex uses a
+compact single-pass Stop checkpoint. ATLAS is not a task solver; your harness
+keeps owning model execution.
 
 ## Quickstart
 
@@ -25,7 +26,19 @@ Install:
 python -m pip install "git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
 ```
 
-Create `atlas.json` in the project that will run the agent:
+For normal Codex or Claude Code conversations, install once per user without a
+config file or separate provider API key:
+
+```bash
+atlas-codex-install --user-level
+atlas-doctor --codex
+
+atlas-claude-install --user-level
+atlas-doctor --claude-code
+```
+
+See [Interactive setup](INTERACTIVE_SETUP.md) for the complete flow. For
+project-local hooks or your own harness, create `atlas.json`:
 
 ```json
 {
@@ -39,6 +52,8 @@ Then choose the integration that matches your pipeline:
 
 | Use case | Command | Full docs |
 |---|---|---|
+| Codex all projects | `atlas-codex-install --user-level` | [Interactive setup](INTERACTIVE_SETUP.md) |
+| Claude Code all projects | `atlas-claude-install --user-level` | [Interactive setup](INTERACTIVE_SETUP.md) |
 | Claude Code project | `atlas-claude-install --project-dir . --config atlas.json` | [Claude Code](CLAUDE_CODE.md) |
 | Codex project | `atlas-codex-install --project-dir . --config atlas.json` | [Codex](CODEX.md) |
 | One LLM call from a script | `atlas-single-run --config atlas.json --task "..." --model gpt-5` | [Single LLM](SINGLE_LLM.md) |

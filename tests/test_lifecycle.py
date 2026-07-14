@@ -166,6 +166,42 @@ class LifecycleTests(unittest.TestCase):
                 1,
             )
 
+    def test_pre_persisted_trace_retry_does_not_double_count_refinement(self):
+        with tempfile.TemporaryDirectory() as td, tempfile.TemporaryDirectory() as tr:
+            session = start_session(
+                "tax-django-orm-001",
+                trace_output=td,
+                store_dir=STORE_DIR,
+                trace_root=tr,
+                k_init=20,
+            )
+            names = session.workspace.pending.append_many_with_names([real_trace()])
+
+            result = end_session(
+                session,
+                pre_persisted_trace_names=names,
+            )
+            session.workspace.add_refinement_traces(
+                "tax-django-orm-001",
+                names,
+            )
+
+            self.assertEqual(result.persisted_traces, 1)
+            self.assertEqual(result.integrated_traces, 1)
+            self.assertEqual(
+                session.workspace.refinement_state()["traces_since_refinement"],
+                1,
+            )
+            self.assertEqual(
+                session.workspace.refinement_state()["trace_refs"],
+                [
+                    {
+                        "taxonomy_id": "tax-django-orm-001",
+                        "filename": names[0],
+                    }
+                ],
+            )
+
     def test_mast_trace_stays_pending_below_threshold(self):
         with tempfile.TemporaryDirectory() as td, tempfile.TemporaryDirectory() as tr:
             session = start_session(

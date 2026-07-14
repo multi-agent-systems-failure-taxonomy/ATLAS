@@ -4,6 +4,34 @@ ATLAS separates runtime interaction from taxonomy learning.
 
 Runtime gates help the current task avoid repeated mistakes. Learning uses completed traces to generate or refine taxonomies for future tasks.
 
+## What counts as a trace
+
+Batch integrations keep the existing task-level contract: one launched task
+produces one canonical trajectory.
+
+Codex and Claude Code conversations use episode-level traces. One episode is a
+substantive user turn followed by the main agent's work and its final Stop
+boundary. Claude Code can use its blocking reflection loop. Codex commits a
+compact `Checkpoint`/`Relevant codes`/`Evidence`/`Next action` block in one
+callback because a continued Codex Desktop turn is not guaranteed to redeliver
+Stop. Follow-up requests in the same conversation are separate episodes. The
+stored trajectory is the transcript delta since the previous committed Stop,
+not a repeated copy of the entire conversation.
+
+Codex persists a bounded normalized JSONL view rather than the raw harness
+transcript. It retains human/assistant messages and tool interactions while
+excluding developer context, reasoning, hook prompts, installed-skill reads,
+and accounting events. Claude Code keeps its existing adapter transcript
+contract. Incomplete interactive episodes are recovered on resume or the next
+substantive prompt, and user-only abandoned turns do not become learning traces.
+
+Sub-task and subagent checkpoints contribute runtime evidence but do not create
+extra generation traces by default. Empty sessions and ATLAS control turns are
+not learning traces.
+
+See [Interactive setup](INTERACTIVE_SETUP.md) for the user workflow and
+[the runtime RFC](INTERACTIVE_CONVERSATIONS_RFC.md) for design rationale.
+
 ## Trace output is mandatory
 
 Every run needs a trace output. This gives ATLAS a stable folder for the task or program even before a generated taxonomy exists.
@@ -33,6 +61,12 @@ If `generation_stops` is `false`, already-running tasks continue with MAST while
 
 If `generation_stops` is `true`, the task waits until generation finishes.
 
+For interactive use, `codex.learning_backend: "codex_subagent"` or
+`claude_code.learning_backend: "claude_subagent"` freezes the exact
+threshold-crossing episode set and launches an authenticated harness worker.
+Later episodes cannot change that worker's evidence. They continue on the
+current taxonomy and are retained for the next refinement window.
+
 ## Accepted vs rejected generation
 
 Generated taxonomies must pass the configured taxonomy check unless `skip_judge` is enabled.
@@ -59,6 +93,12 @@ Defaults:
 - `k`: traces required after each later refinement.
 
 If a taxonomy is refined, the accepted candidate gets a new `taxonomy_id`. The publishing program counter resets. Other programs preserve their independent counters.
+
+Native refinement consumes only the frozen trace references it reviewed.
+Traces completed while the worker was running remain counted. The worker may
+return `no_change`; that advances the review cadence without creating a
+successor. Native successors activate only for the originating project/task
+group rather than silently advancing unrelated programs.
 
 ## Advanced refinement
 

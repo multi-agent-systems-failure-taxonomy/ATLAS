@@ -1,4 +1,4 @@
-"""Remove project-local ATLAS Claude Code hook registration."""
+"""Remove project-local or user-level ATLAS Claude Code hooks."""
 
 from __future__ import annotations
 
@@ -52,10 +52,13 @@ def uninstall(
     project_dir: Path | str,
     *,
     migrate_legacy_global: bool = False,
+    user_level: bool = False,
 ) -> dict:
     project_dir = Path(project_dir).resolve()
-    claude_dir = project_dir / ".claude"
-    settings_path = claude_dir / "settings.local.json"
+    claude_dir = Path.home() / ".claude" if user_level else project_dir / ".claude"
+    settings_path = claude_dir / (
+        "settings.json" if user_level else "settings.local.json"
+    )
     removed = _clean_settings(settings_path, include_legacy=True)
     config_path = claude_dir / "atlas-skill.json"
     config_removed = False
@@ -64,7 +67,7 @@ def uninstall(
         config_removed = True
 
     legacy = None
-    if migrate_legacy_global:
+    if migrate_legacy_global and not user_level:
         legacy = _clean_settings(
             Path.home() / ".claude" / "settings.json",
             include_legacy=True,
@@ -73,6 +76,7 @@ def uninstall(
         "settings": str(settings_path),
         "removed_hooks": removed,
         "config_removed": config_removed,
+        "scope": "user" if user_level else "project",
         "legacy_global_removed_hooks": legacy,
     }
 
@@ -91,18 +95,26 @@ def _clean_settings(path: Path, *, include_legacy: bool) -> int:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
-        description="Uninstall project-local ATLAS Claude Code hooks."
+        description="Uninstall project-local or user-level ATLAS Claude Code hooks."
     )
-    parser.add_argument("--project-dir", default=".")
+    parser.add_argument("--project-dir", default=None)
+    parser.add_argument(
+        "--user-level",
+        action="store_true",
+        help="remove ATLAS from ~/.claude/settings.json",
+    )
     parser.add_argument(
         "--migrate-legacy-global",
         action="store_true",
         help="also remove legacy ATLAS hooks from ~/.claude/settings.json",
     )
     args = parser.parse_args(argv)
+    if args.user_level and args.project_dir is not None:
+        parser.error("--user-level cannot be combined with --project-dir")
     result = uninstall(
-        args.project_dir,
+        args.project_dir or ".",
         migrate_legacy_global=args.migrate_legacy_global,
+        user_level=args.user_level,
     )
     print(json.dumps(result, indent=2))
     return 0

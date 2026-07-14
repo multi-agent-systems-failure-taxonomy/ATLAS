@@ -316,6 +316,7 @@ class LearningCallTests(unittest.TestCase):
                 {"service": service, "region_name": region_name, "config": config}
             ) or Client()
         )
+
         with patch.dict(
             os.environ,
             {
@@ -442,6 +443,14 @@ class LearningCallTests(unittest.TestCase):
                 {"service": service, "region_name": region_name, "config": config}
             ) or Client()
         )
+
+        class Config:
+            def __init__(self, **kwargs):
+                self.connect_timeout = kwargs["connect_timeout"]
+                self.read_timeout = kwargs["read_timeout"]
+                self.retries = kwargs["retries"]
+
+        fake_botocore_config = SimpleNamespace(Config=Config)
         with patch.dict(
             os.environ,
             {
@@ -451,14 +460,27 @@ class LearningCallTests(unittest.TestCase):
             },
             clear=False,
         ):
-            with patch.dict(sys.modules, {"boto3": fake_boto3}):
+            with patch.dict(
+                sys.modules,
+                {
+                    "boto3": fake_boto3,
+                    "botocore.config": fake_botocore_config,
+                },
+            ):
                 result = LLMClient(
-                    "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+                    "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+                    timeout=321,
                 ).chat("prompt", system="system prompt")
 
         self.assertEqual(result, '{"generated": true}')
         self.assertEqual(captured["service"], "bedrock-runtime")
         self.assertEqual(captured["region_name"], "us-east-1")
+        self.assertEqual(captured["config"].connect_timeout, 10)
+        self.assertEqual(captured["config"].read_timeout, 321)
+        self.assertEqual(
+            captured["config"].retries,
+            {"max_attempts": 3, "mode": "adaptive"},
+        )
         self.assertEqual(captured["system"][0]["text"], "system prompt")
 
     def test_vendored_client_preserves_claude_id_through_proxy(self):

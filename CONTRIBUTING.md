@@ -42,9 +42,12 @@ assets where possible; start with
 
   ```bash
   python -m pip install -e ".[docs]"
-  mkdocs serve
+  python -m mkdocs serve
   ```
 
 - The canonical config reference is
   [docs/CONFIGURATION.md](docs/CONFIGURATION.md) — other pages should show
   minimal configs and link there rather than duplicating field tables.
+
+Release versioning, artifact checks, tags, and the future PyPI trusted-publisher
+path are documented in [RELEASING.md](RELEASING.md).

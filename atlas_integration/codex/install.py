@@ -1,4 +1,4 @@
-"""Install ATLAS project-local Codex hooks."""
+"""Install ATLAS project-local or user-level Codex hooks."""
 
 from __future__ import annotations
 
@@ -21,6 +21,11 @@ from atlas_runtime.config import (
 )
 from atlas_runtime.traces import DEFAULT_TRACE_ROOT
 from finding import store
+
+from atlas_integration.interactive.defaults import (
+    INTERACTIVE_ATLAS_MODEL,
+    default_interactive_trace_output,
+)
 
 from .config import CodexConfig, parse_codex_hooks
 
@@ -51,9 +56,7 @@ class CodexSkillInstallResult:
 
 
 def default_skills_dir() -> Path:
-    codex_home = os.environ.get("CODEX_HOME")
-    base = Path(codex_home).expanduser() if codex_home else Path.home() / ".codex"
-    return base / "skills"
+    return Path.home() / ".agents" / "skills"
 
 
 def install(
@@ -61,10 +64,11 @@ def install(
     config: CodexConfig,
     *,
     python: Path | str = sys.executable,
+    user_level: bool = False,
 ) -> dict:
-    """Install project-local Codex hooks plus the ATLAS hook config."""
+    """Install Codex hooks plus the ATLAS hook config."""
     project_dir = Path(project_dir).resolve()
-    codex_dir = project_dir / ".codex"
+    codex_dir = Path.home() / ".codex" if user_level else project_dir / ".codex"
     hooks_path = codex_dir / "hooks.json"
     if hooks_path.is_file():
         try:
@@ -96,8 +100,18 @@ def install(
         "config": str(config_path),
         "hooks": str(hooks_path),
         "events": installed_events,
+        "scope": "user" if user_level else "project",
         "trust_note": "Open /hooks in Codex and trust the new ATLAS hooks before use.",
     }
+
+
+def install_user(
+    config: CodexConfig,
+    *,
+    python: Path | str = sys.executable,
+) -> dict:
+    """Install ATLAS once for all Codex conversations for this user."""
+    return install(Path.home(), config, python=python, user_level=True)
 
 
 def install_skill(
@@ -116,10 +130,10 @@ def install_skill(
     agents_dir = skill_dir / "agents"
     openai_yaml = agents_dir / "openai.yaml"
     marker = skill_dir / SKILL_MARKER_FILE
-    if skill_md.exists() and not force:
+    if skill_md.exists() and not force and not _is_managed_skill(marker, name):
         raise FileExistsError(
-            f"{skill_md} already exists; pass --force to replace the ATLAS "
-            "managed files"
+            f"{skill_md} already exists and is not marked as ATLAS-managed; "
+            "pass --force to replace the known skill files"
         )
     result = CodexSkillInstallResult(
         skill_dir=skill_dir,
@@ -148,6 +162,21 @@ def install_skill(
         encoding="utf-8",
     )
     return result
+
+
+def _is_managed_skill(marker: Path, name: str) -> bool:
+    if not marker.is_file():
+        return False
+    try:
+        record = json.loads(marker.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return bool(
+        isinstance(record, dict)
+        and record.get("managed_by") == "atlas-skill"
+        and record.get("integration") == "codex"
+        and record.get("skill_name") == name
+    )
 
 
 def remove_atlas_hooks(hooks_doc: dict) -> int:
@@ -227,10 +256,15 @@ def _write_json_atomic(path: Path, data: dict) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Install project-local ATLAS Codex hooks."
+        description="Install project-local or user-level ATLAS Codex hooks."
     )
     add_config_argument(parser)
     parser.add_argument("--project-dir", default=None)
+    parser.add_argument(
+        "--user-level",
+        action="store_true",
+        help="install in ~/.codex/hooks.json for all Codex projects",
+    )
     parser.add_argument("--trace-output", "--trace_output", dest="trace_output", type=Path)
     parser.add_argument("--atlas-model", "--atlas_model", dest="atlas_model")
     parser.add_argument("--store-dir", "--store_dir", dest="store_dir", type=Path)
@@ -250,10 +284,39 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--openai-base-url", "--openai_base_url", dest="openai_base_url")
     parser.add_argument("--openai-api-key-env", "--openai_api_key_env", dest="openai_api_key_env")
     parser.add_argument(
+        "--project-scope",
+        choices=("explicit", "auto"),
+        default=None,
+        help="use trace_output directly or derive one program per project",
+    )
+    parser.add_argument("--project-id", default=None)
+    parser.add_argument("--task-group", default=None)
+    parser.add_argument(
+        "--session-selector",
+        choices=("off", "prompt"),
+        default=None,
+        help="ask for a taxonomy when a new Codex conversation starts",
+    )
+    parser.add_argument(
+        "--learning-backend",
+        choices=("provider", "codex_subagent"),
+        default=None,
+        help="use provider API calls or the authenticated Codex subagent worker",
+    )
+    parser.add_argument("--worker-model", default=None)
+    parser.add_argument("--codex-cli-path", type=Path, default=None)
+    parser.add_argument("--worker-timeout-seconds", type=int, default=None)
+    parser.add_argument(
         "--disable-hook",
         action="append",
         default=[],
-        choices=("SessionStart", "Stop", "SubagentStop", "PostToolUse"),
+        choices=(
+            "SessionStart",
+            "UserPromptSubmit",
+            "Stop",
+            "SubagentStop",
+            "PostToolUse",
+        ),
         help="do not install a built-in Codex hook event",
     )
     parser.add_argument(
@@ -263,13 +326,40 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--install-skill",
-        action="store_true",
-        help="also install the optional ATLAS Codex skill guidance package",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help=(
+            "install the ATLAS Codex skill guidance package; enabled by "
+            "default for --user-level"
+        ),
     )
     parser.add_argument("--skills-dir", type=Path, default=None)
     parser.add_argument("--force-skill", action="store_true")
     args = parser.parse_args(argv)
-    config_doc = load_atlas_config(args.config)
+    if args.user_level and args.project_dir is not None:
+        parser.error("--user-level cannot be combined with --project-dir")
+    try:
+        config_doc = (
+            load_atlas_config(args.config)
+            if args.config is not None or not args.user_level
+            else {}
+        )
+        trace_output_value = config_value(args, config_doc, "trace_output")
+        atlas_model_value = config_value(args, config_doc, "atlas_model")
+        if args.user_level:
+            trace_output_value = trace_output_value or default_interactive_trace_output(
+                Path.home()
+            )
+            atlas_model_value = atlas_model_value or INTERACTIVE_ATLAS_MODEL
+        else:
+            trace_output_value = require_config_value(
+                args, config_doc, "trace_output", "--trace-output"
+            )
+            atlas_model_value = require_config_value(
+                args, config_doc, "atlas_model", "--atlas-model"
+            )
+    except Exception as exc:  # noqa: BLE001
+        parser.error(str(exc))
     adapter_config = (
         config_doc.get("codex")
         if isinstance(config_doc.get("codex"), dict)
@@ -288,8 +378,8 @@ def main(argv: list[str] | None = None) -> int:
             ],
         }
     cfg = CodexConfig(
-        trace_output=Path(require_config_value(args, config_doc, "trace_output", "--trace-output")),
-        atlas_model=str(require_config_value(args, config_doc, "atlas_model", "--atlas-model")),
+        trace_output=Path(trace_output_value).expanduser().resolve(),
+        atlas_model=str(atlas_model_value),
         store_dir=Path(config_value(args, config_doc, "store_dir", store.DEFAULT_STORE_DIR)),
         trace_root=Path(config_value(args, config_doc, "trace_root", DEFAULT_TRACE_ROOT)),
         inherit=args.inherit if args.inherit is not None else config_doc.get("inherit"),
@@ -311,10 +401,71 @@ def main(argv: list[str] | None = None) -> int:
             if config_value(args, config_doc, "evidence_export")
             else None
         ),
+        project_scope=(
+            args.project_scope
+            or str(
+                adapter_config.get(
+                    "project_scope",
+                    "auto" if args.user_level else "explicit",
+                )
+            )
+        ),
+        project_id=(
+            args.project_id
+            if args.project_id is not None
+            else adapter_config.get("project_id")
+        ),
+        task_group=(
+            args.task_group
+            or str(adapter_config.get("task_group", "default"))
+        ),
+        session_selector=(
+            args.session_selector
+            or str(
+                adapter_config.get(
+                    "session_selector",
+                    "prompt" if args.user_level else "off",
+                )
+            )
+        ),
+        learning_backend=(
+            args.learning_backend
+            or str(
+                adapter_config.get(
+                    "learning_backend",
+                    "codex_subagent" if args.user_level else "provider",
+                )
+            )
+        ),
+        worker_model=(
+            args.worker_model
+            if args.worker_model is not None
+            else adapter_config.get("worker_model")
+        ),
+        codex_cli_path=(
+            args.codex_cli_path
+            if args.codex_cli_path is not None
+            else (
+                Path(str(adapter_config["codex_cli_path"]))
+                if adapter_config.get("codex_cli_path")
+                else None
+            )
+        ),
+        worker_timeout_seconds=(
+            args.worker_timeout_seconds
+            if args.worker_timeout_seconds is not None
+            else int(adapter_config.get("worker_timeout_seconds", 1800))
+        ),
         hooks=parse_codex_hooks(hooks_doc),
     )
-    result = install(config_value(args, config_doc, "project_dir", "."), cfg)
-    if args.install_skill:
+    if args.user_level:
+        result = install_user(cfg)
+    else:
+        result = install(config_value(args, config_doc, "project_dir", "."), cfg)
+    install_skill_enabled = (
+        args.install_skill if args.install_skill is not None else args.user_level
+    )
+    if install_skill_enabled:
         result["skill"] = install_skill(
             skills_dir=args.skills_dir,
             force=args.force_skill,

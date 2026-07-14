@@ -63,7 +63,7 @@ def run_checks(
             "no --atlas-model supplied; skipping model/profile/credential checks",
         ))
     if claude_code:
-        checks.append(_claude_code_check())
+        checks.extend(_claude_code_checks())
     if codex:
         checks.extend(_codex_checks())
     if dashboard_port is not None:
@@ -207,27 +207,69 @@ def _credential_check(model: str) -> DoctorCheck:
     return DoctorCheck("model credentials", WARN, "OPENAI_API_KEY is not set")
 
 
-def _claude_code_check() -> DoctorCheck:
+def _claude_code_checks() -> list[DoctorCheck]:
+    config_check, config = _interactive_config_check("claude_code")
+    native_required = bool(
+        config and config.learning_backend == "claude_subagent"
+    )
+    executable = config.claude_cli_path if config else None
+    return [
+        _claude_code_check(executable=executable),
+        config_check,
+        _native_auth_check(
+            "claude",
+            executable=executable,
+            auth_args=("auth", "status"),
+            required=native_required,
+        ),
+    ]
+
+
+def _claude_code_check(*, executable: Path | str | None = None) -> DoctorCheck:
     try:
         from atlas_integration.claude_code.install import verify_installed_hooks
 
-        version = verify_installed_hooks()
+        version = verify_installed_hooks(
+            Path(executable).expanduser() if executable else None
+        )
     except Exception as exc:  # noqa: BLE001
         return DoctorCheck("claude code", ERROR, str(exc))
     return DoctorCheck("claude code", OK, f"hook contract verified: {version}")
 
 
 def _codex_checks() -> list[DoctorCheck]:
-    return [_codex_cli_check(), _codex_hooks_feature_check()]
+    config_check, config = _interactive_config_check("codex")
+    native_required = bool(config and config.learning_backend == "codex_subagent")
+    executable = config.codex_cli_path if config else None
+    return [
+        config_check,
+        _codex_cli_check(executable=executable, required=native_required),
+        _native_auth_check(
+            "codex",
+            executable=executable,
+            auth_args=("login", "status"),
+            required=native_required,
+        ),
+        _codex_hooks_feature_check(),
+    ]
 
 
-def _codex_cli_check() -> DoctorCheck:
-    executable = shutil.which("codex")
+def _codex_cli_check(
+    *,
+    executable: Path | str | None = None,
+    required: bool = False,
+) -> DoctorCheck:
+    executable = str(executable) if executable else shutil.which("codex")
     if not executable:
         return DoctorCheck(
             "codex cli",
-            WARN,
-            "codex executable was not found on PATH; app-managed Codex may still work",
+            ERROR if required else WARN,
+            (
+                "codex executable was not found on PATH; native taxonomy learning "
+                "cannot run"
+                if required
+                else "codex executable was not found on PATH; app-managed Codex may still work"
+            ),
         )
     try:
         result = subprocess.run(
@@ -240,7 +282,7 @@ def _codex_cli_check() -> DoctorCheck:
     except Exception as exc:  # noqa: BLE001
         return DoctorCheck(
             "codex cli",
-            WARN,
+            ERROR if required else WARN,
             f"found {executable}, but could not run --version: {exc}",
         )
     version = (result.stdout or result.stderr).strip()
@@ -252,8 +294,105 @@ def _codex_cli_check() -> DoctorCheck:
         )
     return DoctorCheck(
         "codex cli",
-        WARN,
+        ERROR if required else WARN,
         f"found {executable}, but --version exited {result.returncode}: {version}",
+    )
+
+
+def _interactive_config_check(host: str):
+    if host == "codex":
+        from atlas_integration.codex.config import CodexConfig as Config
+
+        directory = ".codex"
+        display = "codex"
+    elif host == "claude_code":
+        from atlas_integration.claude_code.config import ClaudeCodeConfig as Config
+
+        directory = ".claude"
+        display = "claude"
+    else:  # pragma: no cover - internal call contract
+        raise ValueError(f"unsupported interactive host: {host}")
+    candidates = (
+        (Path.cwd() / directory / "atlas-skill.json", "project"),
+        (Path.home() / directory / "atlas-skill.json", "user"),
+    )
+    for path, scope in candidates:
+        if not path.is_file():
+            continue
+        try:
+            config = Config.load(path)
+        except Exception as exc:  # noqa: BLE001
+            return (
+                DoctorCheck(
+                    f"{display} config",
+                    ERROR,
+                    f"invalid {scope}-level config at {path}: {exc}",
+                ),
+                None,
+            )
+        return (
+            DoctorCheck(
+                f"{display} config",
+                OK,
+                (
+                    f"{scope}-level config uses {config.learning_backend}, "
+                    f"selector={config.session_selector}: {path}"
+                ),
+            ),
+            config,
+        )
+    return (
+        DoctorCheck(
+            f"{display} config",
+            WARN,
+            f"no project- or user-level ATLAS {display} config was found",
+        ),
+        None,
+    )
+
+
+def _native_auth_check(
+    host: str,
+    *,
+    executable: Path | str | None,
+    auth_args: tuple[str, ...],
+    required: bool,
+) -> DoctorCheck:
+    resolved = str(executable) if executable else shutil.which(host)
+    status = ERROR if required else WARN
+    if not resolved:
+        return DoctorCheck(
+            f"{host} auth",
+            status,
+            f"{host} CLI was not found; authentication status could not be checked",
+        )
+    try:
+        result = subprocess.run(
+            [resolved, *auth_args],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return DoctorCheck(
+            f"{host} auth",
+            status,
+            f"could not run {' '.join((host, *auth_args))}: {exc}",
+        )
+    if result.returncode == 0:
+        return DoctorCheck(
+            f"{host} auth",
+            OK,
+            "authenticated CLI session is available for native taxonomy learning",
+        )
+    return DoctorCheck(
+        f"{host} auth",
+        status,
+        (
+            f"{' '.join((host, *auth_args))} exited {result.returncode}; "
+            "sign in before native taxonomy learning triggers"
+        ),
     )
 
 

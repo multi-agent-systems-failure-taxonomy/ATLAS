@@ -1,7 +1,8 @@
 # ATLAS 5-minute start
 
-This page is the shortest reliable path from "I installed ATLAS" to "my
-pipeline is producing traces and enforcing the final gate."
+This page covers explicit project-local and pipeline integration. For the
+shortest user-level Codex or Claude Code path, use
+[Interactive setup](INTERACTIVE_SETUP.md).
 
 If you want the full reference, start from the [documentation home](index.md).
 
@@ -80,6 +81,10 @@ missing." Errors mean the requested setup is not ready.
 
 ## 4A. Use ATLAS with Claude Code
 
+For every Claude Code project with native signed-in learning, the shorter path
+is `atlas-claude-install --user-level`. The command below is the explicit,
+project-local provider-backed path.
+
 Install project-local hooks:
 
 ```bash
@@ -91,7 +96,7 @@ Start Claude Code in that project. ATLAS will:
 1. start with inherited taxonomy if configured, otherwise built-in MAST;
 2. deliver checkpoint instructions at configured hook boundaries;
 3. require the final submission gate before completion;
-4. record one canonical trace at session end;
+4. record one canonical trace for each completed assistant episode;
 5. trigger generation/refinement when configured thresholds are reached.
 
 Useful hook customization examples:
@@ -121,6 +126,10 @@ atlas-claude-uninstall --project-dir .
 
 ## 4B. Use ATLAS with Codex hooks
 
+For every Codex project with native signed-in learning, the shorter path is
+`atlas-codex-install --user-level`. The command below is the explicit,
+project-local provider-backed path.
+
 Install project-local Codex hooks:
 
 ```bash
@@ -133,9 +142,10 @@ inside Codex and trust the ATLAS hooks before relying on them.
 Default Codex events:
 
 1. `SessionStart`: deliver standing ATLAS context.
-2. `Stop`: block final completion until the ATLAS final gate passes.
-3. `SubagentStop`: checkpoint subagent trajectories.
-4. `PostToolUse`: add advisory nudges after selected failed tool outputs.
+2. `UserPromptSubmit`: resolve taxonomy selection and episode boundaries.
+3. `Stop`: capture the compact final checkpoint and commit the episode once.
+4. `SubagentStop`: capture a checkpoint when present without blocking.
+5. `PostToolUse`: add advisory nudges after selected failed tool outputs.
 
 Optional skill guidance:
 
@@ -146,7 +156,7 @@ atlas-codex-install --project-dir . --config atlas.json --install-skill
 Remove it with:
 
 ```bash
-atlas-codex-uninstall
+atlas-codex-uninstall --project-dir .
 ```
 
 ## 4C. Use ATLAS around one LLM call

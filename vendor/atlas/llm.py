@@ -80,7 +80,18 @@ class LLMClient:
             return "{}"
 
         try:
-            client = boto3.client("bedrock-runtime", region_name=region)
+            from botocore.config import Config
+
+            # Generation prompts can exceed botocore's default read timeout.
+            client = boto3.client(
+                "bedrock-runtime",
+                region_name=region,
+                config=Config(
+                    connect_timeout=10,
+                    read_timeout=self.timeout,
+                    retries={"max_attempts": 3, "mode": "adaptive"},
+                ),
+            )
             kwargs: Dict[str, Any] = {
                 "modelId": _bedrock_model_id(self.model),
                 "messages": [{"role": "user", "content": [{"text": prompt}]}],

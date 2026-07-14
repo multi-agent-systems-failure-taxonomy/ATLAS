@@ -17,9 +17,13 @@ from .install import (
 )
 
 
-def uninstall(project_dir: Path | str) -> dict[str, Any]:
+def uninstall(
+    project_dir: Path | str,
+    *,
+    user_level: bool = False,
+) -> dict[str, Any]:
     project_dir = Path(project_dir).resolve()
-    codex_dir = project_dir / ".codex"
+    codex_dir = Path.home() / ".codex" if user_level else project_dir / ".codex"
     hooks_path = codex_dir / "hooks.json"
     removed_hooks = _clean_hooks(hooks_path)
     config_path = codex_dir / "atlas-skill.json"
@@ -31,7 +35,13 @@ def uninstall(project_dir: Path | str) -> dict[str, Any]:
         "hooks": str(hooks_path),
         "removed_hooks": removed_hooks,
         "config_removed": config_removed,
+        "scope": "user" if user_level else "project",
     }
+
+
+def uninstall_user() -> dict[str, Any]:
+    """Remove the user-level Codex hook registration and ATLAS config."""
+    return uninstall(Path.home(), user_level=True)
 
 
 def uninstall_skill(
@@ -85,15 +95,30 @@ def _clean_hooks(path: Path) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Uninstall project-local ATLAS Codex hooks."
+        description="Uninstall project-local or user-level ATLAS Codex hooks."
     )
-    parser.add_argument("--project-dir", default=".")
-    parser.add_argument("--remove-skill", action="store_true")
+    parser.add_argument("--project-dir", default=None)
+    parser.add_argument(
+        "--user-level",
+        action="store_true",
+        help="remove ATLAS from ~/.codex/hooks.json",
+    )
+    parser.add_argument(
+        "--remove-skill",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="remove the managed Codex skill; enabled by default for --user-level",
+    )
     parser.add_argument("--skills-dir", type=Path, default=None)
     parser.add_argument("--force-skill", action="store_true")
     args = parser.parse_args(argv)
-    result = uninstall(args.project_dir)
-    if args.remove_skill:
+    if args.user_level and args.project_dir is not None:
+        parser.error("--user-level cannot be combined with --project-dir")
+    result = uninstall_user() if args.user_level else uninstall(args.project_dir or ".")
+    remove_skill_enabled = (
+        args.remove_skill if args.remove_skill is not None else args.user_level
+    )
+    if remove_skill_enabled:
         result["skill"] = uninstall_skill(
             skills_dir=args.skills_dir,
             force=args.force_skill,

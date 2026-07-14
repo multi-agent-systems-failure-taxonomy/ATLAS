@@ -21,6 +21,10 @@ from atlas_runtime.config import (
     require_config_value,
 )
 from atlas_integration.shared import write_json_atomic
+from atlas_integration.interactive.defaults import (
+    INTERACTIVE_ATLAS_MODEL,
+    default_interactive_trace_output,
+)
 from finding import resolver, store, webview
 
 from .config import (
@@ -166,6 +170,7 @@ def install(
     python: Path | str = sys.executable,
     verify: bool = True,
     migrate_legacy_global: bool = False,
+    user_level: bool = False,
 ) -> dict:
     project_dir = Path(project_dir).resolve()
     if verify:
@@ -173,8 +178,10 @@ def install(
     else:
         version = "verification skipped by caller"
 
-    claude_dir = project_dir / ".claude"
-    settings_path = claude_dir / "settings.local.json"
+    claude_dir = Path.home() / ".claude" if user_level else project_dir / ".claude"
+    settings_path = claude_dir / (
+        "settings.json" if user_level else "settings.local.json"
+    )
     if settings_path.is_file():
         try:
             settings = json.loads(settings_path.read_text(encoding="utf-8"))
@@ -194,7 +201,7 @@ def install(
     config_path = claude_dir / "atlas-skill.json"
     write_json_atomic(config_path, config.to_dict())
     command = _module_command(Path(python), config_path)
-    remove_atlas_hooks(settings, include_legacy=False)
+    remove_atlas_hooks(settings, include_legacy=user_level)
     hooks = settings.setdefault("hooks", {})
     installed_events: list[str] = []
     for spec in config.built_in_hooks:
@@ -221,7 +228,7 @@ def install(
         )
     write_json_atomic(settings_path, settings)
     migrated = None
-    if migrate_legacy_global:
+    if migrate_legacy_global and not user_level:
         global_settings = Path.home() / ".claude" / "settings.json"
         migrated = remove_from_settings_file(
             global_settings,
@@ -232,8 +239,25 @@ def install(
         "config": str(config_path),
         "settings": str(settings_path),
         "events": installed_events,
+        "scope": "user" if user_level else "project",
         "legacy_global_migration": migrated,
     }
+
+
+def install_user(
+    config: ClaudeCodeConfig,
+    *,
+    python: Path | str = sys.executable,
+    verify: bool = True,
+) -> dict:
+    """Install ATLAS once for all Claude Code conversations for this user."""
+    return install(
+        Path.home(),
+        config,
+        python=python,
+        verify=verify,
+        user_level=True,
+    )
 
 
 def _append_registration(
@@ -316,10 +340,15 @@ def remove_from_settings_file(
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
-        description="Install the project-local ATLAS Claude Code runtime skin."
+        description="Install the project-local or user-level ATLAS Claude Code runtime."
     )
     add_config_argument(parser)
     parser.add_argument("--project-dir")
+    parser.add_argument(
+        "--user-level",
+        action="store_true",
+        help="install in ~/.claude/settings.json for all Claude Code projects",
+    )
     parser.add_argument("--trace-output")
     parser.add_argument("--atlas-model")
     parser.add_argument("--store-dir")
@@ -389,6 +418,21 @@ def main(argv=None) -> int:
     parser.add_argument("--failure-throttle-calls", type=int)
     parser.add_argument("--failure-recency-seconds", type=int)
     parser.add_argument(
+        "--project-scope",
+        choices=("explicit", "auto"),
+        help="auto derives one shared program from the event cwd",
+    )
+    parser.add_argument("--project-id")
+    parser.add_argument("--task-group")
+    parser.add_argument("--session-selector", choices=("off", "prompt"))
+    parser.add_argument(
+        "--learning-backend",
+        choices=("provider", "claude_subagent"),
+    )
+    parser.add_argument("--worker-model")
+    parser.add_argument("--claude-cli-path", type=Path)
+    parser.add_argument("--worker-timeout-seconds", type=int)
+    parser.add_argument(
         "--disable-hook",
         action="append",
         choices=BUILT_IN_HOOK_EVENTS,
@@ -439,19 +483,35 @@ def main(argv=None) -> int:
         ),
     )
     args = parser.parse_args(argv)
+    if args.user_level and args.project_dir is not None:
+        parser.error("--user-level cannot be combined with --project-dir")
     try:
-        config = load_atlas_config(args.config)
+        config = (
+            load_atlas_config(args.config)
+            if args.config is not None or not args.user_level
+            else {}
+        )
         adapter_config = (
             config.get("claude_code")
             if isinstance(config.get("claude_code"), dict)
             else {}
         )
-        atlas_model = str(require_config_value(
-            args, config, "atlas_model", "--atlas-model"
-        ))
-        trace_output = Path(require_config_value(
-            args, config, "trace_output", "--trace-output"
-        )).resolve()
+        atlas_model_value = config_value(args, config, "atlas_model")
+        trace_output_value = config_value(args, config, "trace_output")
+        if args.user_level:
+            atlas_model_value = atlas_model_value or INTERACTIVE_ATLAS_MODEL
+            trace_output_value = trace_output_value or default_interactive_trace_output(
+                Path.home()
+            )
+        else:
+            atlas_model_value = require_config_value(
+                args, config, "atlas_model", "--atlas-model"
+            )
+            trace_output_value = require_config_value(
+                args, config, "trace_output", "--trace-output"
+            )
+        atlas_model = str(atlas_model_value)
+        trace_output = Path(trace_output_value).expanduser().resolve()
     except Exception as exc:  # noqa: BLE001
         parser.error(str(exc))
     if args.inherit_pick and args.inherit is not None:
@@ -533,6 +593,36 @@ def main(argv=None) -> int:
         "evidence_export": config_value(args, config, "evidence_export"),
         "failure_throttle_calls": config_value(args, config, "failure_throttle_calls", 5),
         "failure_recency_seconds": config_value(args, config, "failure_recency_seconds", 30),
+        "project_scope": (
+            args.project_scope
+            or adapter_config.get("project_scope")
+            or ("auto" if args.user_level else "explicit")
+        ),
+        "project_id": args.project_id or adapter_config.get("project_id"),
+        "task_group": args.task_group or adapter_config.get("task_group", "default"),
+        "session_selector": (
+            args.session_selector
+            or adapter_config.get(
+                "session_selector",
+                "prompt" if args.user_level else "off",
+            )
+        ),
+        "learning_backend": (
+            args.learning_backend
+            or adapter_config.get(
+                "learning_backend",
+                "claude_subagent" if args.user_level else "provider",
+            )
+        ),
+        "worker_model": args.worker_model or adapter_config.get("worker_model"),
+        "claude_cli_path": (
+            args.claude_cli_path
+            or adapter_config.get("claude_cli_path")
+        ),
+        "worker_timeout_seconds": (
+            args.worker_timeout_seconds
+            or adapter_config.get("worker_timeout_seconds", 1800)
+        ),
         "built_in_hooks": built_in_hooks,
         "custom_hooks": tuple(
             CustomHookSpec.from_dict(entry)
@@ -553,6 +643,7 @@ def main(argv=None) -> int:
         config_value(args, config, "project_dir", "."),
         ClaudeCodeConfig(**fields),
         migrate_legacy_global=args.migrate_legacy_global,
+        user_level=args.user_level,
     )
     # Make the learning cadence honest at install time so single-run users
     # don't expect taxonomy improvement that will never fire from one trace.

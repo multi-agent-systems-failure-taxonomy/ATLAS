@@ -30,6 +30,8 @@ def build_session_state(
     max_retries: int,
     main_cursor: int,
     failure: dict[str, Any],
+    episode_sequence: int = 1,
+    episode_cursor: int | None = None,
 ) -> dict[str, Any]:
     """Build the common persisted state envelope for hook adapters."""
     return {
@@ -59,6 +61,10 @@ def build_session_state(
             "runtime_protocol": session.delivery.runtime_protocol,
         },
         "main_cursor": main_cursor,
+        "episode_sequence": episode_sequence,
+        "episode_cursor": (
+            main_cursor if episode_cursor is None else episode_cursor
+        ),
         "pending": {},
         "failure": failure,
         "finished": False,

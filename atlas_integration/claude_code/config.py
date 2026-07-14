@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from importlib.resources import files
 from pathlib import Path
 
 from finding import store
+from atlas_runtime.project_scope import project_program_path, validate_scope_id
 from atlas_runtime.traces import DEFAULT_TRACE_ROOT
 
 _HOOK_EVENTS = json.loads(
@@ -238,6 +239,14 @@ class ClaudeCodeConfig:
     redact_traces: bool = True
     failure_throttle_calls: int = 5
     failure_recency_seconds: int = 30
+    project_scope: str = "explicit"
+    project_id: str | None = None
+    task_group: str = "default"
+    session_selector: str = "off"
+    learning_backend: str = "provider"
+    worker_model: str | None = None
+    claude_cli_path: Path | None = None
+    worker_timeout_seconds: int = 1800
     built_in_hooks: tuple[BuiltInHookSpec, ...] = field(
         default_factory=default_built_in_hooks
     )
@@ -246,6 +255,23 @@ class ClaudeCodeConfig:
     def __post_init__(self) -> None:
         if not str(self.atlas_model).strip():
             raise ValueError("Claude Code integration requires atlas_model")
+        if self.project_scope not in {"explicit", "auto"}:
+            raise ValueError("project_scope must be 'explicit' or 'auto'")
+        if self.session_selector not in {"off", "prompt"}:
+            raise ValueError("session_selector must be 'off' or 'prompt'")
+        if self.learning_backend not in {"provider", "claude_subagent"}:
+            raise ValueError(
+                "learning_backend must be 'provider' or 'claude_subagent'"
+            )
+        if self.learning_backend == "claude_subagent" and (
+            self.generation_stops or self.refinement_stops
+        ):
+            raise ValueError(
+                "claude_subagent learning requires background generation and refinement"
+            )
+        validate_scope_id(self.task_group, label="task_group")
+        if self.project_id is not None:
+            validate_scope_id(self.project_id, label="project_id")
         if self.max_retries < 0:
             raise ValueError("max_retries cannot be negative")
         # max_retries is the legacy shared knob; it maps to the substantive
@@ -261,6 +287,7 @@ class ClaudeCodeConfig:
             ("k_init", self.k_init),
             ("k", self.k),
             ("failure_throttle_calls", self.failure_throttle_calls),
+            ("worker_timeout_seconds", self.worker_timeout_seconds),
         ):
             if value <= 0:
                 raise ValueError(f"{name} must be positive")
@@ -380,8 +407,44 @@ class ClaudeCodeConfig:
             failure_recency_seconds=max(
                 0, int(data.get("failure_recency_seconds", 30))
             ),
+            project_scope=str(scoped.get("project_scope", "explicit")),
+            project_id=(
+                str(scoped["project_id"]).strip()
+                if scoped.get("project_id")
+                else None
+            ),
+            task_group=str(scoped.get("task_group", "default")),
+            session_selector=str(scoped.get("session_selector", "off")),
+            learning_backend=str(scoped.get("learning_backend", "provider")),
+            worker_model=(
+                str(scoped["worker_model"]).strip()
+                if scoped.get("worker_model")
+                else None
+            ),
+            claude_cli_path=(
+                Path(str(scoped["claude_cli_path"])).expanduser().resolve()
+                if scoped.get("claude_cli_path")
+                else None
+            ),
+            worker_timeout_seconds=max(
+                1, int(scoped.get("worker_timeout_seconds", 1800))
+            ),
             built_in_hooks=built_in_hooks,
             custom_hooks=custom_hooks,
+        )
+
+    def for_event(self, event: dict) -> "ClaudeCodeConfig":
+        """Return the project/group-scoped config for a user-level hook."""
+        if self.project_scope == "explicit":
+            return self
+        return replace(
+            self,
+            trace_output=project_program_path(
+                self.trace_output,
+                cwd=event.get("cwd"),
+                task_group=self.task_group,
+                project_id=self.project_id,
+            ),
         )
 
     def to_dict(self) -> dict:
@@ -413,6 +476,16 @@ class ClaudeCodeConfig:
             "failure_throttle_calls": self.failure_throttle_calls,
             "failure_recency_seconds": self.failure_recency_seconds,
             "claude_code": {
+                "project_scope": self.project_scope,
+                "project_id": self.project_id,
+                "task_group": self.task_group,
+                "session_selector": self.session_selector,
+                "learning_backend": self.learning_backend,
+                "worker_model": self.worker_model,
+                "claude_cli_path": (
+                    str(self.claude_cli_path) if self.claude_cli_path else None
+                ),
+                "worker_timeout_seconds": self.worker_timeout_seconds,
                 "built_in_hooks": {
                     spec.event: spec.to_dict() for spec in self.built_in_hooks
                 },
