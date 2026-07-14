@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import io
 import os
 import re
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
@@ -1284,6 +1286,40 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
             ):
                 install(root, config)
             self.assertFalse((root / ".claude").exists())
+
+    def test_user_level_install_is_zero_config_and_native_by_default(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            with (
+                patch(
+                    "atlas_integration.claude_code.install.Path.home",
+                    return_value=root,
+                ),
+                patch(
+                    "atlas_integration.claude_code.install.verify_installed_hooks",
+                    return_value="9.9.9",
+                ),
+                redirect_stdout(io.StringIO()) as output,
+                redirect_stderr(io.StringIO()),
+            ):
+                code = install_main(["--user-level"])
+
+            self.assertEqual(code, 0)
+            result = json.loads(output.getvalue())
+            self.assertEqual(result["scope"], "user")
+            config = ClaudeCodeConfig.load(
+                root / ".claude" / "atlas-skill.json"
+            )
+            self.assertEqual(config.trace_output, root / ".atlas-skill" / "interactive")
+            self.assertEqual(config.atlas_model, "interactive-session")
+            self.assertEqual(config.project_scope, "auto")
+            self.assertEqual(config.session_selector, "prompt")
+            self.assertEqual(config.learning_backend, "claude_subagent")
+            self.assertIsNone(config.openai_api_key_env)
+
+    def test_user_level_install_rejects_project_target(self):
+        with self.assertRaises(SystemExit):
+            install_main(["--user-level", "--project-dir", "."])
 
     def test_empty_inherit_form_resolves_picker_at_install_time(self):
         with tempfile.TemporaryDirectory() as td:

@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from atlas_integration.codex.config import CodexConfig
 from atlas_runtime.doctor import ERROR, WARN, has_errors, run_checks
 
 
@@ -112,6 +113,8 @@ class DoctorCheckTests(unittest.TestCase):
         with (
             tempfile.TemporaryDirectory() as td,
             patch("atlas_runtime.doctor.shutil.which", return_value=None),
+            patch("atlas_runtime.doctor.Path.home", return_value=Path(td)),
+            patch("atlas_runtime.doctor.Path.cwd", return_value=Path(td)),
         ):
             checks = run_checks(
                 store_dir=Path(td) / "taxonomies",
@@ -134,6 +137,8 @@ class DoctorCheckTests(unittest.TestCase):
             tempfile.TemporaryDirectory() as td,
             patch("atlas_runtime.doctor.shutil.which", return_value="codex"),
             patch("atlas_runtime.doctor.subprocess.run", return_value=completed),
+            patch("atlas_runtime.doctor.Path.home", return_value=Path(td)),
+            patch("atlas_runtime.doctor.Path.cwd", return_value=Path(td)),
         ):
             checks = run_checks(
                 store_dir=Path(td) / "taxonomies",
@@ -144,6 +149,39 @@ class DoctorCheckTests(unittest.TestCase):
             [check for check in checks if check.name == "codex cli"][0].status,
             "ok",
         )
+
+    def test_native_codex_config_requires_a_runnable_cli(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            config_dir = root / ".codex"
+            config_dir.mkdir()
+            config = CodexConfig(
+                trace_output=root / ".atlas-skill" / "interactive",
+                atlas_model="interactive-session",
+                project_scope="auto",
+                session_selector="prompt",
+                learning_backend="codex_subagent",
+            )
+            (config_dir / "atlas-skill.json").write_text(
+                json.dumps(config.to_dict()),
+                encoding="utf-8",
+            )
+            with (
+                patch("atlas_runtime.doctor.Path.cwd", return_value=root / "project"),
+                patch("atlas_runtime.doctor.Path.home", return_value=root),
+                patch("atlas_runtime.doctor.shutil.which", return_value=None),
+            ):
+                checks = run_checks(
+                    store_dir=root / "taxonomies",
+                    trace_root=root / "traces",
+                    codex=True,
+                )
+
+        by_name = {check.name: check for check in checks}
+        self.assertEqual(by_name["codex config"].status, "ok")
+        self.assertEqual(by_name["codex cli"].status, ERROR)
+        self.assertEqual(by_name["codex auth"].status, ERROR)
+        self.assertTrue(has_errors(checks))
 
 
 if __name__ == "__main__":

@@ -21,6 +21,10 @@ from atlas_runtime.config import (
     require_config_value,
 )
 from atlas_integration.shared import write_json_atomic
+from atlas_integration.interactive.defaults import (
+    INTERACTIVE_ATLAS_MODEL,
+    default_interactive_trace_output,
+)
 from finding import resolver, store, webview
 
 from .config import (
@@ -336,7 +340,7 @@ def remove_from_settings_file(
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
-        description="Install the project-local ATLAS Claude Code runtime skin."
+        description="Install the project-local or user-level ATLAS Claude Code runtime."
     )
     add_config_argument(parser)
     parser.add_argument("--project-dir")
@@ -479,19 +483,35 @@ def main(argv=None) -> int:
         ),
     )
     args = parser.parse_args(argv)
+    if args.user_level and args.project_dir is not None:
+        parser.error("--user-level cannot be combined with --project-dir")
     try:
-        config = load_atlas_config(args.config)
+        config = (
+            load_atlas_config(args.config)
+            if args.config is not None or not args.user_level
+            else {}
+        )
         adapter_config = (
             config.get("claude_code")
             if isinstance(config.get("claude_code"), dict)
             else {}
         )
-        atlas_model = str(require_config_value(
-            args, config, "atlas_model", "--atlas-model"
-        ))
-        trace_output = Path(require_config_value(
-            args, config, "trace_output", "--trace-output"
-        )).resolve()
+        atlas_model_value = config_value(args, config, "atlas_model")
+        trace_output_value = config_value(args, config, "trace_output")
+        if args.user_level:
+            atlas_model_value = atlas_model_value or INTERACTIVE_ATLAS_MODEL
+            trace_output_value = trace_output_value or default_interactive_trace_output(
+                Path.home()
+            )
+        else:
+            atlas_model_value = require_config_value(
+                args, config, "atlas_model", "--atlas-model"
+            )
+            trace_output_value = require_config_value(
+                args, config, "trace_output", "--trace-output"
+            )
+        atlas_model = str(atlas_model_value)
+        trace_output = Path(trace_output_value).expanduser().resolve()
     except Exception as exc:  # noqa: BLE001
         parser.error(str(exc))
     if args.inherit_pick and args.inherit is not None:
@@ -582,11 +602,17 @@ def main(argv=None) -> int:
         "task_group": args.task_group or adapter_config.get("task_group", "default"),
         "session_selector": (
             args.session_selector
-            or adapter_config.get("session_selector", "off")
+            or adapter_config.get(
+                "session_selector",
+                "prompt" if args.user_level else "off",
+            )
         ),
         "learning_backend": (
             args.learning_backend
-            or adapter_config.get("learning_backend", "provider")
+            or adapter_config.get(
+                "learning_backend",
+                "claude_subagent" if args.user_level else "provider",
+            )
         ),
         "worker_model": args.worker_model or adapter_config.get("worker_model"),
         "claude_cli_path": (

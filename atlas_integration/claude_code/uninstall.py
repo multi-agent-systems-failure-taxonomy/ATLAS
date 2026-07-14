@@ -97,7 +97,7 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         description="Uninstall project-local or user-level ATLAS Claude Code hooks."
     )
-    parser.add_argument("--project-dir", default=".")
+    parser.add_argument("--project-dir", default=None)
     parser.add_argument(
         "--user-level",
         action="store_true",
@@ -109,8 +109,10 @@ def main(argv=None) -> int:
         help="also remove legacy ATLAS hooks from ~/.claude/settings.json",
     )
     args = parser.parse_args(argv)
+    if args.user_level and args.project_dir is not None:
+        parser.error("--user-level cannot be combined with --project-dir")
     result = uninstall(
-        args.project_dir,
+        args.project_dir or ".",
         migrate_legacy_global=args.migrate_legacy_global,
         user_level=args.user_level,
     )

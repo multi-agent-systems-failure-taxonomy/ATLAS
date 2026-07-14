@@ -3,17 +3,24 @@
 from __future__ import annotations
 
 import json
+import io
 import re
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
 from atlas_integration.codex.config import CodexConfig, parse_codex_hooks
 from atlas_integration.codex.dispatcher import _merge_notices
-from atlas_integration.codex.install import SKILL_NAME, install, install_skill
+from atlas_integration.codex.install import (
+    SKILL_NAME,
+    install,
+    install_skill,
+    main as install_main,
+)
 from atlas_integration.codex.runtime import (
     session_start,
     stop,
@@ -236,6 +243,36 @@ class CodexIntegrationTests(unittest.TestCase):
             self.assertIn("Stop", hooks)
             text = json.dumps(hooks)
             self.assertIn("atlas_integration.codex.dispatcher", text)
+
+    def test_user_level_install_is_zero_config_and_native_by_default(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            with (
+                patch(
+                    "atlas_integration.codex.install.Path.home",
+                    return_value=root,
+                ),
+                redirect_stdout(io.StringIO()) as output,
+            ):
+                code = install_main(["--user-level"])
+
+            self.assertEqual(code, 0)
+            result = json.loads(output.getvalue())
+            self.assertEqual(result["scope"], "user")
+            config = CodexConfig.load(root / ".codex" / "atlas-skill.json")
+            self.assertEqual(config.trace_output, root / ".atlas-skill" / "interactive")
+            self.assertEqual(config.atlas_model, "interactive-session")
+            self.assertEqual(config.project_scope, "auto")
+            self.assertEqual(config.session_selector, "prompt")
+            self.assertEqual(config.learning_backend, "codex_subagent")
+            self.assertIsNone(config.openai_api_key_env)
+            self.assertTrue(
+                (root / ".agents" / "skills" / SKILL_NAME / "SKILL.md").is_file()
+            )
+
+    def test_user_level_install_rejects_project_target(self):
+        with self.assertRaises(SystemExit):
+            install_main(["--user-level", "--project-dir", "."])
 
     def test_uninstall_removes_only_atlas_hooks(self):
         with tempfile.TemporaryDirectory() as temp:
