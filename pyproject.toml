@@ -10,7 +10,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "atlas-skill"
-version = "1.1.0b1"
+version = "1.1.0b2"
 description = "Adaptive failure-mode taxonomy runtime for Codex, Claude Code, and custom agent harnesses."
 readme = "README.md"
 requires-python = ">=3.10"
