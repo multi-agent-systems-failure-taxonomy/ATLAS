@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import json as _json
 import re as _re
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 from atlas_runtime.learning_calls import support_model_call
 from atlas_runtime.taxonomy_data import CostMeter

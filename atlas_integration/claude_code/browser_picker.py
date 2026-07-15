@@ -28,6 +28,15 @@ from .state import load_state, save_state
 PICKER_DIR = ".atlas-claude-picker"
 WORKER_MODULE = "atlas_integration.claude_code.browser_picker"
 
+__all__ = [
+    "apply_browser_choice",
+    "open_browser_picker",
+    "picker_options",
+    "read_browser_choice",
+    "serve_picker",
+    "start_browser_picker",
+]
+
 
 def start_browser_picker(
     trace_output: Path,

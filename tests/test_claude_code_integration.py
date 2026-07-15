@@ -1466,6 +1466,37 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
             )
             self.assertNotIn("SessionStart", remaining["hooks"])
 
+    def test_uninstall_preserves_atlas_named_unrelated_hook(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            config = ClaudeCodeConfig(
+                trace_output=root / "program",
+                atlas_model="test-model",
+                store_dir=STORE_DIR,
+            )
+            info = install(root, config, verify=False)
+            settings_path = Path(info["settings"])
+            settings = json.loads(settings_path.read_text(encoding="utf-8"))
+            settings["hooks"]["Stop"].append(
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": "my-atlas-failure-modes-notifier stop",
+                        }
+                    ]
+                }
+            )
+            settings_path.write_text(json.dumps(settings), encoding="utf-8")
+
+            uninstall(root)
+
+            remaining = json.loads(settings_path.read_text(encoding="utf-8"))
+            self.assertIn(
+                "my-atlas-failure-modes-notifier",
+                json.dumps(remaining),
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

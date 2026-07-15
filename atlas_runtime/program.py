@@ -28,10 +28,38 @@ MANIFEST_NAME = ".atlas-program.json"
 # of conflicting with it: package-default renames must not brick every
 # project state written by an earlier release.
 INTERACTIVE_SESSION_MODEL = "interactive-session"
+DEFAULT_SESSION_STALE_AFTER_SECONDS = 6 * 60 * 60
 
 
 class ProgramConflict(ValueError):
     """Raised when a run conflicts with the program's bound taxonomy."""
+
+
+def _prune_stale_sessions(
+    manifest: dict[str, Any],
+    *,
+    now: float,
+    stale_after_seconds: float,
+) -> list[str]:
+    """Prune expired leases while giving legacy untimed records one grace lease."""
+    active = manifest.setdefault("active_sessions", [])
+    kept: list[dict[str, Any]] = []
+    removed: list[str] = []
+    for item in active:
+        if not isinstance(item, dict):
+            continue
+        heartbeat = item.get("heartbeat_at_unix")
+        if not isinstance(heartbeat, int | float):
+            item.setdefault("started_at_unix", now)
+            item["heartbeat_at_unix"] = now
+            kept.append(item)
+            continue
+        if now - float(heartbeat) > stale_after_seconds:
+            removed.append(str(item.get("session_id") or "unknown"))
+            continue
+        kept.append(item)
+    manifest["active_sessions"] = kept
+    return removed
 
 
 class ProgramWorkspace:
@@ -132,9 +160,17 @@ class ProgramWorkspace:
         return str(self.load().get("repo", ""))
 
     def register_session(self, session_id: str, taxonomy_id: str) -> None:
+        now = time.time()
         with self.locked_manifest() as manifest:
             sessions = manifest.setdefault("active_sessions", [])
-            sessions.append({"session_id": session_id, "taxonomy_id": taxonomy_id})
+            sessions.append(
+                {
+                    "session_id": session_id,
+                    "taxonomy_id": taxonomy_id,
+                    "started_at_unix": now,
+                    "heartbeat_at_unix": now,
+                }
+            )
 
     def begin_session(
         self,
@@ -170,10 +206,51 @@ class ProgramWorkspace:
                     "state": "not_needed",
                     "last_error": None,
                 }
+            now = time.time()
             manifest.setdefault("active_sessions", []).append(
-                {"session_id": session_id, "taxonomy_id": selected}
+                {
+                    "session_id": session_id,
+                    "taxonomy_id": selected,
+                    "started_at_unix": now,
+                    "heartbeat_at_unix": now,
+                }
             )
             return str(selected)
+
+    def heartbeat_session(
+        self,
+        session_id: str,
+        *,
+        now: float | None = None,
+    ) -> bool:
+        """Refresh a live session lease and migrate legacy untimed records."""
+        current = time.time() if now is None else float(now)
+        found = False
+        with self.locked_manifest() as manifest:
+            for item in manifest.get("active_sessions", []):
+                if not isinstance(item, dict) or item.get("session_id") != session_id:
+                    continue
+                item.setdefault("started_at_unix", current)
+                item["heartbeat_at_unix"] = current
+                found = True
+        return found
+
+    def reconcile_stale_sessions(
+        self,
+        *,
+        now: float | None = None,
+        stale_after_seconds: float = DEFAULT_SESSION_STALE_AFTER_SECONDS,
+    ) -> list[str]:
+        """Expire abandoned leases; untimed legacy records receive one grace lease."""
+        if stale_after_seconds <= 0:
+            raise ValueError("stale_after_seconds must be positive")
+        current = time.time() if now is None else float(now)
+        with self.locked_manifest() as manifest:
+            return _prune_stale_sessions(
+                manifest,
+                now=current,
+                stale_after_seconds=stale_after_seconds,
+            )
 
     def follow_taxonomy_successor(self, taxonomy_id: str) -> None:
         """Advance taxonomy identity without touching program-local progress."""
@@ -413,6 +490,11 @@ class ProgramWorkspace:
     def activate_if_idle(self, taxonomy_id: str) -> bool:
         """Atomically activate only when no task is running."""
         with self.locked_manifest() as manifest:
+            _prune_stale_sessions(
+                manifest,
+                now=time.time(),
+                stale_after_seconds=DEFAULT_SESSION_STALE_AFTER_SECONDS,
+            )
             if manifest.get("active_sessions"):
                 return False
             if manifest.get("taxonomy_id"):

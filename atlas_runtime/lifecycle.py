@@ -185,9 +185,18 @@ def start_session(
     )
 
 
-def pre_submission(session: Session, gate_text: str) -> GateDecision:
+def pre_submission(
+    session: Session,
+    gate_text: str,
+    *,
+    repair_attempts_used: int = 0,
+) -> GateDecision:
     _require_active(session)
-    return evaluate_pre_submission(gate_text, max_retries=session.max_retries)
+    return evaluate_pre_submission(
+        gate_text,
+        max_retries=session.max_retries,
+        repair_attempts_used=repair_attempts_used,
+    )
 
 
 def record_trace(session: Session, trace: GenerationTrace) -> int:

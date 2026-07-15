@@ -265,9 +265,12 @@ class RegisterTaxonomyFilesBatchTests(unittest.TestCase):
     def test_batch_continues_on_error_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             td = Path(td)
-            good = td / "good.json"; good.write_text(json.dumps(FLAT))
-            bad = td / "bad.json";   bad.write_text(json.dumps({"nope": "x"}))
-            third = td / "third.json"; third.write_text(json.dumps(FLAT))
+            good = td / "good.json"
+            good.write_text(json.dumps(FLAT))
+            bad = td / "bad.json"
+            bad.write_text(json.dumps({"nope": "x"}))
+            third = td / "third.json"
+            third.write_text(json.dumps(FLAT))
             results = register_taxonomy_files(
                 [good, bad, third], store_dir=td / "store",
             )
@@ -280,8 +283,10 @@ class RegisterTaxonomyFilesBatchTests(unittest.TestCase):
     def test_batch_stop_on_error_re_raises(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             td = Path(td)
-            good = td / "good.json"; good.write_text(json.dumps(FLAT))
-            bad = td / "bad.json";   bad.write_text(json.dumps({"nope": "x"}))
+            good = td / "good.json"
+            good.write_text(json.dumps(FLAT))
+            bad = td / "bad.json"
+            bad.write_text(json.dumps({"nope": "x"}))
             with self.assertRaises(ValueError):
                 register_taxonomy_files(
                     [good, bad], store_dir=td / "store",
@@ -301,7 +306,8 @@ class ExpandPathsTests(unittest.TestCase):
 
     def test_passes_through_single_file(self) -> None:
         with tempfile.TemporaryDirectory() as td:
-            p = Path(td) / "t.json"; p.write_text("{}")
+            p = Path(td) / "t.json"
+            p.write_text("{}")
             self.assertEqual(_expand_paths([p]), [p])
 
     def test_missing_path_raises(self) -> None:

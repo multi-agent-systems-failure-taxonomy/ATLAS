@@ -25,6 +25,10 @@ before submission.
 |---|---|
 | `officeqa_taxonomy.json` | The 15-code failure-mode taxonomy used in the ATLAS run. |
 
+Per-question predictions, scorer rows, prompts, and run manifests are not
+included. The table above is a reported summary and cannot be recomputed from
+the files in this directory alone.
+
 ## The taxonomy
 
 Generated from the baseline run's own transcripts (outcome-blind) with ATLAS

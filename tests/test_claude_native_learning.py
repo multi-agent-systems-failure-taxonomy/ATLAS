@@ -37,6 +37,7 @@ from atlas_integration.claude_code.state import load_state, save_state
 from atlas_integration.claude_code.subagent_protocol import (
     RECEIPT_CLOSE,
     RECEIPT_OPEN,
+    complete_support_review,
 )
 from atlas_integration.claude_code.browser_picker import (
     apply_browser_choice,
@@ -219,6 +220,13 @@ class ClaudeNativeLearningTests(unittest.TestCase):
                     "category": "C",
                     "evidence": {
                         "trace_ids": [item["problem_id"] for item in snapshot["traces"]],
+                        "quotes": [
+                            {
+                                "trace_id": item["problem_id"],
+                                "quote": item["raw_trajectory"],
+                            }
+                            for item in snapshot["traces"]
+                        ],
                         "rationale": "Every frozen episode exposed this boundary.",
                     },
                 }
@@ -306,6 +314,13 @@ class ClaudeNativeLearningTests(unittest.TestCase):
                         "trace_ids": [
                             item["problem_id"] for item in snapshot["traces"]
                         ],
+                        "quotes": [
+                            {
+                                "trace_id": item["problem_id"],
+                                "quote": item["raw_trajectory"],
+                            }
+                            for item in snapshot["traces"]
+                        ],
                         "rationale": "All frozen episodes expose this boundary.",
                     },
                 }
@@ -356,6 +371,32 @@ class ClaudeNativeLearningTests(unittest.TestCase):
         )
         self.assertEqual(code, 0)
         self.assertIn("proposal received", output["systemMessage"])
+        reconcile_learning_jobs(
+            workspace,
+            store_dir=taxonomy_store,
+            trace_root=trace_root,
+        )
+        reviewer = claim_learning_job(
+            workspace,
+            conversation_id="claude-session-1",
+        )
+        complete_support_review(
+            job_dir,
+            claim_token=reviewer["claim_token"],
+            review={
+                "supported": True,
+                "codes": [
+                    {
+                        "id": "OPS-1",
+                        "supported": True,
+                        "reason": "The frozen episodes directly support this code.",
+                        "trace_ids": [
+                            item["problem_id"] for item in snapshot["traces"]
+                        ],
+                    }
+                ],
+            },
+        )
         reconcile_learning_jobs(
             workspace,
             store_dir=taxonomy_store,

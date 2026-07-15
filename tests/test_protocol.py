@@ -32,7 +32,8 @@ class ProtocolTests(unittest.TestCase):
             "**Repair attempts used:** 2\n\n"
             "**Status:** Ready for release\n\n"
             "## Proposed Final Answer\n\n"
-            "2 + 2 = 4\n"
+            "2 + 2 = 4\n",
+            repair_attempts_used=2,
         )
         self.assertTrue(decision.allow)
         self.assertEqual(decision.status, protocol.READY)
@@ -48,15 +49,15 @@ class ProtocolTests(unittest.TestCase):
         self.assertTrue(decision.allow)
         self.assertEqual(decision.status, protocol.READY)
 
-    def test_markdown_task_complete_status_allows(self):
+    def test_status_prose_is_rejected_even_when_it_contains_positive_words(self):
         decision = protocol.evaluate_pre_submission(
             "**Final ATLAS status:** Task complete. Computation verified. "
             "Final answer: **4**\n"
             "**Repair attempts used:** 2\n"
         )
-        self.assertTrue(decision.allow)
-        self.assertEqual(decision.status, protocol.READY)
-        self.assertEqual(decision.repair_attempts_used, 2)
+        self.assertFalse(decision.allow)
+        self.assertIsNone(decision.status)
+        self.assertEqual(decision.repair_attempts_used, 0)
 
     def test_final_status_pass_allows(self):
         decision = protocol.evaluate_pre_submission(
@@ -75,7 +76,7 @@ class ProtocolTests(unittest.TestCase):
         )
         self.assertTrue(decision.allow)
         self.assertEqual(decision.status, protocol.READY)
-        self.assertEqual(decision.repair_attempts_used, 2)
+        self.assertEqual(decision.repair_attempts_used, 0)
 
     def test_decide_no_change_can_stand_in_for_status(self):
         decision = protocol.evaluate_pre_submission(
@@ -86,21 +87,22 @@ class ProtocolTests(unittest.TestCase):
             "  - none apply | considered: MAST-12 | evidence: \"verified\"\n"
             "- Correlate: no failure\n"
             "- Decide: no change needed, because the answer is verified.\n"
-            "\nRepair attempts used: 1\n"
+            "\nRepair attempts used: 1\n",
+            repair_attempts_used=1,
         )
         self.assertTrue(decision.allow)
         self.assertEqual(decision.status, protocol.READY)
         self.assertEqual(decision.repair_attempts_used, 1)
 
-    def test_positive_status_phrase_allows(self):
+    def test_unknown_positive_status_phrase_blocks(self):
         decision = protocol.evaluate_pre_submission(
             "## Final ATLAS status:\n\n"
             "**Status:** GATE CLEARANCE PROPERLY AWAITED\n"
             "**Task compliance:** Current state is compliant with specification\n"
             "**Repair attempts used:** 2\n"
         )
-        self.assertTrue(decision.allow)
-        self.assertEqual(decision.status, protocol.READY)
+        self.assertFalse(decision.allow)
+        self.assertIsNone(decision.status)
 
     def test_bare_line_after_final_status_heading_allows(self):
         decision = protocol.evaluate_pre_submission(
@@ -111,15 +113,15 @@ class ProtocolTests(unittest.TestCase):
         )
         self.assertTrue(decision.allow)
         self.assertEqual(decision.status, protocol.READY)
-        self.assertEqual(decision.repair_attempts_used, 1)
+        self.assertEqual(decision.repair_attempts_used, 0)
 
-    def test_no_failure_modes_ready_phrase_allows(self):
+    def test_status_sentence_is_not_treated_as_enum(self):
         decision = protocol.evaluate_pre_submission(
             "Final ATLAS status: No failure modes remain; ready to submit.\n"
             "Repair attempts used: 0\n"
         )
-        self.assertTrue(decision.allow)
-        self.assertEqual(decision.status, protocol.READY)
+        self.assertFalse(decision.allow)
+        self.assertIsNone(decision.status)
 
     def test_decide_change_blocks_as_repair(self):
         decision = protocol.evaluate_pre_submission(
@@ -127,6 +129,7 @@ class ProtocolTests(unittest.TestCase):
             "- Decide: change: run the missing verification.\n"
             "\nRepair attempts used: 1\n",
             max_retries=3,
+            repair_attempts_used=1,
         )
         self.assertFalse(decision.allow)
         self.assertEqual(decision.status, protocol.REPAIR)
@@ -136,6 +139,7 @@ class ProtocolTests(unittest.TestCase):
             "Final ATLAS status: REPAIR_REQUIRED\n"
             "Repair attempts used: 1\n",
             max_retries=3,
+            repair_attempts_used=1,
         )
         self.assertFalse(decision.allow)
         self.assertIn("2 attempt(s) remain", decision.reason)
@@ -145,9 +149,27 @@ class ProtocolTests(unittest.TestCase):
             "Final ATLAS status: REPAIR_REQUIRED\n"
             "Repair attempts used: 3\n",
             max_retries=3,
+            repair_attempts_used=3,
         )
         self.assertTrue(decision.allow)
         self.assertEqual(decision.decision, "approve_unresolved")
+
+    def test_generated_retry_count_cannot_exhaust_runtime_budget(self):
+        decision = protocol.evaluate_pre_submission(
+            "Final ATLAS status: REPAIR_REQUIRED\n"
+            "Repair attempts used: 999\n",
+            max_retries=3,
+        )
+        self.assertFalse(decision.allow)
+        self.assertEqual(decision.repair_attempts_used, 0)
+
+    def test_negated_status_prose_never_approves(self):
+        for status in ("not yet ready", "not fully verified", "unready"):
+            decision = protocol.evaluate_pre_submission(
+                f"Final ATLAS status: {status}\nRepair attempts used: 0\n"
+            )
+            self.assertFalse(decision.allow, msg=status)
+            self.assertIsNone(decision.status, msg=status)
 
     def test_markdown_repair_status_blocks(self):
         decision = protocol.evaluate_pre_submission(
@@ -155,6 +177,7 @@ class ProtocolTests(unittest.TestCase):
             "- **Status:** needs repair\n"
             "- **Repair attempts used:** 1\n",
             max_retries=3,
+            repair_attempts_used=1,
         )
         self.assertFalse(decision.allow)
         self.assertEqual(decision.status, protocol.REPAIR)

@@ -213,10 +213,11 @@ a frozen trace list and remains idempotent by `job_id`. A stale claim is
 recoverable after a lease timeout.
 
 Codex and Claude Code each queue a durable claim and ask the active task to
-launch one native subagent against the frozen snapshot and strict output
-schema. The subagent submits a signed receipt through `SubagentStop`; it never
-receives taxonomy-store activation authority and needs no standalone CLI. The
-foreground hook coordinator owns validation and activation.
+launch one native subagent for the current phase against a frozen prompt and
+strict output schema. A replacement proposal is followed by a separately
+claimed support-review phase. Each subagent submits a signed receipt through
+`SubagentStop`; neither receives taxonomy-store activation authority or needs a
+standalone CLI. The foreground hook coordinator owns validation and activation.
 
 ### Generation and refinement policy
 

@@ -33,6 +33,12 @@ sit on top of this layer.
 | [`taxonomy_data.py`](taxonomy_data.py) | Taxonomy data model: `Code`, `Taxonomy`, `JudgeLog`, `CostMeter`, `render_code_spec` |
 | [`traces.py`](traces.py) | Crash-safe per-program trace files in the canonical ATLAS generation-input shape; integration across taxonomy successors |
 | [`traces_cli.py`](traces_cli.py) | `atlas-traces` CLI for trace status, JSONL export, and dry-run-first pruning |
+| [`evidence_export.py`](evidence_export.py) | Optional export of runtime evidence for offline inspection |
+| [`fsio.py`](fsio.py) | Retried UTF-8 reads and atomic replacement helpers for Windows-safe persistence |
+| [`project_scope.py`](project_scope.py) | Stable project and task-group identity helpers used by interactive adapters |
+| [`register_taxonomy.py`](register_taxonomy.py) | CLI for registering an existing taxonomy JSON file under an immutable ID |
+| [`status.py`](status.py) | Program health CLI, including session-lease reconciliation and learning state |
+| [`worker_state.py`](worker_state.py) | Durable background-worker heartbeat and stale-worker helpers |
 
 ## Two refinement modules — what's the difference?
 

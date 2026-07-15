@@ -722,6 +722,10 @@ def blocking_checkpoint(
     pending = state.setdefault("pending", {}).get(key)
     transcript_path = event.get("transcript_path")
     if pending:
+        if full and pending.pop("awaiting_repair", False):
+            pending["repairs_completed"] = int(
+                pending.get("repairs_completed", 0)
+            ) + 1
         recent = _recent_agent_text(event, after=int(pending.get("offset", 0)))
         try:
             reflection = parse_reflection(
@@ -751,8 +755,13 @@ def blocking_checkpoint(
             decision = evaluate_pre_submission(
                 recent,
                 max_retries=int(state["max_retries"]),
+                repair_attempts_used=int(pending.get("repairs_completed", 0)),
             )
             if not decision.allow:
+                if decision.status == "REPAIR_REQUIRED":
+                    pending["awaiting_repair"] = True
+                    pending["offset"] = transcript_size(transcript_path)
+                    pending["recorded"] = False
                 save_state(config.trace_output, state["session_id"], state)
                 return _block(
                     f"ATLAS final gate still blocks completion: "
@@ -789,6 +798,8 @@ def blocking_checkpoint(
         "prompt": prompt,
         "full": full,
         "recorded": False,
+        "repairs_completed": 0,
+        "awaiting_repair": False,
     }
     save_state(config.trace_output, state["session_id"], state)
     return _block(prompt)
@@ -813,6 +824,7 @@ def _harvest_codex_checkpoint(
             decision = evaluate_pre_submission(
                 text,
                 max_retries=int(state["max_retries"]),
+                repair_attempts_used=int(pending.get("repairs_completed", 0)),
             )
             status = (
                 decision.status
@@ -851,10 +863,7 @@ def _harvest_codex_checkpoint(
     )
     status = (
         "REPAIR_REQUIRED"
-        if re.search(
-            r"(?i)\b(?:repair|required|report\s+unresolved|blocked)\b",
-            next_action,
-        )
+        if _next_action_requires_repair(next_action)
         else "READY_TO_SUBMIT"
     )
     return (
@@ -869,6 +878,24 @@ def _harvest_codex_checkpoint(
         ),
         status,
         None,
+    )
+
+
+def _next_action_requires_repair(value: str) -> bool:
+    """Classify explicit unresolved intent without treating negation as failure."""
+    normalized = " ".join(str(value or "").casefold().split())
+    if re.search(
+        r"\b(?:no|not)\s+(?:further\s+)?(?:action|repair|change|work)\s+required\b",
+        normalized,
+    ):
+        return False
+    return bool(
+        re.search(
+            r"\b(?:repair|fix|resolve|address|correct|rework|retry|blocked)\b"
+            r"|\breport\s+unresolved\b"
+            r"|\b(?:repair|verification|action)\s+(?:is\s+)?required\b",
+            normalized,
+        )
     )
 
 
@@ -1039,16 +1066,19 @@ def _finish_runtime_session(
             "worker_model": config.worker_model,
             "worker_timeout_seconds": config.worker_timeout_seconds,
         }
-        generation_launcher = lambda: enqueue_learning_job(
-            workspace,
-            kind="generation",
-            **common,
-        )
-        refinement_launcher = lambda: enqueue_learning_job(
-            workspace,
-            kind="refinement",
-            **common,
-        )
+        def generation_launcher():
+            return enqueue_learning_job(
+                workspace,
+                kind="generation",
+                **common,
+            )
+
+        def refinement_launcher():
+            return enqueue_learning_job(
+                workspace,
+                kind="refinement",
+                **common,
+            )
     result = end_session(
         session,
         background_launcher=generation_launcher,
@@ -1079,6 +1109,11 @@ def _state(event: dict[str, Any], config: CodexConfig) -> dict[str, Any]:
             _recover_pending_transcript_selection(state, event, config)
             or state
         )
+    runtime_session_id = state.get("runtime_session_id")
+    if runtime_session_id and not state.get("finished"):
+        workspace = ProgramWorkspace(config.trace_output)
+        workspace.heartbeat_session(str(runtime_session_id))
+        workspace.reconcile_stale_sessions()
     return state
 
 

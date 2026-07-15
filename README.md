@@ -58,7 +58,8 @@ and Claude Code to share taxonomy state for the same Git project.
 3. A completed assistant episode becomes one canonical trace.
 4. At five eligible traces, ATLAS queues taxonomy generation by default.
 5. One native host subagent proposes a candidate while the main agent keeps
-   working. Foreground validation alone can activate it.
+   working. After exact-span checks, a separate support-review subagent must
+   approve every replacement code before foreground activation.
 6. The first refinement review occurs after ten additional traces; later
    reviews occur every twenty traces by default.
 
@@ -135,7 +136,7 @@ codes align with expert annotations at Cohen's kappa 0.725.
 | [`finding/`](finding/) | MAST, taxonomy registry, display metadata, and local views |
 | [`judge_types/`](judge_types/) | Taxonomy and reflection judges |
 | [`ATLAS_as_a_Judge/`](ATLAS_as_a_Judge/) | Judge-focused evaluation checks |
-| [`vendor/atlas/`](vendor/atlas/) | Vendored research generation pipeline |
+| [`vendor/atlas/`](vendor/atlas/) | Maintained in-tree fork of the research generation pipeline |
 | [`examples/`](examples/) | Runnable demonstrations |
 | [`runs/`](runs/) | Evaluation artifacts and reproduction notes |
 
@@ -144,8 +145,10 @@ package has its own README with a file-level map.
 
 ## Results
 
-Full per-question artifacts, exact taxonomies, and reproduction instructions
-live in [`runs/`](runs/).
+Reported summaries, exact taxonomies, and reproduction instructions live in
+[`runs/`](runs/). Per-question rows and raw scorer output are not included, so
+the headline numbers below cannot be independently recomputed from this
+repository alone.
 
 | Experiment | Headline |
 |---|---|
@@ -192,7 +195,9 @@ Development setup, verification commands, and package boundaries are in
 
 The original research pipeline is available on the
 [`paper-pipeline`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/tree/paper-pipeline)
-branch and vendored under [`vendor/atlas/`](vendor/atlas/).
+branch. A maintained, locally patched fork is included under
+[`vendor/atlas/`](vendor/atlas/); its provenance and change categories are
+documented in [`VENDORED.md`](vendor/atlas/VENDORED.md).
 
 ## License
 

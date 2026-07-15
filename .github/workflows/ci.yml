@@ -31,7 +31,15 @@ jobs:
           cache: pip
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[test,anthropic,bedrock]"
-      - run: python -m pytest -q
+      - run: python -m ruff check atlas_runtime atlas_integration finding judge_types tests
+      - run: >-
+          python -m pytest -q
+          --cov=atlas_runtime
+          --cov=atlas_integration
+          --cov=finding
+          --cov=judge_types
+          --cov-report=term
+          --cov-fail-under=78
 
   package-and-docs:
     runs-on: ubuntu-latest

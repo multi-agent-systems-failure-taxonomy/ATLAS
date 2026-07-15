@@ -22,7 +22,6 @@ from atlas_integration.claude_code.config import (
     BUILT_IN_HOOK_EVENTS,
     CLAUDE_CODE_EVENTS,
     CUSTOM_HOOK_CHECKPOINT_KEYS,
-    CUSTOM_HOOK_MODES,
     BuiltInHookSpec,
     ClaudeCodeConfig,
     CustomHookSpec,

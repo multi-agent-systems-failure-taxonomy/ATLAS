@@ -33,7 +33,6 @@ import argparse
 import hashlib
 import json
 import sys
-import tempfile
 import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -48,7 +47,6 @@ from .config import (
     config_value,
     load_atlas_config,
 )
-from .generation import candidate_from_atlas
 from .reflection_refinement import RefinementSummary, refine_with_reflection_judge
 from .repository import discover_repo
 from .taxonomy_data import Taxonomy

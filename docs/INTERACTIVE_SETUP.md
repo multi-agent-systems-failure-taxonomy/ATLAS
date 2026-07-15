@@ -12,9 +12,9 @@ conversations. It does not require `atlas.json` or a separate model API key.
 | Both | Run both commands | Shared project/task-group taxonomy state |
 
 The hooks and trace runtime work in the host conversation. In Codex and Claude
-Code, taxonomy generation and refinement run in one native subagent while the
-main agent keeps working normally. Durable polling repairs a missed threshold
-trigger on the next lifecycle event.
+Code, taxonomy generation and refinement use a native generator plus an
+independent native support reviewer while the main agent keeps working normally.
+Durable polling repairs a missed threshold trigger on the next lifecycle event.
 
 ## 1. Install the package
 
@@ -87,10 +87,11 @@ The active taxonomy remains stable while a worker runs. Trigger and completion
 notices appear in the conversation; completion appears on the next lifecycle
 event when the host cannot inject into an idle conversation.
 
-Native taxonomy candidates contain 1 to 30 failure codes. Each code must cite
-the frozen trace IDs that support it and include a rationale. This evidence is
-kept for audit and validation; the runtime definition of a code is its ID, name,
-description, and A/B/C category.
+Native replacement candidates contain 1 to 30 failure codes. Each code must
+cite the frozen trace IDs that support it, quote an exact span from every cited
+trace, and include a rationale. ATLAS verifies those spans before activation
+and keeps the result for audit. A refinement `no_change` receipt contains no
+replacement codes and leaves the stored taxonomy byte-for-byte unchanged.
 
 ## Shared project state
 

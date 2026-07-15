@@ -11,7 +11,7 @@ from atlas_runtime.lifecycle import (
     record_trace,
     start_session,
 )
-from atlas_runtime.program import ProgramConflict
+from atlas_runtime.program import ProgramConflict, ProgramWorkspace
 from atlas_runtime.traces import GenerationTrace, TraceStore
 from finding import resolver
 from unittest.mock import patch
@@ -182,13 +182,55 @@ class LifecycleTests(unittest.TestCase):
             blocked = pre_submission(
                 session,
                 "Final ATLAS status: REPAIR_REQUIRED\nRepair attempts used: 1",
+                repair_attempts_used=1,
             )
             allowed = pre_submission(
                 session,
                 "Final ATLAS status: REPAIR_REQUIRED\nRepair attempts used: 2",
+                repair_attempts_used=2,
             )
             self.assertFalse(blocked.allow)
             self.assertTrue(allowed.allow)
+
+    def test_stale_session_lease_is_reconciled_after_legacy_grace(self):
+        with tempfile.TemporaryDirectory() as td:
+            workspace = ProgramWorkspace(td)
+            with workspace.locked_manifest() as manifest:
+                manifest["active_sessions"] = [
+                    {"session_id": "crashed", "taxonomy_id": "mast"}
+                ]
+
+            self.assertEqual(
+                workspace.reconcile_stale_sessions(
+                    now=100.0,
+                    stale_after_seconds=10.0,
+                ),
+                [],
+            )
+            migrated = workspace.load()["active_sessions"][0]
+            self.assertEqual(migrated["heartbeat_at_unix"], 100.0)
+
+            self.assertEqual(
+                workspace.reconcile_stale_sessions(
+                    now=111.0,
+                    stale_after_seconds=10.0,
+                ),
+                ["crashed"],
+            )
+            self.assertEqual(workspace.load()["active_sessions"], [])
+
+    def test_session_heartbeat_extends_lease(self):
+        with tempfile.TemporaryDirectory() as td:
+            workspace = ProgramWorkspace(td)
+            workspace.register_session("live", "mast")
+            self.assertTrue(workspace.heartbeat_session("live", now=200.0))
+            self.assertEqual(
+                workspace.reconcile_stale_sessions(
+                    now=209.0,
+                    stale_after_seconds=10.0,
+                ),
+                [],
+            )
 
     def test_inherited_trace_is_pending_first_then_integrated(self):
         with tempfile.TemporaryDirectory() as td, tempfile.TemporaryDirectory() as tr:

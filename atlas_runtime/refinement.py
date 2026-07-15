@@ -449,6 +449,7 @@ def _wait_and_commit(
 ) -> str:
     deadline = time.monotonic() + timeout_seconds
     while True:
+        workspace.reconcile_stale_sessions()
         with workspace.locked_manifest() as manifest:
             if not manifest.get("active_sessions"):
                 return _commit_refinement(

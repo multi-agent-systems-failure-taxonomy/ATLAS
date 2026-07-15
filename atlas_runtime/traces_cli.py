@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import sys
 import time
@@ -13,7 +12,7 @@ from pathlib import Path
 from typing import Iterable
 
 from .config import add_config_argument, config_value, load_atlas_config
-from .traces import DEFAULT_TRACE_ROOT, GenerationTrace, RetentionPolicy, TraceStore
+from .traces import DEFAULT_TRACE_ROOT, RetentionPolicy, TraceStore
 
 _SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 

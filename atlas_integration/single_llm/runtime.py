@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import re
 import sys
 import uuid
@@ -213,7 +212,11 @@ def run_single_llm(
                 gate="single_llm_stop",
             )
             decision, flipped = pin_gate_decision(
-                pre_submission(session, gate_text),
+                pre_submission(
+                    session,
+                    gate_text,
+                    repair_attempts_used=repair_attempts,
+                ),
                 pinned_status,
                 max_retries=config.repair_rounds,
             )
@@ -223,6 +226,10 @@ def run_single_llm(
                     f"pre-re-prompt status {pinned_status}",
                     file=sys.stderr,
                 )
+            if decision.decision == "approve_unresolved":
+                if config.gate_exhaustion_policy == "raise":
+                    raise RuntimeError("ATLAS final repair limit exceeded")
+                break
             if decision.allow:
                 break
             repair_attempts += 1
@@ -261,7 +268,7 @@ def run_single_llm(
             checkpoint_count=checkpoint_count,
             messages=tuple(messages),
             session_end=ended,
-            gate_allowed=decision.allow,
+            gate_allowed=decision.decision == "approve",
         )
     except Exception:
         if not session._ended:

@@ -25,8 +25,8 @@ from finding import store
 
 from .program import ProgramWorkspace
 from .learning_calls import outcome_blind_trace
-from .reflection_refinement import RefinementSummary, refine_with_reflection_judge
-from .traces import DEFAULT_TRACE_ROOT, GenerationTrace, TraceStore
+from .reflection_refinement import refine_with_reflection_judge
+from .traces import DEFAULT_TRACE_ROOT, TraceStore
 from .worker_state import (
     GENERATION_WORKER_STATE,
     WorkerHeartbeat,
@@ -483,6 +483,7 @@ def _wait_and_commit(
     deadline = time.monotonic() + timeout_seconds
     while True:
         taxonomy_id = None
+        workspace.reconcile_stale_sessions()
         with workspace.locked_manifest() as manifest:
             if not manifest.get("active_sessions"):
                 taxonomy_id = _commit_accepted_candidate(

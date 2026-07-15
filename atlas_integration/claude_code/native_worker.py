@@ -154,7 +154,7 @@ def _run_claude(
         input=prompt,
         text=True,
         encoding="utf-8",
-        errors="replace",
+        errors="strict",
         capture_output=True,
         cwd=job_dir,
         timeout=timeout_seconds,

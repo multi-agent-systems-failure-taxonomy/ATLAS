@@ -12,6 +12,7 @@ import subprocess
 import sys
 from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 from atlas_runtime.config import (
     add_config_argument,
@@ -203,7 +204,7 @@ def install(
     config_path = claude_dir / "atlas-skill.json"
     write_json_atomic(config_path, config.to_dict())
     command = _module_command(Path(python), config_path)
-    remove_atlas_hooks(settings, include_legacy=user_level)
+    remove_atlas_hooks(settings, include_legacy=False)
     hooks = settings.setdefault("hooks", {})
     installed_events: list[str] = []
     for spec in config.built_in_hooks:

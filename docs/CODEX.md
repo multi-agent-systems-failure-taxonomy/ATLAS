@@ -138,12 +138,13 @@ After activation, Codex context names the active learned taxonomy by display
 name and immutable ID. The original selector choice, including MAST, remains
 recorded only as the lineage seed; it does not remain the checkpoint vocabulary.
 
-The native worker candidate schema accepts 1 through 30 codes. Thirty is a
-safety cap, not a target, so a small five-trace generation snapshot may produce
-fewer codes. Every proposed code must cite one or more frozen trace IDs and an
-evidence rationale. Those fields are generation provenance and validation
-evidence; runtime matching itself uses the code ID, name, description, and
-category. The current stored taxonomy retains the provenance inline for audit.
+The native worker candidate schema accepts 1 through 30 replacement codes.
+Thirty is a safety cap, not a target, so a small five-trace generation snapshot
+may produce fewer codes. Every proposed code must cite one or more frozen trace
+IDs, include an exact quote from every cited trace, and explain the support.
+ATLAS checks the quotes against the immutable snapshot and stores the validation
+record inline for audit. A refinement that chooses `no_change` returns no codes;
+the coordinator retains the current taxonomy verbatim.
 
 The trigger notice appears in the hook event that queues the worker. Codex
 hooks cannot inject into an idle task asynchronously, so the finished notice

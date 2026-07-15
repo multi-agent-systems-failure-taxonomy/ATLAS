@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-from atlas_runtime.evidence import EVIDENCE_FILE, record_reflection
 from atlas_runtime.fsio import read_text_retry, write_text_atomic_retry
 
 SESSION_DIR = ".atlas-claude-code"

@@ -18,6 +18,7 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: python -m pip install --upgrade pip build twine ".[test,docs,anthropic,bedrock]"
+      - run: python -m ruff check atlas_runtime atlas_integration finding judge_types tests
       - run: python -m pytest -q
       - run: python -m mkdocs build --strict
       - name: Verify tag matches package version

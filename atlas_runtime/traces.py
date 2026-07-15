@@ -31,6 +31,14 @@ DEFAULT_TRACE_ROOT = Path(
 TRACE_FIELDS = ("problem_id", "task", "raw_trajectory", "metadata")
 
 
+class TraceReadError(RuntimeError):
+    """A stored trace could not be read or validated without evidence loss."""
+
+    def __init__(self, path: Path, reason: Exception) -> None:
+        self.path = path
+        super().__init__(f"invalid or unreadable trace {path}: {reason}")
+
+
 @dataclass(frozen=True)
 class GenerationTrace:
     """One canonical trace consumable by ATLAS taxonomy generation."""
@@ -129,8 +137,8 @@ class TraceStore:
                 # learning job with a collision.
                 record = json.loads(read_text_retry(path))
                 yield GenerationTrace.from_dict(record)
-            except (OSError, json.JSONDecodeError, TypeError, ValueError):
-                continue
+            except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+                raise TraceReadError(path, exc) from exc
 
     def trace_files(self) -> list[Path]:
         if not self.root.exists():

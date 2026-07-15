@@ -28,6 +28,7 @@ from atlas_integration.codex.install import (
     main as install_main,
 )
 from atlas_integration.codex.runtime import (
+    _next_action_requires_repair,
     session_start,
     stop,
     subagent_stop,
@@ -107,6 +108,14 @@ Next action: {next_action}
 
 
 class CodexIntegrationTests(unittest.TestCase):
+    def test_compact_next_action_negation_is_ready(self):
+        self.assertFalse(
+            _next_action_requires_repair("no further action required")
+        )
+        self.assertFalse(_next_action_requires_repair("no repair required"))
+        self.assertTrue(_next_action_requires_repair("repair required"))
+        self.assertTrue(_next_action_requires_repair("report unresolved"))
+
     def base_config(self, root: Path) -> CodexConfig:
         return CodexConfig(
             trace_output=root / "program",
@@ -469,6 +478,29 @@ class CodexIntegrationTests(unittest.TestCase):
             cleaned = json.loads(hooks_path.read_text(encoding="utf-8"))
             self.assertIn("other.py", json.dumps(cleaned))
             self.assertFalse((root / ".codex" / "atlas-skill.json").exists())
+
+    def test_uninstall_preserves_unrelated_config_reference(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            install(root, self.base_config(root), python=Path("python"))
+            hooks_path = root / ".codex" / "hooks.json"
+            data = json.loads(hooks_path.read_text(encoding="utf-8"))
+            data["hooks"].setdefault("Stop", []).append(
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": "python backups/atlas-skill.json",
+                        }
+                    ]
+                }
+            )
+            hooks_path.write_text(json.dumps(data), encoding="utf-8")
+
+            uninstall(root)
+
+            cleaned = json.loads(hooks_path.read_text(encoding="utf-8"))
+            self.assertIn("backups/atlas-skill.json", json.dumps(cleaned))
 
     def test_stop_hook_commits_compact_checkpoint_in_one_callback(self):
         with tempfile.TemporaryDirectory() as temp:

@@ -26,7 +26,6 @@ from atlas_runtime import (
 )
 from atlas_runtime.evidence import record_reflection
 from atlas_runtime.reflection import (
-    ReflectionResult,
     harvest_reflection,
     parse_reflection,
 )
@@ -580,8 +579,11 @@ def blocking_checkpoint(
             pending["recorded"] = True
         if gate == "stop" and pending.get("full", True):
             repair_rounds = _repair_rounds(state)
+            repairs_completed = int(pending.get("repairs_completed", 0))
             emitted = evaluate_pre_submission(
-                recent, max_retries=repair_rounds
+                recent,
+                max_retries=repair_rounds,
+                repair_attempts_used=repairs_completed,
             )
             decision, flipped = pin_gate_decision(
                 emitted,
@@ -599,7 +601,6 @@ def blocking_checkpoint(
                         "emitted_status": emitted.status,
                     },
                 )
-            repairs_completed = int(pending.get("repairs_completed", 0))
             pinned_decide = pending.get("pinned_decide")
             reflection_requires_change = (
                 bool(pinned_decide)
@@ -873,6 +874,11 @@ def _state(
             _recover_pending_transcript_selection(state, event, config)
             or state
         )
+    runtime_session_id = state.get("runtime_session_id")
+    if runtime_session_id and not state.get("finished"):
+        workspace = ProgramWorkspace(config.trace_output)
+        workspace.heartbeat_session(str(runtime_session_id))
+        workspace.reconcile_stale_sessions()
     return state
 
 
@@ -1045,16 +1051,19 @@ def _finish_runtime_session(
             "claude_cli_path": config.claude_cli_path,
             "worker_timeout_seconds": config.worker_timeout_seconds,
         }
-        generation_launcher = lambda: enqueue_claude_learning_job(
-            workspace,
-            kind="generation",
-            **common,
-        )
-        refinement_launcher = lambda: enqueue_claude_learning_job(
-            workspace,
-            kind="refinement",
-            **common,
-        )
+        def generation_launcher():
+            return enqueue_claude_learning_job(
+                workspace,
+                kind="generation",
+                **common,
+            )
+
+        def refinement_launcher():
+            return enqueue_claude_learning_job(
+                workspace,
+                kind="refinement",
+                **common,
+            )
     result = end_session(
         session,
         background_launcher=generation_launcher,
