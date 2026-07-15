@@ -79,6 +79,10 @@ conversation from another shell or changing its current working directory does
 not recompute the project, reopen the browser selector, or replace the selected
 taxonomy.
 
+For older inline-selector sessions, SessionStart also checks the transcript
+after the saved selector boundary. An exact offered reply such as `MAST` is
+migrated before the browser can reopen; ordinary task prose does not match.
+
 ## Customize built-in hooks
 
 Examples:

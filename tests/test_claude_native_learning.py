@@ -122,6 +122,47 @@ class ClaudeNativeLearningTests(unittest.TestCase):
         self.assertEqual(state["episode_task"], "Build the company tools demo")
         self.assertFalse(state["finished"])
 
+    def test_resume_recovers_missed_inline_choice_before_browser_launch(self) -> None:
+        inline_config = self.config(selector_surface="inline")
+        session_start(self.event("SessionStart"), inline_config)
+        with self.transcript.open("a", encoding="utf-8") as handle:
+            for text in ("Inspect the existing experiment.", "MAST"):
+                handle.write(
+                    json.dumps(
+                        {
+                            "type": "user",
+                            "message": {
+                                "role": "user",
+                                "content": [{"type": "text", "text": text}],
+                            },
+                        }
+                    )
+                    + "\n"
+                )
+
+        browser_config = self.config(selector_surface="browser")
+        with patch(
+            "atlas_integration.claude_code.runtime.start_browser_picker"
+        ) as launch:
+            resumed = session_start(self.event("SessionStart"), browser_config)
+
+        launch.assert_not_called()
+        state = load_state(browser_config.trace_output, "claude-session-1")
+        self.assertEqual(state["selection"]["status"], "selected")
+        self.assertEqual(
+            state["selection"]["selected_taxonomy_id"],
+            "mast",
+        )
+        self.assertEqual(
+            state["selector_recovery"]["source"],
+            "transcript",
+        )
+        self.assertIn(
+            "taxonomy is pinned to MAST",
+            resumed["hookSpecificOutput"]["additionalContext"],
+        )
+        self.assertIn("recovered", resumed["systemMessage"].lower())
+
     def test_codex_and_claude_auto_scope_share_program_path(self) -> None:
         claude = self.config(project_scope="auto", task_group="platform")
         codex = CodexConfig(

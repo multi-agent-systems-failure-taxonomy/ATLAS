@@ -51,9 +51,9 @@ All notable user-facing changes are documented here.
 - Codex user-level hooks now ignore host-maintenance conversations rooted in
   `~/.codex/memories`, preventing internal memory work from opening a taxonomy
   browser alongside an unrelated user task.
-- Resumed Codex conversations recover an exact legacy inline taxonomy reply
-  from their transcript before launching the browser. This repairs selections
-  missed by Desktop builds that did not emit `UserPromptSubmit`.
+- Resumed Codex and Claude Code conversations recover an exact legacy inline
+  taxonomy reply from their transcript before launching the browser. This
+  repairs selections missed when `UserPromptSubmit` was not emitted.
 - Codex and Claude Code context now distinguishes the taxonomy originally
   selected as a lineage seed from the generated or refined taxonomy currently
   active. Checkpoints are explicitly directed to the active taxonomy's codes

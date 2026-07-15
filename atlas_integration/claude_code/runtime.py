@@ -44,6 +44,7 @@ from atlas_integration.interactive.selector import (
 )
 
 from .browser_picker import (
+    apply_browser_choice,
     open_browser_picker,
     read_browser_choice,
     start_browser_picker,
@@ -61,6 +62,7 @@ from .transcript import (
     read_raw_transcript,
     read_transcript,
     transcript_size,
+    user_messages,
 )
 
 CHECKPOINT_REQUEST = re.compile(
@@ -85,6 +87,33 @@ def session_start(event: dict[str, Any], config: ClaudeCodeConfig) -> dict:
         if selection:
             status = selection.get("status")
             if status == "pending":
+                recovered_selection = _recover_pending_transcript_selection(
+                    existing,
+                    event,
+                    config,
+                )
+                if recovered_selection:
+                    existing = recovered_selection
+                    selection = existing["selection"]
+                    if selection.get("status") == "disabled":
+                        return {
+                            "systemMessage": (
+                                "ATLAS recovered the conversation's previous "
+                                "No taxonomy choice."
+                            )
+                        }
+                    return _context_with_message(
+                        "SessionStart",
+                        _selected_context(
+                            selection,
+                            state=existing,
+                            config=config,
+                        )
+                        + "\n\n"
+                        + STANDING_PROMPT,
+                        "ATLAS recovered the conversation's previous "
+                        "taxonomy choice.",
+                    )
                 selection = _refresh_pending_selection(existing, event, config)
                 save_state(config.trace_output, session_id, existing)
                 if config.selector_surface == "inline":
@@ -839,7 +868,84 @@ def _state(
     if not state:
         session_start(event, config)
         state = load_state(config.trace_output, session_id)
+    if (state.get("selection") or {}).get("status") == "pending":
+        state = (
+            _recover_pending_transcript_selection(state, event, config)
+            or state
+        )
     return state
+
+
+def _recover_pending_transcript_selection(
+    state: dict[str, Any],
+    event: dict[str, Any],
+    config: ClaudeCodeConfig,
+) -> dict[str, Any] | None:
+    """Migrate an exact inline choice missed by a Claude hook."""
+    selection = state.get("selection") or {}
+    if selection.get("status") != "pending":
+        return None
+    cursor = int(
+        selection.get("held_cursor")
+        or state.get("main_cursor")
+        or state.get("episode_cursor")
+        or 0
+    )
+    choice = None
+    for prompt in user_messages(event.get("transcript_path"), after=cursor):
+        candidate = parse_selection_choice(prompt, selection)
+        if candidate and candidate.get("kind") != "browser":
+            choice = candidate
+            break
+    if choice is None or choice.get("starts_fresh"):
+        return None
+
+    choice_value = (
+        "none"
+        if choice.get("kind") == "disabled"
+        else str(choice.get("taxonomy_id") or "")
+    )
+    receipt = apply_browser_choice(
+        {
+            "version": 1,
+            "session_id": _required(event, "session_id"),
+            "trace_output": str(config.trace_output),
+            "store_dir": str(config.store_dir),
+            "selection": selection,
+            "event": {
+                "cwd": event.get("cwd"),
+                "session_id": _required(event, "session_id"),
+            },
+            "routing_root": str(config.routing_root or config.trace_output),
+            "default_trace_output": str(
+                config.default_trace_output or config.trace_output
+            ),
+            "task_group": config.task_group,
+            "project_scope": config.project_scope,
+            "project_id": config.project_id,
+        },
+        choice_value,
+    )
+    recovered = load_state(
+        Path(receipt["trace_output"]),
+        _required(event, "session_id"),
+    )
+    if not recovered:
+        return None
+    current_size = transcript_size(event.get("transcript_path"))
+    recovered["main_cursor"] = current_size
+    recovered["episode_cursor"] = current_size
+    recovered["selector_recovery"] = {
+        "source": "transcript",
+        "choice": choice_value,
+        "recovered_at": datetime.now(timezone.utc).isoformat(),
+    }
+    save_state(
+        Path(receipt["trace_output"]),
+        _required(event, "session_id"),
+        recovered,
+    )
+    return recovered
 
 
 def _finish_runtime_session(

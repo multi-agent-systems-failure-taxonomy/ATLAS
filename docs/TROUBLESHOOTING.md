@@ -103,6 +103,8 @@ atlas-doctor --claude-code
 
 The first hook after upgrading also migrates any existing selected or disabled
 session state into the binding. It should not ask for the taxonomy again.
+An exact legacy inline reply such as `MAST` is also recovered from the saved
+Claude transcript before a pending session can launch the browser.
 
 ## A taxonomy browser opens beside an unrelated Codex task
 
