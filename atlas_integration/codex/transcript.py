@@ -98,6 +98,19 @@ def latest_user_message(
     return latest
 
 
+def user_messages(
+    path: Path | str | None,
+    *,
+    after: int = 0,
+) -> list[str]:
+    """Return normalized user messages in transcript order."""
+    return [
+        str(item.get("text") or "").strip()
+        for item in _normalized_events(path, after=after)
+        if item.get("type") == "user"
+    ]
+
+
 def has_assistant_activity(
     path: Path | str | None,
     *,

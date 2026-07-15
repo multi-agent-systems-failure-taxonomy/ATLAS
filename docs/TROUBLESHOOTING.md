@@ -104,6 +104,14 @@ atlas-doctor --claude-code
 The first hook after upgrading also migrates any existing selected or disabled
 session state into the binding. It should not ask for the taxonomy again.
 
+## A taxonomy browser opens beside an unrelated Codex task
+
+If the browser page names `memories` as the project, it came from a Codex
+host-maintenance conversation rather than the visible project. Current releases
+bypass `~/.codex/memories` before ATLAS routing. They also recover an exact
+legacy inline reply such as `MAST` from a pending task's transcript before
+opening a browser.
+
 ## The conversation still says MAST after learning finished
 
 MAST may remain in persisted selection state as the conversation's lineage

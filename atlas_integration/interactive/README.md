@@ -14,6 +14,8 @@ later host `cwd` change or resumed shell cannot reopen taxonomy selection.
 The original selector choice remains lineage metadata. After generation or
 refinement activates a successor, host context names that active taxonomy and
 directs checkpoints to its codes without erasing the seed selection.
+Codex host-maintenance tasks rooted in `~/.codex/memories` are excluded before
+project routing, so user-level hooks do not create selectors for internal work.
 
 When a generation or refinement threshold is reached, the coordinator freezes
 eligible evidence and queues one job. The active host claims that job, launches

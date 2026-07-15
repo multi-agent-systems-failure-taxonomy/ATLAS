@@ -16,6 +16,7 @@ from unittest.mock import patch
 from atlas_integration.codex.config import CodexConfig, parse_codex_hooks
 from atlas_integration.codex.browser_picker import apply_browser_choice
 from atlas_integration.codex.dispatcher import (
+    _is_internal_codex_event,
     _merge_learning_context,
     _merge_notices,
     main as dispatcher_main,
@@ -169,6 +170,42 @@ class CodexIntegrationTests(unittest.TestCase):
             "Launch the native taxonomy subagent.",
         )
         self.assertTrue(output["continue"])
+
+    def test_dispatcher_ignores_codex_internal_memory_tasks(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            codex_home = root / ".codex"
+            memories = codex_home / "memories"
+            memories.mkdir(parents=True)
+            config = self.base_config(root)
+            config_path = root / "atlas-skill.json"
+            config_path.write_text(
+                json.dumps(config.to_dict()),
+                encoding="utf-8",
+            )
+            event = {
+                "hook_event_name": "SessionStart",
+                "session_id": "internal-memory-task",
+                "cwd": str(memories),
+            }
+            stdout = io.StringIO()
+
+            with (
+                patch.dict("os.environ", {"CODEX_HOME": str(codex_home)}),
+                patch("sys.stdin", io.StringIO(json.dumps(event))),
+                redirect_stdout(stdout),
+            ):
+                code = dispatcher_main(["--config", str(config_path)])
+                self.assertTrue(_is_internal_codex_event(event))
+                self.assertFalse(
+                    _is_internal_codex_event(
+                        {**event, "cwd": str(root / "project")}
+                    )
+                )
+
+            self.assertEqual(code, 0)
+            self.assertEqual(stdout.getvalue(), "")
+            self.assertFalse(config.trace_output.exists())
 
     def test_dispatcher_polls_and_claims_missed_generation_on_user_prompt(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -979,6 +1016,50 @@ class CodexIntegrationTests(unittest.TestCase):
             self.assertEqual(traces[0].task, "ORIGINAL TASK MARKER")
             self.assertIn("ORIGINAL TASK ANSWER MARKER", traces[0].raw_trajectory)
             self.assertNotIn("ATLAS SELECTOR MARKER", traces[0].raw_trajectory)
+
+    def test_resume_recovers_missed_inline_choice_before_browser_launch(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            transcript = root / "codex.jsonl"
+            transcript.write_text("", encoding="utf-8")
+            config = self.selector_config(root)
+            event = {
+                "session_id": "selector-resume-recovery",
+                "cwd": str(root),
+                "transcript_path": str(transcript),
+            }
+            session_start(
+                {**event, "hook_event_name": "SessionStart"},
+                config,
+            )
+            append_text(transcript, "Inspect the existing experiment.", role="user")
+            append_text(transcript, "MAST", role="user")
+
+            browser_config = replace(config, selector_surface="browser")
+            with patch(
+                "atlas_integration.codex.runtime.start_browser_picker"
+            ) as launch:
+                resumed = session_start(
+                    {**event, "hook_event_name": "SessionStart"},
+                    browser_config,
+                )
+
+            launch.assert_not_called()
+            state = load_state(config.trace_output, event["session_id"])
+            self.assertEqual(state["selection"]["status"], "selected")
+            self.assertEqual(
+                state["selection"]["selected_taxonomy_id"],
+                "mast",
+            )
+            self.assertEqual(
+                state["selector_recovery"]["source"],
+                "transcript",
+            )
+            self.assertIn(
+                "taxonomy is pinned to MAST",
+                resumed["hookSpecificOutput"]["additionalContext"],
+            )
+            self.assertIn("recovered", resumed["systemMessage"].lower())
 
     def test_browser_catalog_launches_on_session_start_and_applies_directly(self):
         with tempfile.TemporaryDirectory() as temp:

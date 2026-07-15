@@ -85,6 +85,12 @@ Set `selector_surface` to `"inline"` only for a host that reliably emits
 `UserPromptSubmit` and where opening a local browser is undesirable. Browser is
 the default because current Codex Desktop builds may omit that event.
 
+When upgrading an older inline-selector task, SessionStart also checks the
+transcript after the saved selector boundary. An exact offered reply such as
+`MAST` is migrated before a browser can reopen; ordinary task prose does not
+match. Codex maintenance tasks rooted in `~/.codex/memories` are ignored by
+the user-level dispatcher and never open a selector.
+
 The installer flag is equivalent and overrides `atlas.json` for that install:
 
 ```bash

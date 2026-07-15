@@ -228,12 +228,13 @@ def apply_browser_choice(
         "task_group": target_task_group,
         "applied_at": time.time(),
     }
-    result_path = Path(str(request["result_path"]))
-    result_path.parent.mkdir(parents=True, exist_ok=True)
-    write_text_atomic_retry(
-        result_path,
-        json.dumps(receipt, indent=2, ensure_ascii=False) + "\n",
-    )
+    if request.get("result_path"):
+        result_path = Path(str(request["result_path"]))
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        write_text_atomic_retry(
+            result_path,
+            json.dumps(receipt, indent=2, ensure_ascii=False) + "\n",
+        )
     return receipt
 
 

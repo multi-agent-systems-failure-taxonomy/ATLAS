@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import sys
+from pathlib import Path
 
 try:  # pragma: no cover - script execution fallback
     from atlas_integration.codex.config import CodexConfig
@@ -61,6 +62,8 @@ def main(argv: list[str] | None = None) -> int:
     config: CodexConfig | None = None
     try:
         event = json.loads(sys.stdin.read() or "{}")
+        if _is_internal_codex_event(event):
+            return 0
         base_config = CodexConfig.load(args.config)
         config = base_config.for_event(event)
         if config.learning_backend == "provider" and config.openai_base_url:
@@ -136,6 +139,23 @@ def main(argv: list[str] | None = None) -> int:
                 pass
         print(f"ATLAS Codex hook failed: {exc}", file=sys.stderr)
         return 1
+
+
+def _is_internal_codex_event(event: dict) -> bool:
+    """Exclude host-maintenance tasks that are not user conversations."""
+    cwd = str(event.get("cwd") or "").strip()
+    if not cwd:
+        return False
+    codex_home = Path(
+        os.environ.get("CODEX_HOME") or (Path.home() / ".codex")
+    ).expanduser()
+    try:
+        relative = Path(cwd).expanduser().resolve().relative_to(
+            codex_home.resolve()
+        )
+    except (OSError, ValueError):
+        return False
+    return bool(relative.parts and relative.parts[0].casefold() == "memories")
 
 
 def _workspace(config: CodexConfig, event: dict):
