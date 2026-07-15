@@ -48,6 +48,10 @@ All notable user-facing changes are documented here.
 
 ### Fixed
 
+- Codex and Claude Code context now distinguishes the taxonomy originally
+  selected as a lineage seed from the generated or refined taxonomy currently
+  active. Checkpoints are explicitly directed to the active taxonomy's codes
+  instead of continuing to present MAST as pinned after activation.
 - Resumed Codex and Claude Code conversations now retain their original ATLAS
   program scope even when the host reports a different current working
   directory. Existing selected or disabled session state is migrated into the

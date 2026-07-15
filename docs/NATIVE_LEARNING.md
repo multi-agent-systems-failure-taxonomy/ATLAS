@@ -38,6 +38,11 @@ queued -> claimed -> awaiting_reconcile -> activating
 6. A valid candidate is registered and activated atomically. Failure leaves
    MAST or the current taxonomy active.
 
+The selector choice remains the conversation's lineage seed after activation.
+For example, a conversation that selected MAST still records MAST as its root,
+but host context names the generated or refined taxonomy's display name and
+immutable ID as active. Checkpoints must use codes from that active taxonomy.
+
 ## Worker boundary
 
 The taxonomy subagent may read only its frozen prompt and schema. It must not:

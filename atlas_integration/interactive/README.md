@@ -11,6 +11,9 @@ share the active taxonomy. A conversation may choose the shared taxonomy,
 disable ATLAS, or start from MAST in a durable isolated `fresh-*` group.
 The first resolved program scope is pinned to the conversation identity, so a
 later host `cwd` change or resumed shell cannot reopen taxonomy selection.
+The original selector choice remains lineage metadata. After generation or
+refinement activates a successor, host context names that active taxonomy and
+directs checkpoints to its codes without erasing the seed selection.
 
 When a generation or refinement threshold is reached, the coordinator freezes
 eligible evidence and queues one job. The active host claims that job, launches

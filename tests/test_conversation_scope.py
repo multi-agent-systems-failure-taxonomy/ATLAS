@@ -11,9 +11,15 @@ from atlas_integration.claude_code.config import ClaudeCodeConfig
 from atlas_integration.claude_code.runtime import session_start, user_prompt_submit
 from atlas_integration.claude_code.state import save_state
 from atlas_integration.codex.config import CodexConfig
-from atlas_integration.interactive.selector import build_selection
+from atlas_integration.codex.runtime import session_start as codex_session_start
+from atlas_integration.codex.state import save_state as save_codex_state
+from atlas_integration.interactive.selector import (
+    build_selection,
+    render_active_selection_context,
+)
+from atlas_runtime import ProgramWorkspace
 from atlas_runtime.project_scope import project_program_path
-from finding import mast, webview
+from finding import mast, store, webview
 
 
 STORE_DIR = Path(__file__).resolve().parent / "fixtures" / "taxonomies"
@@ -149,6 +155,125 @@ class ConversationScopeTests(unittest.TestCase):
         )
 
         self.assertEqual(resumed.trace_output, first.trace_output)
+
+    def test_learned_taxonomy_replaces_mast_in_host_context(self) -> None:
+        config = CodexConfig(
+            trace_output=self.routing_root,
+            atlas_model="test-model",
+            store_dir=STORE_DIR,
+            trace_root=self.root / "traces",
+            dashboard=False,
+            project_scope="auto",
+            task_group="default",
+            session_selector="prompt",
+            selector_surface="inline",
+        )
+        event = {
+            "hook_event_name": "SessionStart",
+            "thread_id": "codex-learned-thread",
+            "cwd": str(self.project),
+            "transcript_path": str(self.transcript),
+        }
+        scoped = config.for_event(event)
+        taxonomy_id = str(store.list_all(STORE_DIR)[0]["taxonomy_id"])
+        record = store.fetch_by_id(taxonomy_id, STORE_DIR)
+        ProgramWorkspace(scoped.trace_output).bind_inherited_taxonomy(taxonomy_id)
+        selection = build_selection(
+            trace_output=self.root / "unbound-selection",
+            store_dir=STORE_DIR,
+            cwd=self.project,
+            catalog_mode="inline",
+        )
+        selection.update(
+            status="selected",
+            selected_kind="mast",
+            selected_taxonomy_id=mast.MAST_ID,
+            selected_label="MAST",
+        )
+        save_codex_state(
+            scoped.trace_output,
+            "codex-learned-thread",
+            {
+                "version": 1,
+                "session_id": "codex-learned-thread",
+                "conversation_id": "codex-learned-thread",
+                "episode_sequence": 6,
+                "taxonomy_id": taxonomy_id,
+                "selection": selection,
+                "finished": True,
+            },
+        )
+
+        output = codex_session_start(event, scoped)
+        context = output["hookSpecificOutput"]["additionalContext"]
+
+        self.assertIn("ATLAS active taxonomy is", context)
+        self.assertIn(store.display_name(record), context)
+        self.assertIn(taxonomy_id, context)
+        self.assertIn("selected MAST lineage", context)
+        self.assertIn("Use only codes from the active taxonomy", context)
+        self.assertNotIn("taxonomy is pinned to MAST", context)
+
+    def test_claude_context_names_learned_taxonomy_after_activation(self) -> None:
+        config = self.config(selector_surface="inline")
+        event = {
+            "hook_event_name": "SessionStart",
+            "session_id": "claude-learned-session",
+            "cwd": str(self.project),
+            "transcript_path": str(self.transcript),
+        }
+        scoped = config.for_event(event)
+        taxonomy_id = str(store.list_all(STORE_DIR)[0]["taxonomy_id"])
+        record = store.fetch_by_id(taxonomy_id, STORE_DIR)
+        ProgramWorkspace(scoped.trace_output).bind_inherited_taxonomy(taxonomy_id)
+        selection = build_selection(
+            trace_output=self.root / "unbound-claude-selection",
+            store_dir=STORE_DIR,
+            cwd=self.project,
+            catalog_mode="inline",
+        )
+        selection.update(
+            status="selected",
+            selected_kind="mast",
+            selected_taxonomy_id=mast.MAST_ID,
+            selected_label="MAST",
+        )
+        save_state(
+            scoped.trace_output,
+            "claude-learned-session",
+            {
+                "version": 1,
+                "session_id": "claude-learned-session",
+                "conversation_id": "claude-learned-session",
+                "episode_sequence": 6,
+                "taxonomy_id": taxonomy_id,
+                "selection": selection,
+                "finished": True,
+            },
+        )
+
+        output = session_start(event, scoped)
+        context = output["hookSpecificOutput"]["additionalContext"]
+
+        self.assertIn("ATLAS active taxonomy is", context)
+        self.assertIn(store.display_name(record), context)
+        self.assertIn(taxonomy_id, context)
+        self.assertIn("selected MAST lineage", context)
+        self.assertNotIn("taxonomy is pinned to MAST", context)
+
+    def test_shared_context_preserves_seed_when_no_successor_is_active(self) -> None:
+        selection = {
+            "selected_taxonomy_id": mast.MAST_ID,
+            "selected_label": "MAST",
+        }
+
+        context = render_active_selection_context(
+            selection,
+            active_taxonomy_id=mast.MAST_ID,
+            store_dir=STORE_DIR,
+        )
+
+        self.assertIn("taxonomy is pinned to MAST", context)
 
     def test_picker_completion_names_the_active_host(self) -> None:
         choice = {

@@ -104,6 +104,15 @@ atlas-doctor --claude-code
 The first hook after upgrading also migrates any existing selected or disabled
 session state into the binding. It should not ask for the taxonomy again.
 
+## The conversation still says MAST after learning finished
+
+MAST may remain in persisted selection state as the conversation's lineage
+seed. Once generation or refinement activates a successor, host context should
+instead name the active taxonomy's display name and immutable ID and direct the
+agent to its codes. Run `atlas-status` to compare the active taxonomy with the
+generation and refinement states. If status shows a learned taxonomy but the
+conversation still calls MAST pinned, upgrade and reinstall the host hooks.
+
 ## Native taxonomy learning cannot launch
 
 The conversation hooks can run even when a taxonomy worker cannot be

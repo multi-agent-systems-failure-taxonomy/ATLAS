@@ -30,6 +30,10 @@ later reviews every `k` traces (twenty). MAST or the current learned taxonomy
 remains active while the worker runs. Trigger and completion notices appear in
 Claude's visible `systemMessage` and agent-facing `additionalContext`.
 
+After activation, Claude context names the active learned taxonomy by display
+name and immutable ID. The original selector choice, including MAST, remains
+recorded only as the lineage seed; checkpoints use the active taxonomy's codes.
+
 Remove only the user-level ATLAS registration with:
 
 ```powershell

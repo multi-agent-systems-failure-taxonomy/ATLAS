@@ -254,6 +254,49 @@ def stored_option(
     }
 
 
+def render_active_selection_context(
+    selection: dict[str, Any],
+    *,
+    active_taxonomy_id: str | None,
+    store_dir: Path,
+) -> str:
+    """Describe the active taxonomy without erasing the user's seed choice."""
+    selected_id = str(selection.get("selected_taxonomy_id") or "").strip()
+    selected_label = str(
+        selection.get("selected_label") or selected_id or "the selected taxonomy"
+    ).strip()
+    active_id = str(active_taxonomy_id or selected_id).strip()
+    if active_id and active_id != selected_id:
+        if active_id == mast.MAST_ID:
+            active_label = "MAST"
+        else:
+            active_label = str(stored_option(active_id, store_dir)["label"])
+        active_reference = (
+            active_label
+            if active_label == active_id
+            else f"{active_label} ({active_id})"
+        )
+        context = (
+            f"ATLAS active taxonomy is {active_reference} for this conversation. "
+            f"It was learned from the selected {selected_label} lineage. Use "
+            "only codes from the active taxonomy. Do not ask for taxonomy "
+            "selection again."
+        )
+    else:
+        context = (
+            f"ATLAS taxonomy is pinned to {selected_label} for this "
+            "conversation. Do not ask for taxonomy selection again."
+        )
+    if selection.get("fresh_task_group"):
+        tense = "started" if active_id != selected_id else "starts"
+        context += (
+            f" This conversation {tense} a new taxonomy from MAST in isolated "
+            f"task group {selection['fresh_task_group']}; the existing shared "
+            "project taxonomy remains unchanged."
+        )
+    return context
+
+
 def _normalize(value: str) -> str:
     text = value.strip().lower().replace("_", " ")
     text = re.sub(r"^atlas\s*:\s*", "atlas ", text)

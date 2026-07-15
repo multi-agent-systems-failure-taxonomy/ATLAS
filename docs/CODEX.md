@@ -128,6 +128,10 @@ activation only when no episode is active. The first refinement
 review occurs after 10 new episodes and later reviews every 20; a review may
 retain the current taxonomy when the evidence does not justify a change.
 
+After activation, Codex context names the active learned taxonomy by display
+name and immutable ID. The original selector choice, including MAST, remains
+recorded only as the lineage seed; it does not remain the checkpoint vocabulary.
+
 The native worker candidate schema accepts 1 through 30 codes. Thirty is a
 safety cap, not a target, so a small five-trace generation snapshot may produce
 fewer codes. Every proposed code must cite one or more frozen trace IDs and an

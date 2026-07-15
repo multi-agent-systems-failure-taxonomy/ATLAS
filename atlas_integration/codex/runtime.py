@@ -54,6 +54,7 @@ from atlas_integration.interactive.selector import (
     SELECTOR_VERSION,
     build_selection,
     parse_selection_choice,
+    render_active_selection_context,
     selection_interstitial,
     stored_option,
 )
@@ -112,7 +113,7 @@ def session_start(event: dict[str, Any], config: CodexConfig) -> dict:
                     "systemMessage": "ATLAS is disabled for this conversation."
                 }
             return _add_context(
-                _selected_context(selection),
+                _selected_context(selection, state=existing, config=config),
                 event_name="SessionStart",
                 system_message=(
                     "ATLAS recovered and closed the previous unfinished episode."
@@ -460,7 +461,9 @@ def user_prompt_submit(event: dict[str, Any], config: CodexConfig) -> dict | Non
         )
         save_state(config.trace_output, session_id, fresh)
         return _add_context(
-            _selected_context(selection) + "\n\n" + STANDING_PROMPT,
+            _selected_context(selection, state=fresh, config=config)
+            + "\n\n"
+            + STANDING_PROMPT,
             event_name="UserPromptSubmit",
         )
     return None
@@ -1236,18 +1239,22 @@ def _browser_continuation_prompt(prompt: str) -> bool:
     }
 
 
-def _selected_context(selection: dict[str, Any]) -> str:
-    context = (
-        f"ATLAS taxonomy is pinned to {selection.get('selected_label') or selection.get('selected_taxonomy_id')} "
-        "for this conversation. Do not ask for taxonomy selection again."
+def _selected_context(
+    selection: dict[str, Any],
+    *,
+    state: dict[str, Any] | None = None,
+    config: CodexConfig | None = None,
+) -> str:
+    active_id = str((state or {}).get("taxonomy_id") or "").strip() or None
+    store_dir = config.store_dir if config else Path()
+    if config:
+        manifest_id = ProgramWorkspace(config.trace_output).load().get("taxonomy_id")
+        active_id = str(manifest_id or active_id or "").strip() or None
+    return render_active_selection_context(
+        selection,
+        active_taxonomy_id=active_id,
+        store_dir=store_dir,
     )
-    if selection.get("fresh_task_group"):
-        context += (
-            " This conversation starts a new taxonomy from MAST in isolated "
-            f"task group {selection['fresh_task_group']}; the existing shared "
-            "project taxonomy remains unchanged."
-        )
-    return context
 
 
 def _selection_accepted_context(
