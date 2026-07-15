@@ -15,6 +15,7 @@ def candidate_schema() -> dict[str, Any]:
         "properties": {
             "decision": {"type": "string", "enum": ["replace", "no_change"]},
             "repo": {"type": "string"},
+            "display_name": {"type": "string", "minLength": 1, "maxLength": 80},
             "domain": {"type": "string", "minLength": 1},
             "summary": {"type": "string", "minLength": 1},
             "codes": {
@@ -79,7 +80,9 @@ def build_prompt(snapshot: dict[str, Any]) -> str:
         "task and environment failures, B covers agent or role execution failures, "
         "and C covers cross-step/systemic failures. Every code must be supported "
         "by one or more exact problem_id values from the frozen traces. Do not cite "
-        "evidence outside the snapshot. The repo field must match the supplied repo.\n\n"
+        "evidence outside the snapshot. Provide a short, descriptive display_name "
+        "for people; never use the generated taxonomy ID as that name. The repo "
+        "field must match the supplied repo.\n\n"
         "FROZEN SNAPSHOT JSON:\n"
         + json.dumps(snapshot, ensure_ascii=False)
     )

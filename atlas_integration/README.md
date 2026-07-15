@@ -1,28 +1,45 @@
-# atlas_integration/
+# `atlas_integration/`
 
-Harness-specific skins on top of the harness-neutral
-[`atlas_runtime/`](../atlas_runtime/). Each sub-folder adapts the runtime to
-one host environment: it owns the event shape, configuration surface, and
-transport details that particular host needs.
+Host adapters for the harness-neutral [`atlas_runtime/`](../atlas_runtime/).
+Each adapter translates one host's events and transcript format into the same
+session, gate, trace, and learning contracts.
 
-## Sub-folders
+## Choose an adapter
 
-- [`claude_code/`](claude_code/) — Project-local Claude Code integration:
-  hook registration, dispatcher routing, transcript handling, and per-session
-  state.
+| Folder | Use it for | Primary entry point |
+|---|---|---|
+| [`codex/`](codex/) | Codex app and CLI conversations | `atlas-codex-install` |
+| [`claude_code/`](claude_code/) | Claude Code conversations | `atlas-claude-install` |
+| [`single_llm/`](single_llm/) | Scripts, notebooks, and one direct model call | `atlas-single-run` |
+| [`interactive/`](interactive/) | Shared infrastructure used by Codex and Claude Code | Internal library |
 
-- [`codex/`](codex/) — Project-local Codex hook integration: writes
-  `.codex/hooks.json`, dispatches Codex lifecycle events into ATLAS, and can
-  optionally install a Codex skill guidance package.
+Codex and Claude Code keep thin host facades for stable imports. Taxonomy
+selection, browser transport, fresh-conversation routing, durable learning
+jobs, candidate schemas, and receipt validation live in
+[`interactive/`](interactive/), where both hosts exercise the same behavior.
 
-- [`single_llm/`](single_llm/) — No-harness integration: drives a single LLM
-  conversation through ATLAS's lifecycle without depending on any agent
-  framework. Useful for scripts, notebooks, smoke tests, and as a reference
-  adapter.
+## Ownership boundary
 
-Shared reflection parsing, checkpoint prompts, final-gate validation, runtime
-evidence, dashboard data, and taxonomy learning live in `atlas_runtime/`.
+```text
+host hook JSON
+    -> codex/ or claude_code/       event and transcript translation
+    -> interactive/                selector, routes, jobs, receipts
+    -> atlas_runtime/               sessions, gates, traces, activation
+    -> finding/                     taxonomy store and local browser UI
+```
 
-## Programs
+Host adapters may decide *when* an event fires and *how* a host receives
+context. They must not independently implement taxonomy validation or
+activation. Those remain runtime-owned so all integrations preserve the same
+lineage and evidence rules.
 
-- [`__init__.py`](__init__.py) — Package marker exporting the integrations.
+See [Architecture](../docs/ARCHITECTURE.md) for the complete repository map and
+[Native taxonomy learning](../docs/NATIVE_LEARNING.md) for the interactive job
+protocol.
+
+## Files
+
+| File | Purpose |
+|---|---|
+| [`shared.py`](shared.py) | Small state and UTF-8 helpers shared across adapters. |
+| [`__init__.py`](__init__.py) | Package marker for integration modules. |

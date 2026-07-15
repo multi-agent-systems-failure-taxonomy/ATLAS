@@ -25,6 +25,8 @@ from atlas_runtime.fsio import read_text_retry, replace_retry, write_text_atomic
 from atlas_runtime.learning_calls import outcome_blind_trace
 from atlas_runtime.program import ProgramWorkspace
 from atlas_runtime.refinement import structural_diff
+from atlas_runtime.generation import trigger_generation
+from atlas_runtime.refinement import trigger_refinement
 from atlas_runtime.traces import GenerationTrace, TraceStore
 
 JOB_PROTOCOL_VERSION = 1
@@ -55,11 +57,16 @@ def enqueue_learning_job(
     worker_label: str = "Codex taxonomy subagent",
     worker_module: str = "atlas_integration.codex.native_worker",
     job_prefix: str = "codex",
+    dispatch_mode: str = "detached_process",
     launcher: Callable[[Path], None] | None = None,
 ) -> str:
     """Freeze one evidence snapshot and launch at most one worker for it."""
     if kind not in {"generation", "refinement"}:
         raise ValueError("learning job kind must be generation or refinement")
+    if dispatch_mode not in {"detached_process", "host_subagent"}:
+        raise ValueError(
+            "learning job dispatch_mode must be detached_process or host_subagent"
+        )
     learning = _loaded_learning_state(workspace.load())
     active_job_id = learning.get("active_job_id")
     if active_job_id:
@@ -93,7 +100,9 @@ def enqueue_learning_job(
 
     resolved_cli = None
     requested_cli = worker_cli_path if worker_cli_path is not None else codex_cli_path
-    if launcher is None or requested_cli is not None:
+    if dispatch_mode == "detached_process" and (
+        launcher is None or requested_cli is not None
+    ):
         if worker_driver == "codex_subagent":
             resolved_cli = resolve_codex_cli(requested_cli)
         elif requested_cli is not None:
@@ -137,6 +146,7 @@ def enqueue_learning_job(
             "worker_driver": worker_driver,
             "worker_label": worker_label,
             "worker_module": worker_module,
+            "dispatch_mode": dispatch_mode,
             "worker_cli_path": str(resolved_cli) if resolved_cli else None,
             "codex_cli_path": str(resolved_cli) if resolved_cli else None,
             "worker_timeout_seconds": int(worker_timeout_seconds),
@@ -180,7 +190,9 @@ def enqueue_learning_job(
     )
 
     try:
-        if launcher is not None:
+        if dispatch_mode == "host_subagent":
+            pass
+        elif launcher is not None:
             launcher(job_dir)
         else:
             _spawn_worker(job_dir, worker_module=worker_module)
@@ -197,6 +209,58 @@ def enqueue_learning_job(
         )
         raise
     return job_id
+
+
+def poll_learning_jobs(
+    workspace: ProgramWorkspace,
+    *,
+    enqueue_job: Callable[[str], str],
+    store_dir: Path | str,
+    trace_root: Path | str,
+    generation_threshold: int,
+    k_init: int,
+    k: int,
+    freeze: bool,
+) -> str | None:
+    """Idempotently queue missed generation or refinement work."""
+    manifest = workspace.load()
+    learning = _loaded_learning_state(manifest)
+    if learning.get("active_job_id"):
+        return None
+    launched: list[str] = []
+    if not manifest.get("taxonomy_id"):
+        if workspace.pending.count() < workspace.generation_retry_after(
+            generation_threshold
+        ):
+            return None
+        trigger_generation(
+            workspace,
+            store_dir=store_dir,
+            trace_root=trace_root,
+            threshold=generation_threshold,
+            generation_stops=False,
+            background_launcher=lambda: launched.append(
+                enqueue_job("generation")
+            ),
+        )
+        return launched[0] if launched else None
+
+    if freeze:
+        return None
+    refinement = workspace.refinement_state()
+    threshold = k_init if int(refinement.get("rounds_completed", 0)) == 0 else k
+    if int(refinement.get("traces_since_refinement", 0)) < threshold:
+        return None
+    trigger_refinement(
+        workspace,
+        store_dir=store_dir,
+        trace_root=trace_root,
+        k_init=k_init,
+        k=k,
+        refinement_stops=False,
+        background_launcher=lambda: launched.append(enqueue_job("refinement")),
+    )
+    return launched[0] if launched else None
 
 
 def reconcile_learning_jobs(
@@ -344,6 +408,31 @@ def _reconcile_one(
         job = _read_json(job_path)
         if job.get("state") in TERMINAL_STATES:
             return
+        if (
+            job.get("dispatch_mode") == "host_subagent"
+            and job.get("state") == "claimed"
+            and not receipt_path.exists()
+        ):
+            expires_at = float(job.get("claim_expires_at_unix", 0) or 0)
+            if expires_at and time.time() >= expires_at:
+                job["state"] = "queued"
+                job["updated_at_unix"] = time.time()
+                for key in (
+                    "claim_token",
+                    "claimed_by",
+                    "claimed_at_unix",
+                    "claim_expires_at_unix",
+                ):
+                    job.pop(key, None)
+                _write_json_atomic(job_path, job)
+            return
+        if (
+            job.get("dispatch_mode") == "host_subagent"
+            and job.get("state") == "queued"
+            and not receipt_path.exists()
+        ):
+            # A host job has no lease until a live Codex task claims it.
+            return
         if not receipt_path.exists() and job.get("state") in {
             "queued",
             "running",
@@ -471,10 +560,19 @@ def validate_candidate(candidate: Any, snapshot: dict[str, Any]) -> dict[str, An
     if snapshot["kind"] == "generation" and decision != "replace":
         raise LearningJobError("generation cannot return no_change")
     domain = candidate.get("domain")
+    display_name = candidate.get("display_name")
     summary = candidate.get("summary")
     codes = candidate.get("codes")
     if not isinstance(domain, str) or not domain.strip():
         raise LearningJobError("candidate domain must be a non-empty string")
+    if display_name is not None and (
+        not isinstance(display_name, str)
+        or not display_name.strip()
+        or len(display_name.strip()) > 80
+    ):
+        raise LearningJobError(
+            "candidate display_name must be a non-empty string of at most 80 characters"
+        )
     if not isinstance(summary, str) or not summary.strip():
         raise LearningJobError("candidate summary must be a non-empty string")
     if not isinstance(codes, list) or not codes:
@@ -526,6 +624,11 @@ def validate_candidate(candidate: Any, snapshot: dict[str, Any]) -> dict[str, An
     return {
         "decision": decision,
         "repo": str(snapshot.get("repo") or ""),
+        "display_name": (
+            display_name.strip()
+            if isinstance(display_name, str) and display_name.strip()
+            else domain.strip()
+        ),
         "domain": domain.strip(),
         "summary": summary.strip(),
         "codes": normalized_codes,
@@ -595,12 +698,14 @@ def _activate_refinement(
     current_record = snapshot["current_taxonomy"]
     comparable_current = {
         "repo": current_record.get("repo", ""),
+        "display_name": store.display_name(current_record),
         "domain": current_record.get("domain", ""),
         "summary": current_record.get("summary", ""),
         "codes": current_record.get("codes", []),
     }
     comparable_candidate = {
         "repo": candidate["repo"],
+        "display_name": candidate["display_name"],
         "domain": candidate["domain"],
         "summary": candidate["summary"],
         "codes": candidate["codes"],
@@ -675,6 +780,7 @@ def _taxonomy_record(
     return {
         "taxonomy_id": taxonomy_id,
         "repo": candidate["repo"],
+        "display_name": candidate["display_name"],
         "domain": candidate["domain"],
         "summary": candidate["summary"],
         "codes": candidate["codes"],

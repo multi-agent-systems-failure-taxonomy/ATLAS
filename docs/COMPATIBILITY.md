@@ -11,26 +11,25 @@
 
 - The conversation host must support Codex hooks and allow the installed hooks.
 - Project and user hook files are supported.
-- Native taxonomy learning requires a runnable `codex` CLI with an authenticated
-  session. The desktop app alone does not guarantee that background CLI access
-  is available.
-- Run `atlas-doctor --codex` after installation. A native-backend CLI or auth
-  failure is an error, not a warning.
+- Native taxonomy learning uses a subagent in the active Codex task. It does
+  not require a standalone `codex` executable or separate login.
+- Run `atlas-doctor --codex` after installation to verify the hooks and native
+  learning configuration.
 
 ## Claude Code
 
 - The installed Claude Code build must expose the hook event and blocking
   contracts checked by `atlas-doctor --claude-code`.
-- Native taxonomy learning requires a runnable, authenticated `claude` CLI and
-  the non-interactive `claude -p` surface.
-- ATLAS verifies `claude auth status` without making a taxonomy model call.
+- Native taxonomy learning uses one Agent subtask in the active Claude Code
+  session. It does not require a runnable `claude -p` surface or second login.
+- The browser selector requires localhost access; use
+  `--selector-surface inline` when that surface is unavailable.
 
 ## Credentials and usage
 
-Native interactive workers reuse the signed-in host CLI. They do not require
-`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or a second external provider account.
-They can still consume the host account's included usage or billed usage under
-that host's normal terms.
+Native interactive workers do not require `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`,
+or a second external provider account. Codex and Claude Code use the active
+task session; each host can still consume its normal included or billed usage.
 
 Provider-backed project installs and direct runtime integrations continue to
 support OpenAI-compatible, Anthropic, Gemini, and AWS Bedrock credentials.

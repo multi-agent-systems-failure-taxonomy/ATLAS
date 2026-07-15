@@ -81,7 +81,7 @@ missing." Errors mean the requested setup is not ready.
 
 ## 4A. Use ATLAS with Claude Code
 
-For every Claude Code project with native signed-in learning, the shorter path
+For every Claude Code project with native in-session learning, the shorter path
 is `atlas-claude-install --user-level`. The command below is the explicit,
 project-local provider-backed path.
 
@@ -126,7 +126,7 @@ atlas-claude-uninstall --project-dir .
 
 ## 4B. Use ATLAS with Codex hooks
 
-For every Codex project with native signed-in learning, the shorter path is
+For every Codex project with native in-task learning, the shorter path is
 `atlas-codex-install --user-level`. The command below is the explicit,
 project-local provider-backed path.
 
@@ -141,8 +141,8 @@ inside Codex and trust the ATLAS hooks before relying on them.
 
 Default Codex events:
 
-1. `SessionStart`: deliver standing ATLAS context.
-2. `UserPromptSubmit`: resolve taxonomy selection and episode boundaries.
+1. `SessionStart`: deliver standing ATLAS context or open the local taxonomy library.
+2. `UserPromptSubmit`: handle inline-selector fallback and episode boundaries when emitted.
 3. `Stop`: capture the compact final checkpoint and commit the episode once.
 4. `SubagentStop`: capture a checkpoint when present without blocking.
 5. `PostToolUse`: add advisory nudges after selected failed tool outputs.

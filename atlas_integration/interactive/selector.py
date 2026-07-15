@@ -10,36 +10,65 @@ from atlas_runtime import ProgramWorkspace
 from atlas_runtime.project_scope import canonical_project_root
 from finding import mast, store
 
+SELECTOR_VERSION = 2
+
 
 def build_selection(
     *,
     trace_output: Path,
     store_dir: Path,
     cwd: str | Path | None,
+    catalog_mode: str = "inline",
 ) -> dict[str, Any]:
     """Build the compatible choices for one new interactive conversation."""
     workspace = ProgramWorkspace(trace_output, repo_path=cwd)
     active_id = workspace.load().get("taxonomy_id")
     options: list[dict[str, Any]] = []
+    catalog_options: list[dict[str, Any]] = []
 
     if active_id:
-        options.append(_stored_option(str(active_id), store_dir, recommended=True))
-    else:
-        options.append(
-            {
-                "kind": "mast",
-                "taxonomy_id": mast.MAST_ID,
-                "label": "MAST",
-                "description": "General-purpose failure modes for agentic work.",
-                "domain": "General agent work",
-                "origin": "Built-in",
-                "recommended": True,
-            }
-        )
+        options.append(stored_option(str(active_id), store_dir, recommended=True))
+    options.append(
+        {
+            "kind": "mast",
+            "taxonomy_id": mast.MAST_ID,
+            "label": "MAST",
+            "description": (
+                "Start this conversation from MAST in a separate task group; "
+                "learn a new taxonomy from zero."
+                if active_id
+                else "General-purpose failure modes for agentic work."
+            ),
+            "domain": "General agent work",
+            "origin": "Built-in",
+            "recommended": not bool(active_id),
+            "starts_fresh": bool(active_id),
+        }
+    )
+    if not active_id and catalog_mode == "browser":
         for header in store.list_all(store_dir):
             taxonomy_id = str(header.get("taxonomy_id") or "").strip()
             if taxonomy_id:
-                options.append(_stored_option(taxonomy_id, store_dir))
+                catalog_options.append(stored_option(taxonomy_id, store_dir))
+    if not active_id and catalog_mode == "browser" and catalog_options:
+        options.append(
+            {
+                "kind": "browser",
+                "taxonomy_id": None,
+                "label": "Browse taxonomy library",
+                "description": (
+                    "Open the local ATLAS catalog to compare stored taxonomies."
+                ),
+                "domain": "All stored taxonomies",
+                "origin": "Local browser",
+                "recommended": False,
+            }
+        )
+    elif not active_id:
+        for header in store.list_all(store_dir):
+            taxonomy_id = str(header.get("taxonomy_id") or "").strip()
+            if taxonomy_id:
+                options.append(stored_option(taxonomy_id, store_dir))
 
     options.append(
         {
@@ -59,11 +88,14 @@ def build_selection(
 
     root = canonical_project_root(cwd)
     return {
+        "version": SELECTOR_VERSION,
+        "catalog_mode": catalog_mode,
         "status": "pending",
         "project": root.name or str(root),
         "project_root": str(root),
         "project_taxonomy_id": str(active_id) if active_id else None,
         "options": options,
+        "catalog_options": catalog_options,
         "pending_task": None,
     }
 
@@ -92,8 +124,9 @@ def render_selection(selection: dict[str, Any]) -> str:
         )
     if selection.get("project_taxonomy_id"):
         lines.append(
-            "This project already has a shared taxonomy. To use another stored "
-            "taxonomy, create a separate ATLAS task group."
+            "This project already has a shared taxonomy. Choosing MAST creates "
+            "a separate task group for this conversation and leaves the shared "
+            "project taxonomy unchanged."
         )
     else:
         lines.append(
@@ -135,6 +168,11 @@ def parse_selection_choice(
         "use mast": "mast",
         "atlas mast": "mast",
         "atlas use mast": "mast",
+        "browse": "browser",
+        "browse taxonomies": "browser",
+        "browse taxonomy library": "browser",
+        "taxonomy library": "browser",
+        "open catalog": "browser",
         "none": "disabled",
         "off": "disabled",
         "atlas off": "disabled",
@@ -153,7 +191,10 @@ def parse_selection_choice(
             None,
         )
 
-    for option in selection.get("options", []):
+    for option in [
+        *selection.get("options", []),
+        *selection.get("catalog_options", []),
+    ]:
         names = {
             _normalize(str(option.get("label") or "")),
             _normalize(str(option.get("taxonomy_id") or "")),
@@ -174,7 +215,7 @@ def selection_interstitial(selection: dict[str, Any]) -> str:
     )
 
 
-def _stored_option(
+def stored_option(
     taxonomy_id: str,
     store_dir: Path,
     *,
@@ -205,7 +246,7 @@ def _stored_option(
     return {
         "kind": "taxonomy",
         "taxonomy_id": taxonomy_id,
-        "label": str(record.get("display_name") or taxonomy_id).strip(),
+        "label": store.display_name(record),
         "description": description,
         "domain": domain,
         "origin": origin,

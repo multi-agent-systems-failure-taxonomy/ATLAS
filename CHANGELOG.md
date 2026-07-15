@@ -4,7 +4,58 @@ All notable user-facing changes are documented here.
 
 ## Unreleased
 
+### Added
+
+- Codex-native taxonomy learning now uses a subagent in the active task with a
+  durable claim/receipt protocol. It no longer requires a standalone Codex CLI
+  login or an external model API key.
+- Every Codex lifecycle hook polls generation and refinement progress,
+  idempotently repairing a missed threshold trigger on the next event.
+- Codex conversations can select MAST in a project that already has a learned
+  taxonomy. The selection creates a durable isolated `fresh-*` task group and
+  preserves the project's shared default taxonomy.
+- Codex conversations open a session-bound localhost taxonomy library directly
+  from `SessionStart`. The browser applies and persists the choice before
+  reporting success, without depending on a later `UserPromptSubmit` event.
+- The taxonomy library now uses the ATLAS runtime visual language, provides a
+  searchable taxonomy rail and full code inspection, and treats generated
+  evidence as secondary expandable provenance.
+- Claude Code taxonomy learning now uses one native Agent subtask in the active
+  session with the same durable claim/receipt lifecycle as Codex. It no longer
+  requires a standalone `claude -p` login or external model API key.
+- Claude Code now supports the session-bound browser library, direct taxonomy
+  activation, durable fresh-MAST conversation routes, and missed-threshold
+  polling on every successful lifecycle hook.
+- The documentation site now leads with host installation, native-learning
+  behavior, architecture ownership, and a complete local dashboard example.
+
+### Changed
+
+- Codex taxonomy workers receive only a frozen prompt and output schema, then
+  return a bounded receipt through `SubagentStop`. The foreground hook
+  coordinator remains the sole validator and activation owner.
+- `codex.worker_model` and `codex.codex_cli_path` remain readable compatibility
+  fields but are not used by native in-task learning.
+- `claude_code.worker_model` and `claude_code.claude_cli_path` remain readable
+  compatibility fields but are not used by native in-session learning.
+- Taxonomy selectors and the browser catalog prefer a human-facing
+  `display_name` while keeping generated taxonomy IDs as immutable internal
+  keys. Older records fall back to their domain, and new native candidates may
+  provide a concise display name.
+- Host-neutral browser transport, fresh-session routing, threshold polling,
+  and receipt validation now live in `atlas_integration/interactive`; Codex and
+  Claude Code retain stable facade modules for compatibility.
+
 ### Fixed
+
+- Codex Desktop sessions that omit `UserPromptSubmit` no longer remain stuck in
+  `ATLAS is waiting for taxonomy selection` after a browser choice.
+- The Codex selector now displays MAST as a numbered choice even when the
+  project already has a learned taxonomy; its reply instructions no longer
+  advertise a hidden option.
+- Claude taxonomy receipts bypass the ordinary blocking `SubagentStop`
+  reflection, preventing the learning Agent from recursively gating itself;
+  all other Claude subagents retain the existing checkpoint behavior.
 
 - The user-level interactive placeholder model (`interactive-session`)
   adopts whatever ATLAS model a program already records instead of raising

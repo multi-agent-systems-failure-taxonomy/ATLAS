@@ -146,10 +146,15 @@ def _run_claude(
     creationflags = 0
     if os.name == "nt":
         creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
+    # Explicit UTF-8: the default locale codec (cp1252 on Windows) cannot
+    # encode prompts containing characters like U+2192, which kills stdin
+    # and makes the CLI exit 1 with an empty-input error.
     return subprocess.run(
         command,
         input=prompt,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         capture_output=True,
         cwd=job_dir,
         timeout=timeout_seconds,

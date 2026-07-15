@@ -9,6 +9,10 @@ from pathlib import Path
 from finding import store
 from atlas_runtime.traces import DEFAULT_TRACE_ROOT
 from atlas_runtime.project_scope import project_program_path, validate_scope_id
+from atlas_integration.codex.session_routes import (
+    create_fresh_session_route,
+    resolve_session_route,
+)
 
 CODEX_HOOK_EVENTS = (
     "SessionStart",
@@ -150,11 +154,17 @@ class CodexConfig:
     project_id: str | None = None
     task_group: str = "default"
     session_selector: str = "off"
+    selector_surface: str = "browser"
     learning_backend: str = "provider"
     worker_model: str | None = None
     codex_cli_path: Path | None = None
     worker_timeout_seconds: int = 1800
     hooks: tuple[CodexHookSpec, ...] = field(default_factory=default_hooks)
+    routing_root: Path | None = field(default=None, repr=False, compare=False)
+    default_trace_output: Path | None = field(
+        default=None, repr=False, compare=False
+    )
+    base_task_group: str | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if not str(self.trace_output).strip():
@@ -165,6 +175,8 @@ class CodexConfig:
             raise ValueError("project_scope must be 'explicit' or 'auto'")
         if self.session_selector not in {"off", "prompt"}:
             raise ValueError("session_selector must be 'off' or 'prompt'")
+        if self.selector_surface not in {"browser", "inline"}:
+            raise ValueError("selector_surface must be 'browser' or 'inline'")
         if self.learning_backend not in {"provider", "codex_subagent"}:
             raise ValueError(
                 "learning_backend must be 'provider' or 'codex_subagent'"
@@ -176,6 +188,8 @@ class CodexConfig:
                 "codex_subagent learning requires background generation and refinement"
             )
         validate_scope_id(self.task_group, label="task_group")
+        if self.base_task_group is not None:
+            validate_scope_id(self.base_task_group, label="base_task_group")
         if self.project_id is not None:
             validate_scope_id(self.project_id, label="project_id")
         for name, value in (
@@ -246,6 +260,7 @@ class CodexConfig:
             ),
             task_group=str(scoped.get("task_group", "default")),
             session_selector=str(scoped.get("session_selector", "off")),
+            selector_surface=str(scoped.get("selector_surface", "browser")),
             learning_backend=str(scoped.get("learning_backend", "provider")),
             worker_model=(
                 str(scoped["worker_model"]).strip()
@@ -266,17 +281,46 @@ class CodexConfig:
 
     def for_event(self, event: dict) -> "CodexConfig":
         """Return the event-scoped config used by user-level global hooks."""
+        routing_root = self.routing_root or self.trace_output
+        base_task_group = self.base_task_group or self.task_group
         if self.project_scope == "explicit":
-            return self
+            default_trace_output = self.default_trace_output or self.trace_output
+        else:
+            default_trace_output = project_program_path(
+                routing_root,
+                cwd=event.get("cwd"),
+                task_group=base_task_group,
+                project_id=self.project_id,
+            )
+        route = resolve_session_route(
+            routing_root,
+            event,
+            default_trace_output=default_trace_output,
+        )
         return replace(
             self,
-            trace_output=project_program_path(
-                self.trace_output,
-                cwd=event.get("cwd"),
-                task_group=self.task_group,
-                project_id=self.project_id,
+            trace_output=(
+                route.trace_output if route else default_trace_output
             ),
+            task_group=route.task_group if route else base_task_group,
+            routing_root=routing_root,
+            default_trace_output=default_trace_output,
+            base_task_group=base_task_group,
         )
+
+    def start_fresh_conversation(self, event: dict) -> "CodexConfig":
+        """Route this Codex conversation to a separate MAST task group."""
+        scoped = self.for_event(event)
+        create_fresh_session_route(
+            scoped.routing_root or scoped.trace_output,
+            event,
+            default_trace_output=(
+                scoped.default_trace_output or scoped.trace_output
+            ),
+            project_scope=scoped.project_scope,
+            project_id=scoped.project_id,
+        )
+        return scoped.for_event(event)
 
     def to_dict(self) -> dict:
         return {
@@ -307,6 +351,7 @@ class CodexConfig:
                 "project_id": self.project_id,
                 "task_group": self.task_group,
                 "session_selector": self.session_selector,
+                "selector_surface": self.selector_surface,
                 "learning_backend": self.learning_backend,
                 "worker_model": self.worker_model,
                 "codex_cli_path": (

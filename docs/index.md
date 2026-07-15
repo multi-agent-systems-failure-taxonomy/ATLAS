@@ -1,77 +1,151 @@
+---
+hide:
+  - navigation
+  - toc
+---
+
+<div class="atlas-home" markdown="1">
+
+<section class="atlas-intro" markdown="1">
+
+<p class="atlas-eyebrow">Adaptive failure taxonomies</p>
+
 # ATLAS
 
-**A failure-mode taxonomy layer for agents: reflect at meaningful boundaries,
-catch recurring mistakes, and learn from traces.**
+ATLAS checks work, records failures, and learns a project vocabulary from
+completed traces.
 
-![ATLAS runtime loop](atlas_runtime_loop.png)
+<div class="atlas-actions">
+  <a class="atlas-action atlas-action--primary" href="INTERACTIVE_SETUP/">Install in Codex or Claude</a>
+  <a class="atlas-action" href="EXAMPLE_RUN/">See a complete run</a>
+  <a class="atlas-action" href="ARCHITECTURE/">View architecture</a>
+</div>
 
-ATLAS gives an agent a structured way to notice recurring mistakes at runtime,
-record evidence, and generate or refine task-specific failure-mode taxonomies
-from completed traces.
+<div class="atlas-runtime-rail" aria-label="ATLAS reflection sequence">
+  <span><b>Observe</b> concrete activity</span>
+  <span><b>Correlate</b> supported causes</span>
+  <span><b>Map</b> failure codes</span>
+  <span><b>Decide</b> continue or repair</span>
+</div>
 
-Runs start from **MAST** — the Multi-Agent System failure Taxonomy from
-["Why Do Multi-Agent LLM Systems Fail?" (Cemri et al., 2025)](https://arxiv.org/abs/2503.13657),
-shipped as a built-in 14-code adaptation. At configured gates the agent
-reflects on its recent trajectory (Observe → Correlate → Map → Decide), a
-final gate validates submission, and completed traces feed taxonomy generation
-and refinement. Blocking adapters can hold the answer for repair; Codex uses a
-compact single-pass Stop checkpoint. ATLAS is not a task solver; your harness
-keeps owning model execution.
+</section>
 
-## Quickstart
+<section class="atlas-install" markdown="1">
 
-Install:
+## Install where you work
 
-```bash
-python -m pip install "git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
-```
+No `atlas.json`, external model API key, standalone host CLI, or second login
+is required for the interactive path.
 
-For normal Codex or Claude Code conversations, install once per user without a
-config file or separate provider API key:
+<div class="atlas-host-grid">
+
+<article class="atlas-host" markdown="1">
+
+### Codex
+
+Install once for every Codex task:
 
 ```bash
 atlas-codex-install --user-level
 atlas-doctor --codex
+```
 
+[Codex guide ->](CODEX.md)
+
+</article>
+
+<article class="atlas-host" markdown="1">
+
+### Claude Code
+
+Install once for every Claude session:
+
+```bash
 atlas-claude-install --user-level
 atlas-doctor --claude-code
 ```
 
-See [Interactive setup](INTERACTIVE_SETUP.md) for the complete flow. For
-project-local hooks or your own harness, create `atlas.json`:
+[Claude Code guide ->](CLAUDE_CODE.md)
 
-```json
-{
-  "version": 1,
-  "trace_output": "./atlas-program",
-  "atlas_model": "gpt-5"
-}
+</article>
+
+<article class="atlas-host" markdown="1">
+
+### Your harness
+
+Wrap a direct call or use the runtime API:
+
+```python
+from atlas_runtime import start_session
 ```
 
-Then choose the integration that matches your pipeline:
+[Integration guide ->](INTEGRATION.md)
 
-| Use case | Command | Full docs |
-|---|---|---|
-| Codex all projects | `atlas-codex-install --user-level` | [Interactive setup](INTERACTIVE_SETUP.md) |
-| Claude Code all projects | `atlas-claude-install --user-level` | [Interactive setup](INTERACTIVE_SETUP.md) |
-| Claude Code project | `atlas-claude-install --project-dir . --config atlas.json` | [Claude Code](CLAUDE_CODE.md) |
-| Codex project | `atlas-codex-install --project-dir . --config atlas.json` | [Codex](CODEX.md) |
-| One LLM call from a script | `atlas-single-run --config atlas.json --task "..." --model gpt-5` | [Single LLM](SINGLE_LLM.md) |
-| Existing trace folder | `atlas-import-traces --config atlas.json --traces ./traces` | [Taxonomies](TAXONOMIES.md) |
-| Your own harness | `from atlas_runtime import start_session, ...` | [Pipeline integration](INTEGRATION.md) |
+</article>
 
-Check the setup:
+</div>
+
+Install the package first:
 
 ```bash
-atlas-doctor --config atlas.json
+python -m pip install --upgrade "git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
 ```
 
-## Where to start
+</section>
 
-- New to the terminology? [Concepts](CONCEPTS.md) defines the vocabulary and
-  the runtime loop.
-- Want to see real output first? [An example run](EXAMPLE_RUN.md) shows the
-  reflections, the final gate, and the dashboard.
-- Ready to wire it up? [Getting started](GETTING_STARTED.md) is the 5-minute
-  path; [Configuration reference](CONFIGURATION.md) covers every
-  `atlas.json` field.
+<section class="atlas-flow" markdown="1">
+
+## From MAST to your taxonomy
+
+1. **Select.** A new conversation opens the local taxonomy library. Choose
+   MAST, a stored project taxonomy, or No taxonomy.
+2. **Work.** The main agent keeps owning the task. One completed assistant
+   episode becomes one canonical trace.
+3. **Learn.** At the default five-trace threshold, one native host subagent
+   proposes an evidence-grounded taxonomy while normal work continues.
+4. **Activate.** Foreground validation checks the frozen evidence and atomically
+   activates a valid candidate. The current taxonomy stays active on failure.
+
+<div class="atlas-note">
+When a project already has a learned taxonomy, choosing MAST creates an
+isolated <code>fresh-*</code> task group for that conversation. The shared
+project taxonomy remains unchanged.
+</div>
+
+[Read the native learning contract ->](NATIVE_LEARNING.md)
+
+</section>
+
+<section class="atlas-proof" markdown="1">
+
+## Inspect what ATLAS recorded
+
+The local dashboard shows fired codes, clean checkpoints, affected task IDs,
+and evidence without changing the taxonomy record.
+
+![ATLAS runtime dashboard showing taxonomy evidence](assets/screenshots/dashboard-demo.png)
+
+<div class="atlas-proof-links">
+  <a href="EXAMPLE_RUN/">Walk through this example</a>
+  <a href="DASHBOARD/">Run the dashboard locally</a>
+  <a href="TAXONOMIES/">Inspect taxonomy records</a>
+</div>
+
+</section>
+
+<section class="atlas-start" markdown="1">
+
+## Continue from here
+
+| You want to... | Read... |
+|---|---|
+| understand the vocabulary and runtime loop | [Concepts](CONCEPTS.md) |
+| see which package owns each behavior | [Architecture](ARCHITECTURE.md) |
+| configure one repository | [Getting started](GETTING_STARTED.md) |
+| change thresholds or providers | [Configuration reference](CONFIGURATION.md) |
+| diagnose a queued worker or missing hook | [Troubleshooting](TROUBLESHOOTING.md) |
+| review the research and evaluation artifacts | [Paper](atlas_paper.pdf) and [example results](EXAMPLE_RUN.md) |
+
+</section>
+
+</div>

@@ -13,9 +13,17 @@ from finding import store
 from atlas_integration.codex.learning_jobs import (
     drain_learning_notices,
     enqueue_learning_job,
+    poll_learning_jobs,
     reconcile_learning_jobs,
 )
 from atlas_integration.codex.native_worker import run_worker
+from atlas_integration.codex.subagent_protocol import (
+    RECEIPT_CLOSE,
+    RECEIPT_OPEN,
+    capture_learning_receipt,
+    claim_learning_job,
+    complete_learning_job,
+)
 from atlas_runtime import GenerationTrace, ProgramWorkspace
 from atlas_runtime.traces import TraceStore
 
@@ -114,6 +122,216 @@ class CodexLearningJobTests(unittest.TestCase):
         self.assertEqual(len(notices), 1)
         self.assertIn("taxonomy generation triggered", notices[0])
         self.assertEqual(drain_learning_notices(self.workspace, "conversation-1"), [])
+
+    def test_native_host_job_claims_without_resolving_or_spawning_cli(self) -> None:
+        self._append_pending(1, 5)
+        with patch(
+            "atlas_integration.interactive.learning_jobs.resolve_codex_cli"
+        ) as resolve_cli, patch(
+            "atlas_integration.interactive.learning_jobs._spawn_worker"
+        ) as spawn_worker:
+            job_id = enqueue_learning_job(
+                self.workspace,
+                kind="generation",
+                store_dir=self.store_dir,
+                trace_root=self.trace_root,
+                task_group="default",
+                conversation_id="conversation-1",
+            )
+        resolve_cli.assert_not_called()
+        spawn_worker.assert_not_called()
+
+        job_dir = self.program / "learning_jobs" / job_id
+        job = json.loads((job_dir / "job.json").read_text(encoding="utf-8"))
+        self.assertEqual(job["state"], "queued")
+        self.assertEqual(job["dispatch_mode"], "host_subagent")
+        self.assertTrue((job_dir / "prompt.txt").is_file())
+        self.assertTrue((job_dir / "output.schema.json").is_file())
+
+        dispatch = claim_learning_job(
+            self.workspace,
+            conversation_id="conversation-2",
+            lease_seconds=300,
+        )
+        self.assertEqual(dispatch["job_id"], job_id)
+        self.assertIn("native Codex subagent", dispatch["directive"])
+        self.assertIn(RECEIPT_OPEN, dispatch["task_prompt"])
+        self.assertIsNone(
+            claim_learning_job(
+                self.workspace,
+                conversation_id="conversation-3",
+                lease_seconds=300,
+            )
+        )
+
+    def test_poll_repairs_a_missed_generation_trigger_idempotently(self) -> None:
+        self._append_pending(1, 5)
+        arguments = {
+            "store_dir": self.store_dir,
+            "trace_root": self.trace_root,
+            "task_group": "default",
+            "conversation_id": "conversation-1",
+            "generation_threshold": 5,
+            "k_init": 10,
+            "k": 20,
+            "freeze": False,
+            "worker_model": None,
+            "worker_timeout_seconds": 1800,
+        }
+
+        job_id = poll_learning_jobs(self.workspace, **arguments)
+        duplicate = poll_learning_jobs(self.workspace, **arguments)
+
+        self.assertIsNotNone(job_id)
+        self.assertIsNone(duplicate)
+        jobs = list((self.program / "learning_jobs").glob("*/job.json"))
+        self.assertEqual(len(jobs), 1)
+        self.assertEqual(
+            json.loads(jobs[0].read_text(encoding="utf-8"))["state"],
+            "queued",
+        )
+
+    def test_poll_supersedes_a_legacy_detached_job_without_id_collision(self) -> None:
+        self._append_pending(1, 5)
+        legacy_id, legacy_dir = self._enqueue()
+        legacy_path = legacy_dir / "job.json"
+        legacy = json.loads(legacy_path.read_text(encoding="utf-8"))
+        legacy.pop("dispatch_mode", None)
+        legacy["state"] = "running"
+        legacy_path.write_text(json.dumps(legacy), encoding="utf-8")
+
+        native_id = poll_learning_jobs(
+            self.workspace,
+            store_dir=self.store_dir,
+            trace_root=self.trace_root,
+            task_group="default",
+            conversation_id="conversation-1",
+            generation_threshold=5,
+            k_init=10,
+            k=20,
+            freeze=False,
+            worker_model=None,
+            worker_timeout_seconds=1800,
+        )
+
+        self.assertNotEqual(native_id, legacy_id)
+        self.assertTrue(native_id.startswith("codex-native-generation-"))
+        self.assertEqual(
+            json.loads(legacy_path.read_text(encoding="utf-8"))["state"],
+            "failed",
+        )
+        native_path = self.program / "learning_jobs" / native_id / "job.json"
+        self.assertEqual(
+            json.loads(native_path.read_text(encoding="utf-8"))["state"],
+            "queued",
+        )
+
+    def test_poll_queues_refinement_after_the_active_taxonomy_threshold(self) -> None:
+        taxonomy_id = "tax-poll-parent"
+        store.register(
+            {
+                "taxonomy_id": taxonomy_id,
+                "repo": "demo-project",
+                "domain": "Operations",
+                "summary": "Current taxonomy",
+                "codes": [
+                    {
+                        "id": "OPS-1",
+                        "name": "Current mode",
+                        "description": "Current description",
+                        "category": "A",
+                    }
+                ],
+            },
+            self.store_dir,
+        )
+        self.workspace.bind_inherited_taxonomy(taxonomy_id)
+        trace_store = TraceStore(self.trace_root / taxonomy_id)
+        names = trace_store.append_many_with_names(
+            GenerationTrace(
+                problem_id=f"refine-{index}",
+                task=f"Refinement task {index}",
+                raw_trajectory=f"Refinement evidence {index}",
+            )
+            for index in range(10)
+        )
+        self.workspace.add_refinement_traces(taxonomy_id, names)
+
+        job_id = poll_learning_jobs(
+            self.workspace,
+            store_dir=self.store_dir,
+            trace_root=self.trace_root,
+            task_group="default",
+            conversation_id="conversation-1",
+            generation_threshold=5,
+            k_init=10,
+            k=20,
+            freeze=False,
+            worker_model=None,
+            worker_timeout_seconds=1800,
+        )
+
+        self.assertIsNotNone(job_id)
+        job_path = self.program / "learning_jobs" / job_id / "job.json"
+        job = json.loads(job_path.read_text(encoding="utf-8"))
+        self.assertEqual(job["kind"], "refinement")
+        self.assertEqual(job["state"], "queued")
+
+    def test_native_claim_completion_reconciles_utf8_candidate(self) -> None:
+        self._append_pending(1, 5)
+        job_id = enqueue_learning_job(
+            self.workspace,
+            kind="generation",
+            store_dir=self.store_dir,
+            trace_root=self.trace_root,
+            task_group="default",
+            conversation_id="conversation-1",
+        )
+        job_dir = self.program / "learning_jobs" / job_id
+        dispatch = claim_learning_job(
+            self.workspace,
+            conversation_id="conversation-2",
+        )
+        snapshot = json.loads((job_dir / "snapshot.json").read_text(encoding="utf-8"))
+        candidate = self._candidate(snapshot)
+        candidate["summary"] = "Échecs observés dans les opérations intégrées."
+
+        with self.assertRaisesRegex(Exception, "claim token mismatch"):
+            complete_learning_job(
+                job_dir,
+                claim_token="wrong-token",
+                candidate=candidate,
+            )
+        self.assertFalse((job_dir / "receipt.json").exists())
+
+        receipt = {
+            "version": 1,
+            "job_id": job_id,
+            "claim_token": dispatch["claim_token"],
+            "status": "candidate",
+            "candidate": candidate,
+        }
+        captured = capture_learning_receipt(
+            self.workspace,
+            {
+                "last_assistant_message": (
+                    RECEIPT_OPEN
+                    + json.dumps(receipt, ensure_ascii=False)
+                    + RECEIPT_CLOSE
+                )
+            },
+        )
+        self.assertEqual(captured, job_id)
+        reconcile_learning_jobs(
+            self.workspace,
+            store_dir=self.store_dir,
+            trace_root=self.trace_root,
+        )
+
+        job = json.loads((job_dir / "job.json").read_text(encoding="utf-8"))
+        self.assertEqual(job["state"], "activated")
+        learned = store.fetch_by_id(job["taxonomy_id"], self.store_dir)
+        self.assertEqual(learned["summary"], candidate["summary"])
 
     def test_legacy_codex_learning_state_migrates_without_losing_notices(self) -> None:
         notice = {

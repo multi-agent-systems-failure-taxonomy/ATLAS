@@ -24,13 +24,22 @@ Each package has a README mapping every file to its purpose:
 
 - [atlas_runtime/README.md](atlas_runtime/README.md) — harness-neutral runtime engine
 - [atlas_integration/README.md](atlas_integration/README.md) — Claude Code, Codex, and single-LLM adapters
+- [atlas_integration/interactive/README.md](atlas_integration/interactive/README.md) — shared selectors, routes, jobs, and receipts
 - [finding/README.md](finding/README.md) — taxonomy store, picker, and built-in MAST
 - [judge_types/README.md](judge_types/README.md) — judge implementations
+- [ATLAS_as_a_Judge/README.md](ATLAS_as_a_Judge/README.md) — judge evaluation checks
+- [runs/README.md](runs/README.md) — reproducible experiment artifacts
 - [tests/README.md](tests/README.md) — test suite map
 
 User-facing behavior (prompts, hooks, judge specs) lives in Markdown/JSON
 assets where possible; start with
 [docs/CUSTOMIZATION.md](docs/CUSTOMIZATION.md) before editing Python.
+
+Before adding behavior to a host adapter, check
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Event and transcript translation
+belong in the host folder; selector, routing, browser transport, learning-job,
+and receipt behavior shared by Codex and Claude Code belongs in
+`atlas_integration/interactive/`.
 
 ## Documentation
 

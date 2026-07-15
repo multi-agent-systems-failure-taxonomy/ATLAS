@@ -19,3 +19,6 @@ Next action: <complete or continue when ready; repair or report unresolved other
 
 The Codex Stop hook captures that block in one callback. Do not wait for a
 second Stop prompt and do not expose a long private reflection.
+
+When additional runtime context announces a native taxonomy learning job,
+spawn the supplied Codex subagent task once and continue normal work in parallel.

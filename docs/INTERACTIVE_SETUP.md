@@ -7,13 +7,14 @@ conversations. It does not require `atlas.json` or a separate model API key.
 
 | Host | Install command | Native learning process |
 |---|---|---|
-| Codex | `atlas-codex-install --user-level` | Signed-in `codex exec` CLI |
-| Claude Code | `atlas-claude-install --user-level` | Signed-in `claude -p` CLI |
+| Codex | `atlas-codex-install --user-level` | Native subagent in the active task |
+| Claude Code | `atlas-claude-install --user-level` | Native Agent subtask in the active session |
 | Both | Run both commands | Shared project/task-group taxonomy state |
 
-The hooks and trace runtime work in the host conversation. Taxonomy generation
-and refinement run in a detached, tool-disabled worker so the main agent keeps
-working normally.
+The hooks and trace runtime work in the host conversation. In Codex and Claude
+Code, taxonomy generation and refinement run in one native subagent while the
+main agent keeps working normally. Durable polling repairs a missed threshold
+trigger on the next lifecycle event.
 
 ## 1. Install the package
 
@@ -35,11 +36,10 @@ The installer writes `~/.codex/hooks.json` and
 `~/.agents/skills/atlas-failure-modes`. Open `/hooks` in Codex and trust the
 ATLAS hooks.
 
-Codex taxonomy learning needs a separately runnable, signed-in Codex CLI. A
-desktop-app executable that exists but cannot run in a background process is
-not enough. `atlas-doctor --codex` reports this as an error before generation
-reaches its default five-trace threshold. Gates and trace capture can still run
-with MAST while the CLI issue is repaired.
+Codex taxonomy learning uses the active task's native subagent capability. It
+does not need a separately runnable Codex CLI, a second login, or an external
+model API key. `atlas-doctor --codex` verifies the hook and configuration
+contract before generation reaches its default five-trace threshold.
 
 ## 2B. Enable Claude Code
 
@@ -50,22 +50,32 @@ atlas-doctor --claude-code
 
 The installer merges ATLAS hooks into `~/.claude/settings.json` and writes
 `~/.claude/atlas-skill.json`. It preserves unrelated settings and plugins.
-The doctor verifies the installed hook contract and checks `claude auth status`
-without making a model call.
+The doctor verifies the installed hook and configuration contract. Native
+learning uses the already-running Claude Code session; it does not invoke a
+separate CLI login.
 
 ## 3. Start a conversation
 
-A new task begins with a compact selector:
+A new Codex or Claude Code task opens the local taxonomy library from
+`SessionStart`. Its choice list contains:
 
 ```text
-Hi! Current project: example-project
-Which taxonomy should ATLAS use for this conversation?
 MAST  [Recommended]
+Compatible stored taxonomies
 No taxonomy
 ```
 
-The first substantive request is held until the choice is resolved, then
-resumes automatically. `No taxonomy` disables ATLAS only for that conversation.
+The browser applies the choice directly before showing the activation page; it
+does not wait for a later host message. `No taxonomy` disables ATLAS only for
+that conversation.
+The browser catalog shows every locally stored taxonomy with a human-readable
+name, scope, summary, code count, and detailed failure codes. This global list
+does not bind or import anything into the current project until it is selected.
+Choosing one binds it to the project/task group immediately.
+If the project already has a learned taxonomy, the selector shows it as the
+recommended first choice and shows MAST as a separate numbered choice. Selecting
+MAST creates an isolated `fresh-*` task group for that conversation, allowing a
+new taxonomy to be learned from zero without replacing the shared default.
 
 One completed assistant episode becomes one trace. By default:
 
@@ -76,6 +86,11 @@ One completed assistant episode becomes one trace. By default:
 The active taxonomy remains stable while a worker runs. Trigger and completion
 notices appear in the conversation; completion appears on the next lifecycle
 event when the host cannot inject into an idle conversation.
+
+Native taxonomy candidates contain 1 to 30 failure codes. Each code must cite
+the frozen trace IDs that support it and include a rationale. This evidence is
+kept for audit and validation; the runtime definition of a code is its ID, name,
+description, and A/B/C category.
 
 ## Shared project state
 

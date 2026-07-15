@@ -27,6 +27,12 @@ Use ATLAS as a lightweight runtime discipline while doing the user's task.
 - When the selector reports `No taxonomy`, do not emit ATLAS checkpoints or
   describe ATLAS as active for that conversation.
 - Before final submission, complete a final ATLAS gate and only report ready when no unresolved taxonomy-relevant issue remains.
+- When runtime context announces an `ATLAS native taxonomy learning` job,
+  immediately launch exactly one native Codex subagent with the supplied task
+  prompt. Continue the user's main work while it runs. Do not perform the
+  taxonomy job in the main agent, invoke `codex exec`, request an API key, or
+  recursively launch another taxonomy agent. The subagent must return the
+  supplied receipt envelope exactly; ATLAS validates and activates it.
 - End each substantive Codex final answer with the compact checkpoint required
   by the active runtime context: `Checkpoint`, `Relevant codes`, `Evidence`,
   and `Next action`. Keep the longer Observe/Correlate/Map/Decide reflection

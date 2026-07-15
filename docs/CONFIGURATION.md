@@ -103,7 +103,8 @@ fields are still accepted as compatibility aliases for the scoped forms.
 
 The defaults in the tables below describe explicit project installs.
 `atlas-codex-install --user-level` instead defaults to `project_scope: "auto"`,
-`session_selector: "prompt"`, and `learning_backend: "codex_subagent"`.
+`session_selector: "prompt"`, `selector_surface: "browser"`, and
+`learning_backend: "codex_subagent"`.
 `atlas-claude-install --user-level` uses the parallel Claude values with
 `learning_backend: "claude_subagent"`. Both user-level commands default to the
 shared root `~/.atlas-skill/interactive` and runtime identity
@@ -117,10 +118,11 @@ Codex user-level interactive hooks may also set:
 | `codex.project_id` | unset | Optional stable identity override, useful for intentionally joined worktrees. |
 | `codex.task_group` | `"default"` | Project-local trace, taxonomy, and refinement group. |
 | `codex.session_selector` | `"off"` | Set to `"prompt"` to ask for MAST, a compatible stored taxonomy, or ATLAS-off at the start of a new Codex conversation. |
-| `codex.learning_backend` | `"provider"` | Set to `"codex_subagent"` for durable, project-scoped learning through the signed-in Codex CLI without a separate API key. |
-| `codex.worker_model` | unset | Optional model override for the isolated native taxonomy worker. |
-| `codex.codex_cli_path` | unset | Optional explicit Codex executable; normally discovered from `CODEX_CLI_PATH`. |
-| `codex.worker_timeout_seconds` | `1800` | Maximum runtime for one native generation or refinement worker. |
+| `codex.selector_surface` | `"browser"` | `"browser"` opens the session-bound local library from `SessionStart`; `"inline"` is a compatibility fallback for hosts that reliably emit `UserPromptSubmit`. |
+| `codex.learning_backend` | `"provider"` | Set to `"codex_subagent"` for durable learning through a native subagent in the active Codex task, without a separate API key or CLI login. |
+| `codex.worker_model` | unset | Legacy compatibility field; native spawned subagents use the active Codex task's model policy. |
+| `codex.codex_cli_path` | unset | Legacy compatibility field; not required by native in-task learning. |
+| `codex.worker_timeout_seconds` | `1800` | Claim lease for one native generation or refinement subagent. |
 
 Claude Code accepts parallel interactive fields:
 
@@ -130,10 +132,11 @@ Claude Code accepts parallel interactive fields:
 | `claude_code.project_id` | unset | Optional stable project identity override. |
 | `claude_code.task_group` | `"default"` | Project-local taxonomy and refinement group, shared with Codex when equal. |
 | `claude_code.session_selector` | `"off"` | `"prompt"` asks for MAST, a compatible taxonomy, or ATLAS-off. |
-| `claude_code.learning_backend` | `"provider"` | `"claude_subagent"` uses authenticated local Claude Code without a separate API key. |
-| `claude_code.worker_model` | unset | Optional native worker model override. |
-| `claude_code.claude_cli_path` | auto | Optional explicit Claude Code executable path. |
-| `claude_code.worker_timeout_seconds` | `1800` | Worker timeout and stale-job lease basis. |
+| `claude_code.selector_surface` | `"inline"` | `"browser"` opens the session-bound local library; user-level installs default to `"browser"`. |
+| `claude_code.learning_backend` | `"provider"` | `"claude_subagent"` uses one native Agent subtask in the active Claude Code session without a separate API key or CLI login. |
+| `claude_code.worker_model` | unset | Legacy compatibility field; the native Agent follows the active session's model policy. |
+| `claude_code.claude_cli_path` | unset | Legacy detached-worker compatibility field; native in-session learning does not use it. |
+| `claude_code.worker_timeout_seconds` | `1800` | Claim lease for one native generation or refinement Agent. |
 
 ## Display metadata
 

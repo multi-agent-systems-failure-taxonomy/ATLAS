@@ -70,6 +70,8 @@ def verify_installed_hooks(executable: Path | None = None) -> str:
         [str(executable), "--version"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=True,
         timeout=15,
     ).stdout.strip()
@@ -431,6 +433,11 @@ def main(argv=None) -> int:
     parser.add_argument("--task-group")
     parser.add_argument("--session-selector", choices=("off", "prompt"))
     parser.add_argument(
+        "--selector-surface",
+        choices=("browser", "inline"),
+        help="choose the local browser library or an inline numbered selector",
+    )
+    parser.add_argument(
         "--learning-backend",
         choices=("provider", "claude_subagent"),
     )
@@ -611,6 +618,10 @@ def main(argv=None) -> int:
                 "session_selector",
                 "prompt" if args.user_level else "off",
             )
+        ),
+        "selector_surface": (
+            args.selector_surface
+            or adapter_config.get("selector_surface", "browser")
         ),
         "learning_backend": (
             args.learning_backend

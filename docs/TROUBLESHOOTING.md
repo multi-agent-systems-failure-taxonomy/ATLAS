@@ -21,6 +21,25 @@ atlas-doctor --config atlas.json --claude-code
 atlas-doctor --config atlas.json --codex
 ```
 
+## Commands are installed but PowerShell cannot run them
+
+On Windows, Python's user-level `Scripts` directory may not be on `PATH`.
+Run the module entry points directly until that directory is added:
+
+```powershell
+python -m atlas_runtime.doctor --codex
+python -m atlas_integration.codex.install --user-level
+```
+
+An npm Codex installation may also resolve bare `codex` to `codex.ps1`, which
+PowerShell can block under a restrictive execution policy. Use the equivalent
+command shim without changing the machine policy:
+
+```powershell
+codex.cmd --version
+codex.cmd
+```
+
 ## A gate did not fire
 
 Blocking gates fail open by design: if the hook process crashes or is killed
@@ -72,25 +91,28 @@ atlas-claude-list-hooks --project-dir .
 
 ## Native taxonomy learning cannot launch
 
-The conversation hooks can run even when the detached taxonomy worker cannot.
-Check the host-specific doctor output:
+The conversation hooks can run even when a taxonomy worker cannot be
+dispatched. Check the host-specific doctor output:
 
 ```bash
 atlas-doctor --codex
 atlas-doctor --claude-code
 ```
 
-For Codex, a desktop-app executable may be visible but denied to background
-processes. Install and sign in to the standalone Codex CLI, or set
-`codex.codex_cli_path` to a runnable executable. Confirm with
-`codex login status`.
+For Codex, the native taxonomy job is claimed on `SessionStart` or
+`UserPromptSubmit`, then launched by the active agent as a subagent. A queued
+job can remain safely dormant between tasks. Check the project program's
+`learning_jobs` directory and the next hook's developer context; no standalone
+Codex CLI is required.
 
-For Claude Code, confirm `claude auth status` succeeds. You may set
-`CLAUDE_CODE_EXECUTABLE` or `claude_code.claude_cli_path` when discovery finds
-the wrong executable.
+For Claude Code, inspect the next `SessionStart` or `UserPromptSubmit` hook
+context for `ATLAS native taxonomy learning is ready`. The active Claude agent
+must launch exactly one native Agent subtask and return its receipt through
+`SubagentStop`. A standalone `claude -p` login and
+`claude_code.claude_cli_path` are not used by the native path.
 
 No external provider API key is needed for `codex_subagent` or
-`claude_subagent`; these backends reuse the host CLI account.
+`claude_subagent`; each uses its active host session.
 
 ## Final gate retries unexpectedly
 

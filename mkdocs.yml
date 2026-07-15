@@ -9,20 +9,21 @@ edit_uri: edit/main/docs/
 
 theme:
   name: material
+  font: false
   icon:
     logo: material/radar
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: indigo
-      accent: indigo
+      primary: custom
+      accent: custom
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: indigo
-      accent: indigo
+      primary: custom
+      accent: custom
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
@@ -44,6 +45,10 @@ markdown_extensions:
   - pymdownx.highlight
   - pymdownx.inlinehilite
   - pymdownx.superfences
+  - md_in_html
+
+extra_css:
+  - assets/stylesheets/extra.css
 
 # README.md is the GitHub file-view index; it would collide with index.md
 # in the built site.
@@ -52,26 +57,29 @@ exclude_docs: |
 
 nav:
   - Home: index.md
-  - Get started:
+  - Start:
+      - Install in Codex or Claude: INTERACTIVE_SETUP.md
+      - Five-minute project setup: GETTING_STARTED.md
+      - See a complete run: EXAMPLE_RUN.md
+      - Install the package: INSTALLATION.md
+  - Understand:
       - Concepts: CONCEPTS.md
-      - An example run: EXAMPLE_RUN.md
-      - Interactive setup: INTERACTIVE_SETUP.md
-      - Getting started: GETTING_STARTED.md
-      - Installation: INSTALLATION.md
-      - Configuration reference: CONFIGURATION.md
+      - Architecture: ARCHITECTURE.md
+      - Native taxonomy learning: NATIVE_LEARNING.md
+      - Traces and learning: TRACES_AND_LEARNING.md
+      - Taxonomies: TAXONOMIES.md
   - Integrations:
       - Claude Code: CLAUDE_CODE.md
       - Codex: CODEX.md
       - Single LLM: SINGLE_LLM.md
       - Runtime API: API_OR_RUNTIME.md
       - Pipeline integration: INTEGRATION.md
-  - Runtime data:
+  - Operate:
       - Dashboard: DASHBOARD.md
       - Web API: WEB_API.md
-      - Traces and learning: TRACES_AND_LEARNING.md
-      - Taxonomies: TAXONOMIES.md
+      - Configuration reference: CONFIGURATION.md
+      - Troubleshooting: TROUBLESHOOTING.md
   - Reference:
       - Compatibility: COMPATIBILITY.md
       - Customization: CUSTOMIZATION.md
-      - Troubleshooting: TROUBLESHOOTING.md
       - Interactive runtime design: INTERACTIVE_CONVERSATIONS_RFC.md

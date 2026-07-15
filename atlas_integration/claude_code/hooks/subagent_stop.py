@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from ..config import ClaudeCodeConfig
-from ..runtime import blocking_checkpoint
+from ..runtime import subagent_stop
 
 
-def handle(event: dict, config: ClaudeCodeConfig) -> tuple[int, str]:
-    return blocking_checkpoint(event, config, gate="subagent_stop")
+def handle(event: dict, config: ClaudeCodeConfig) -> tuple[int, dict | str]:
+    return subagent_stop(event, config)

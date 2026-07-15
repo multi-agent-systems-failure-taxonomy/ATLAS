@@ -13,6 +13,8 @@ This folder is the detailed reference for ATLAS. The repository homepage stays i
 | Install ATLAS and optional model providers | [INSTALLATION.md](INSTALLATION.md) |
 | Look up any `atlas.json` field | [CONFIGURATION.md](CONFIGURATION.md) |
 | Understand the learning lifecycle | [TRACES_AND_LEARNING.md](TRACES_AND_LEARNING.md) |
+| Understand repository and runtime ownership | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| Understand native Codex/Claude taxonomy workers | [NATIVE_LEARNING.md](NATIVE_LEARNING.md) |
 | Customize hooks, prompts, judges, or model profiles | [CUSTOMIZATION.md](CUSTOMIZATION.md) |
 
 ## Integrations
@@ -52,6 +54,7 @@ These pages are useful when changing internals:
 
 - [atlas_runtime/README.md](../atlas_runtime/README.md)
 - [atlas_integration/README.md](../atlas_integration/README.md)
+- [atlas_integration/interactive/README.md](../atlas_integration/interactive/README.md)
 - [finding/README.md](../finding/README.md)
 - [judge_types/README.md](../judge_types/README.md)
 - [tests/README.md](../tests/README.md)

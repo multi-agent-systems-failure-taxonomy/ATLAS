@@ -1,6 +1,6 @@
 # Interactive conversations runtime RFC
 
-Status: Implemented for Codex and Claude Code in ATLAS 1.1.0b1. This document
+Status: Implemented for Codex and Claude Code in ATLAS 1.1.0b3. This document
 retains the design rationale and records remaining management-surface work.
 
 This RFC adds a conversation-oriented runtime without changing the existing
@@ -193,32 +193,30 @@ The worker is a dedicated `atlas-taxonomy-worker` agent. It receives only:
 - a frozen, redacted, outcome-blind trace snapshot;
 - the active taxonomy for refinement jobs;
 - the generation/refinement output schema;
-- a staging directory.
+- a read-only job directory.
 
 It must not activate a taxonomy or write directly to the global taxonomy
-store. It writes a candidate and completion receipt into the job staging
-directory. The runtime then runs structural validation, taxonomy acceptance,
-and transactional activation.
+store. In Codex, it returns a bounded candidate receipt in its final message;
+`SubagentStop` captures the receipt into durable state. The runtime then runs
+structural validation, taxonomy acceptance, and transactional activation.
 
 Job states:
 
 ```text
-queued -> claimed -> running -> candidate_ready -> validating
-       -> ready_to_activate -> complete
-       -> reviewed_no_change
-       -> rejected | failed | cancelled
+queued -> claimed -> awaiting_reconcile -> activating
+       -> activated | no_change
+       -> rejected | failed
 ```
 
 Only one generation or refinement job may run for a project group. A job uses
 a frozen trace list and remains idempotent by `job_id`. A stale claim is
 recoverable after a lease timeout.
 
-Claude Code uses a detached `claude -p` process with safe mode, tools disabled,
-no session persistence, and strict structured output. Codex uses a detached,
-ephemeral `codex exec` process with hooks disabled, read-only sandboxing, and
-no approvals. Both workers reuse local harness authentication and never receive
-taxonomy-store activation authority. The foreground hook coordinator owns
-validation and activation.
+Codex and Claude Code each queue a durable claim and ask the active task to
+launch one native subagent against the frozen snapshot and strict output
+schema. The subagent submits a signed receipt through `SubagentStop`; it never
+receives taxonomy-store activation authority and needs no standalone CLI. The
+foreground hook coordinator owns validation and activation.
 
 ### Generation and refinement policy
 
@@ -361,13 +359,15 @@ The implemented Codex configuration is:
 
 The interactive prototype supports `session_selector: "prompt"` in both
 `codex` and `claude_code` adapter configuration.
-`SessionStart` creates a pending selector and `UserPromptSubmit` deterministically
-resolves a number, taxonomy id/name, MAST, or ATLAS-off. A first substantive
-request is held and becomes the episode task after selection; the selector
-exchange stays outside the episode task label. Stored-taxonomy selection binds
-the existing project/task-group program contract. ATLAS-off bypasses gates and
-trace capture for the conversation. Native button controls remain a host UI
-capability rather than a command-hook output.
+For Codex, `selector_surface: "browser"` makes `SessionStart` launch a
+session-bound localhost selector. The browser deterministically applies a stored
+taxonomy, MAST, or ATLAS-off under the program lock before reporting success;
+it does not rely on `UserPromptSubmit`. `selector_surface: "inline"` preserves
+the prompt-based compatibility path. A first substantive request becomes the
+episode task after selection, while the selector exchange stays outside the
+episode task label. Stored-taxonomy selection binds the existing
+project/task-group program contract. ATLAS-off bypasses gates and trace capture
+for the conversation.
 
 ## Verification matrix
 

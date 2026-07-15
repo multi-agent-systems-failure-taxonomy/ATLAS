@@ -15,15 +15,10 @@ No `atlas.json` or separate model API key is required. The installer writes
 `~/.agents/skills/atlas-failure-modes`.
 
 The defaults are automatic Git-project scoping, task group `default`, the
-conversation selector, generation after five traces, and detached
-`codex_subagent` learning. Open `/hooks` inside Codex and trust the installed
-ATLAS hooks.
-
-Native learning requires a separately runnable and signed-in `codex` CLI. A
-Codex desktop installation can support conversation hooks while its bundled
-executable remains unavailable to background processes. `atlas-doctor --codex`
-checks both execution and `codex login status` before the learning threshold is
-reached.
+conversation selector, generation after five traces, and native
+`codex_subagent` learning in the active task. Open `/hooks` inside Codex and
+trust the installed ATLAS hooks. Native learning uses the task's existing Codex
+session, so no separately runnable CLI or second login is required.
 
 ## Install project-local hooks
 
@@ -42,8 +37,8 @@ Open `/hooks` inside Codex and trust the ATLAS hooks before relying on them.
 
 The default Codex setup uses:
 
-1. `SessionStart`: deliver standing context or initialize taxonomy selection.
-2. `UserPromptSubmit`: hold the first task, resolve the selection, and resume it.
+1. `SessionStart`: deliver standing context or open the session-bound taxonomy library.
+2. `UserPromptSubmit`: inline-selector fallback and episode boundary handling when emitted by the host.
 3. `Stop`: capture the compact final checkpoint and commit the episode in one callback.
 4. `SubagentStop`: capture a compact subagent checkpoint when present without blocking.
 5. `PostToolUse`: add advisory nudges after selected failed tool outputs.
@@ -61,16 +56,40 @@ install, configure it explicitly:
     "project_scope": "auto",
     "task_group": "default",
     "session_selector": "prompt",
+    "selector_surface": "browser",
     "learning_backend": "codex_subagent"
   }
 }
 ```
 
-A new conversation recommends MAST for an unbound project, lists compatible
-stored taxonomies with short domain/origin metadata, and includes `No taxonomy`.
-The first task is held while the user chooses, then resumes automatically. A
-stored taxonomy becomes the shared project/task-group taxonomy. `No taxonomy`
-disables ATLAS gates and trace capture only for that conversation.
+A new conversation opens the localhost ATLAS catalog directly from
+`SessionStart`. It recommends MAST for an unbound project and includes compatible
+stored taxonomies plus `No taxonomy`. The catalog is global storage, not a list
+of taxonomies already imported into the project. Its `/choose` handler validates
+the session's allowed options, updates Codex state, and binds a stored taxonomy
+to the project/task group before rendering the activation page. No later prompt
+hook is required. `No taxonomy` disables ATLAS gates and trace capture only for
+that conversation.
+
+Catalog and chat surfaces use `display_name` when present and otherwise fall
+back to the taxonomy domain. The generated `taxonomy_id` remains visible as
+secondary metadata and continues to be the immutable storage and lineage key.
+
+When a project already has a learned taxonomy, the numbered choices are the
+learned shared default, `MAST`, and `No taxonomy`. Choosing `MAST` means
+"start fresh": ATLAS creates a durable `fresh-<conversation>` task group,
+starts that conversation from MAST, and learns a separate taxonomy from zero.
+The existing project taxonomy remains the default for every other conversation.
+
+Set `selector_surface` to `"inline"` only for a host that reliably emits
+`UserPromptSubmit` and where opening a local browser is undesirable. Browser is
+the default because current Codex Desktop builds may omit that event.
+
+The installer flag is equivalent and overrides `atlas.json` for that install:
+
+```bash
+atlas-codex-install --project-dir . --config atlas.json --selector-surface inline
+```
 
 The selector includes the resolved project path. Start a task from the actual
 repository, or set `codex.project_id`, when the conversational workspace and
@@ -94,27 +113,36 @@ retained. Resume and the next user prompt recover unfinished episodes.
 ## Native taxonomy learning
 
 `codex.learning_backend: "codex_subagent"` runs generation and refinement in
-an isolated `codex exec` process that reuses the signed-in Codex account. It
-does not require `OPENAI_API_KEY` or another user-supplied model credential.
-The child runs with hooks disabled, no approvals, a read-only sandbox, and an
-immutable project/task-group evidence snapshot.
+a native subagent of the active Codex task. It does not require a standalone
+`codex` executable, separate CLI login, `OPENAI_API_KEY`, or another
+user-supplied model credential. The subagent receives a claimed job and may
+read only its immutable project/task-group evidence snapshot and output schema.
 
-The fifth eligible episode triggers generation by default. MAST remains active
-while the child produces a proposal. The child cannot publish a taxonomy: it
-writes a receipt that the normal hook coordinator validates and activates only
-when no episode is active. The first refinement review occurs after 10 new
-episodes and later reviews every 20; a review may retain the current taxonomy
-when the evidence does not justify a change.
+The fifth eligible episode triggers generation by default. Every lifecycle
+hook also polls the durable program. If enough eligible episodes exist but no
+job was queued, the next hook repairs the missed trigger idempotently. MAST
+remains active while the subagent produces a proposal. The subagent cannot
+publish a taxonomy: it returns a bounded receipt in its final message, which
+`SubagentStop` passes to the normal hook coordinator for validation and
+activation only when no episode is active. The first refinement
+review occurs after 10 new episodes and later reviews every 20; a review may
+retain the current taxonomy when the evidence does not justify a change.
+
+The native worker candidate schema accepts 1 through 30 codes. Thirty is a
+safety cap, not a target, so a small five-trace generation snapshot may produce
+fewer codes. Every proposed code must cite one or more frozen trace IDs and an
+evidence rationale. Those fields are generation provenance and validation
+evidence; runtime matching itself uses the code ID, name, description, and
+category. The current stored taxonomy retains the provenance inline for audit.
 
 The trigger notice appears in the hook event that queues the worker. Codex
 hooks cannot inject into an idle task asynchronously, so the finished notice
 appears exactly once on the conversation's next lifecycle event. A failed or
 stale result leaves MAST or the current taxonomy active and preserves traces.
 
-Optional worker controls are `codex.worker_model`,
-`codex.codex_cli_path`, and `codex.worker_timeout_seconds`. Normally the CLI is
-discovered from `CODEX_CLI_PATH`, and the worker uses the session's default
-model.
+`codex.worker_timeout_seconds` controls the native claim lease. The legacy
+`codex.worker_model` and `codex.codex_cli_path` fields remain readable for
+configuration compatibility but are not used by the in-task worker.
 
 ## Optional skill guidance
 

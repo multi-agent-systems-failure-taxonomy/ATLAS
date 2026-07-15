@@ -12,6 +12,8 @@ from finding import store
 from atlas_runtime.project_scope import project_program_path, validate_scope_id
 from atlas_runtime.traces import DEFAULT_TRACE_ROOT
 
+from .session_routes import create_fresh_session_route, resolve_session_route
+
 _HOOK_EVENTS = json.loads(
     files(__package__).joinpath("assets", "hook_events.json").read_text(
         encoding="utf-8"
@@ -243,6 +245,7 @@ class ClaudeCodeConfig:
     project_id: str | None = None
     task_group: str = "default"
     session_selector: str = "off"
+    selector_surface: str = "inline"
     learning_backend: str = "provider"
     worker_model: str | None = None
     claude_cli_path: Path | None = None
@@ -251,6 +254,11 @@ class ClaudeCodeConfig:
         default_factory=default_built_in_hooks
     )
     custom_hooks: tuple[CustomHookSpec, ...] = field(default_factory=tuple)
+    routing_root: Path | None = field(default=None, repr=False, compare=False)
+    default_trace_output: Path | None = field(
+        default=None, repr=False, compare=False
+    )
+    base_task_group: str | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if not str(self.atlas_model).strip():
@@ -259,6 +267,8 @@ class ClaudeCodeConfig:
             raise ValueError("project_scope must be 'explicit' or 'auto'")
         if self.session_selector not in {"off", "prompt"}:
             raise ValueError("session_selector must be 'off' or 'prompt'")
+        if self.selector_surface not in {"browser", "inline"}:
+            raise ValueError("selector_surface must be 'browser' or 'inline'")
         if self.learning_backend not in {"provider", "claude_subagent"}:
             raise ValueError(
                 "learning_backend must be 'provider' or 'claude_subagent'"
@@ -270,6 +280,8 @@ class ClaudeCodeConfig:
                 "claude_subagent learning requires background generation and refinement"
             )
         validate_scope_id(self.task_group, label="task_group")
+        if self.base_task_group is not None:
+            validate_scope_id(self.base_task_group, label="base_task_group")
         if self.project_id is not None:
             validate_scope_id(self.project_id, label="project_id")
         if self.max_retries < 0:
@@ -415,6 +427,7 @@ class ClaudeCodeConfig:
             ),
             task_group=str(scoped.get("task_group", "default")),
             session_selector=str(scoped.get("session_selector", "off")),
+            selector_surface=str(scoped.get("selector_surface", "inline")),
             learning_backend=str(scoped.get("learning_backend", "provider")),
             worker_model=(
                 str(scoped["worker_model"]).strip()
@@ -435,17 +448,44 @@ class ClaudeCodeConfig:
 
     def for_event(self, event: dict) -> "ClaudeCodeConfig":
         """Return the project/group-scoped config for a user-level hook."""
+        routing_root = self.routing_root or self.trace_output
+        base_task_group = self.base_task_group or self.task_group
         if self.project_scope == "explicit":
-            return self
+            default_trace_output = self.default_trace_output or self.trace_output
+        else:
+            default_trace_output = project_program_path(
+                routing_root,
+                cwd=event.get("cwd"),
+                task_group=base_task_group,
+                project_id=self.project_id,
+            )
+        route = resolve_session_route(
+            routing_root,
+            event,
+            default_trace_output=default_trace_output,
+        )
         return replace(
             self,
-            trace_output=project_program_path(
-                self.trace_output,
-                cwd=event.get("cwd"),
-                task_group=self.task_group,
-                project_id=self.project_id,
-            ),
+            trace_output=(route.trace_output if route else default_trace_output),
+            task_group=route.task_group if route else base_task_group,
+            routing_root=routing_root,
+            default_trace_output=default_trace_output,
+            base_task_group=base_task_group,
         )
+
+    def start_fresh_conversation(self, event: dict) -> "ClaudeCodeConfig":
+        """Route this Claude conversation to a separate MAST task group."""
+        scoped = self.for_event(event)
+        create_fresh_session_route(
+            scoped.routing_root or scoped.trace_output,
+            event,
+            default_trace_output=(
+                scoped.default_trace_output or scoped.trace_output
+            ),
+            project_scope=scoped.project_scope,
+            project_id=scoped.project_id,
+        )
+        return scoped.for_event(event)
 
     def to_dict(self) -> dict:
         return {
@@ -480,6 +520,7 @@ class ClaudeCodeConfig:
                 "project_id": self.project_id,
                 "task_group": self.task_group,
                 "session_selector": self.session_selector,
+                "selector_surface": self.selector_surface,
                 "learning_backend": self.learning_backend,
                 "worker_model": self.worker_model,
                 "claude_cli_path": (

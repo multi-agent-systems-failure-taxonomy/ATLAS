@@ -213,6 +213,16 @@ def _claude_code_checks() -> list[DoctorCheck]:
         config and config.learning_backend == "claude_subagent"
     )
     executable = config.claude_cli_path if config else None
+    if native_required:
+        return [
+            _claude_code_check(executable=executable),
+            config_check,
+            DoctorCheck(
+                "claude auth",
+                OK,
+                "the native Agent subtask uses the active Claude Code session",
+            ),
+        ]
     return [
         _claude_code_check(executable=executable),
         config_check,
@@ -240,6 +250,21 @@ def _claude_code_check(*, executable: Path | str | None = None) -> DoctorCheck:
 def _codex_checks() -> list[DoctorCheck]:
     config_check, config = _interactive_config_check("codex")
     native_required = bool(config and config.learning_backend == "codex_subagent")
+    if native_required:
+        return [
+            config_check,
+            DoctorCheck(
+                "codex cli",
+                OK,
+                "standalone executable is not required for in-task subagent learning",
+            ),
+            DoctorCheck(
+                "codex auth",
+                OK,
+                "the native subagent uses the active Codex task session",
+            ),
+            _codex_hooks_feature_check(),
+        ]
     executable = config.codex_cli_path if config else None
     return [
         config_check,
@@ -276,6 +301,8 @@ def _codex_cli_check(
             [executable, "--version"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
             check=False,
         )
@@ -371,6 +398,8 @@ def _native_auth_check(
             [resolved, *auth_args],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=15,
             check=False,
         )

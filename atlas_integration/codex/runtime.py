@@ -40,11 +40,22 @@ from atlas_runtime.reflection import (
 from finding import mast, resolver
 
 from atlas_integration.shared import build_session_state
-from atlas_integration.interactive.learning_jobs import enqueue_learning_job
+from atlas_integration.codex.learning_jobs import (
+    LearningJobError,
+    capture_learning_receipt,
+    enqueue_learning_job,
+)
+from atlas_integration.codex.browser_picker import (
+    open_browser_picker,
+    read_browser_choice,
+    start_browser_picker,
+)
 from atlas_integration.interactive.selector import (
+    SELECTOR_VERSION,
     build_selection,
     parse_selection_choice,
     selection_interstitial,
+    stored_option,
 )
 
 from .config import CodexConfig
@@ -80,7 +91,22 @@ def session_start(event: dict[str, Any], config: CodexConfig) -> dict:
         if selection:
             status = selection.get("status")
             if status == "pending":
-                return _selection_output("SessionStart", selection)
+                selection = _refresh_pending_selection(
+                    existing,
+                    event,
+                    config,
+                )
+                save_state(config.trace_output, session_id, existing)
+                if config.selector_surface == "inline":
+                    return _selection_output("SessionStart", selection)
+                return _launch_selection_browser(
+                    existing,
+                    event,
+                    config,
+                    event_name="SessionStart",
+                )
+            if status == "browser_pending":
+                return _browser_waiting_output(selection, "SessionStart")
             if status == "disabled":
                 return {
                     "systemMessage": "ATLAS is disabled for this conversation."
@@ -99,6 +125,7 @@ def session_start(event: dict[str, Any], config: CodexConfig) -> dict:
                 trace_output=config.trace_output,
                 store_dir=config.store_dir,
                 cwd=event.get("cwd"),
+                catalog_mode=config.selector_surface,
             )
             state = {
                 "version": 1,
@@ -113,7 +140,14 @@ def session_start(event: dict[str, Any], config: CodexConfig) -> dict:
                 "trace_captured": False,
             }
             save_state(config.trace_output, session_id, state)
-            return _selection_output("SessionStart", selection)
+            if config.selector_surface == "inline":
+                return _selection_output("SessionStart", selection)
+            return _launch_selection_browser(
+                state,
+                event,
+                config,
+                event_name="SessionStart",
+            )
 
     if recovered:
         return _add_context(
@@ -284,11 +318,64 @@ def user_prompt_submit(event: dict[str, Any], config: CodexConfig) -> dict | Non
     if not selection:
         return None
 
+    if (
+        selection.get("status") == "pending"
+        and int(selection.get("version") or 0) < SELECTOR_VERSION
+    ):
+        selection = _refresh_pending_selection(state, event, config)
+        save_state(config.trace_output, session_id, state)
+        return _selection_output("UserPromptSubmit", selection)
+
     status = selection.get("status")
     if status == "disabled":
         return None
-    if status == "pending":
-        choice = parse_selection_choice(prompt, selection)
+    if status in {"pending", "browser_pending"}:
+        choice = None
+        if status == "browser_pending":
+            taxonomy_id = read_browser_choice(
+                selection.get("browser_picker"),
+                store_dir=config.store_dir,
+            )
+            if taxonomy_id:
+                if taxonomy_id == mast.MAST_ID:
+                    choice = next(
+                        (
+                            option
+                            for option in selection.get("options", [])
+                            if option.get("kind") == "mast"
+                        ),
+                        None,
+                    )
+                elif taxonomy_id == "none":
+                    choice = next(
+                        (
+                            option
+                            for option in selection.get("options", [])
+                            if option.get("kind") == "disabled"
+                        ),
+                        None,
+                    )
+                else:
+                    choice = stored_option(taxonomy_id, config.store_dir)
+                selection["status"] = "pending"
+                if (
+                    prompt
+                    and not selection.get("pending_task")
+                    and not _browser_continuation_prompt(prompt)
+                ):
+                    selection["pending_task"] = prompt
+            else:
+                if (
+                    prompt
+                    and not selection.get("pending_task")
+                    and not _browser_continuation_prompt(prompt)
+                ):
+                    selection["pending_task"] = prompt
+                save_state(config.trace_output, session_id, state)
+                return _browser_waiting_output(selection, "UserPromptSubmit")
+
+        if choice is None:
+            choice = parse_selection_choice(prompt, selection)
         if choice is None:
             if prompt and not selection.get("pending_task"):
                 selection["pending_task"] = prompt
@@ -297,6 +384,14 @@ def user_prompt_submit(event: dict[str, Any], config: CodexConfig) -> dict | Non
                 )
                 save_state(config.trace_output, session_id, state)
             return _selection_output("UserPromptSubmit", selection)
+
+        if choice["kind"] == "browser":
+            return _launch_selection_browser(
+                state,
+                event,
+                config,
+                event_name="UserPromptSubmit",
+            )
 
         selection["selected_kind"] = choice["kind"]
         selection["selected_taxonomy_id"] = choice.get("taxonomy_id")
@@ -312,20 +407,39 @@ def user_prompt_submit(event: dict[str, Any], config: CodexConfig) -> dict | Non
                 system_message="ATLAS disabled for this conversation.",
             )
 
+        target_config = config
+        if choice.get("starts_fresh"):
+            target_config = config.start_fresh_conversation(event)
+            selection["fresh_task_group"] = target_config.task_group
+            selection["shared_taxonomy_preserved"] = selection.get(
+                "project_taxonomy_id"
+            )
+            if target_config.trace_output != config.trace_output:
+                routed_state = dict(state)
+                routed_state["selection"] = dict(selection)
+                source_state = dict(state)
+                source_state["selection"] = {
+                    **selection,
+                    "status": "routed",
+                }
+                save_state(config.trace_output, session_id, source_state)
+                state = routed_state
+
         selection["status"] = "selected"
+        state["selection"] = selection
         if pending_task:
             fresh, _session = _start_episode(
                 event,
-                config,
+                target_config,
                 sequence=max(1, int(state.get("episode_sequence", 0)) + 1),
                 cursor=transcript_size(event.get("transcript_path")),
                 previous=state,
                 taxonomy_id=str(choice["taxonomy_id"]),
                 episode_task=pending_task,
             )
-            save_state(config.trace_output, session_id, fresh)
+            save_state(target_config.trace_output, session_id, fresh)
         else:
-            save_state(config.trace_output, session_id, state)
+            save_state(target_config.trace_output, session_id, state)
         return _add_context(
             _selection_accepted_context(selection, pending_task),
             event_name="UserPromptSubmit",
@@ -358,7 +472,7 @@ def _ensure_active_episode(
     state: dict[str, Any],
 ) -> dict[str, Any]:
     selection = state.get("selection") or {}
-    if selection.get("status") in {"pending", "disabled"}:
+    if selection.get("status") in {"pending", "browser_pending", "disabled"}:
         return state
     if not state.get("finished"):
         return state
@@ -394,7 +508,7 @@ def stop(event: dict[str, Any], config: CodexConfig) -> dict | None:
     """
     state = _state(event, config)
     selection = state.get("selection") or {}
-    if selection.get("status") == "pending":
+    if selection.get("status") in {"pending", "browser_pending"}:
         return {
             "continue": True,
             "systemMessage": "ATLAS is waiting for taxonomy selection.",
@@ -467,6 +581,22 @@ def stop(event: dict[str, Any], config: CodexConfig) -> dict | None:
 
 
 def subagent_stop(event: dict[str, Any], config: CodexConfig) -> dict | None:
+    workspace = ProgramWorkspace(config.trace_output, repo_path=event.get("cwd"))
+    try:
+        learning_job_id = capture_learning_receipt(workspace, event)
+    except (LearningJobError, OSError, ValueError) as exc:
+        return {
+            "continue": True,
+            "systemMessage": f"ATLAS ignored an invalid taxonomy receipt: {exc}",
+        }
+    if learning_job_id:
+        return {
+            "continue": True,
+            "systemMessage": (
+                f"ATLAS taxonomy proposal received for {learning_job_id}; "
+                "validation is pending."
+            ),
+        }
     state = _state(event, config)
     if _selection_inactive(state) or state.get("finished"):
         return None
@@ -543,7 +673,7 @@ def blocking_checkpoint(
 ) -> dict | None:
     state = _state(event, config)
     selection = state.get("selection") or {}
-    if selection.get("status") == "pending":
+    if selection.get("status") in {"pending", "browser_pending"}:
         return {
             "continue": True,
             "systemMessage": "ATLAS is waiting for taxonomy selection.",
@@ -875,7 +1005,6 @@ def _finish_runtime_session(
             "task_group": config.task_group,
             "conversation_id": str(state["session_id"]),
             "worker_model": config.worker_model,
-            "codex_cli_path": config.codex_cli_path,
             "worker_timeout_seconds": config.worker_timeout_seconds,
         }
         generation_launcher = lambda: enqueue_learning_job(
@@ -1001,15 +1130,124 @@ def _selection_output(event_name: str, selection: dict[str, Any]) -> dict:
     )
 
 
+def _refresh_pending_selection(
+    state: dict[str, Any],
+    event: dict[str, Any],
+    config: CodexConfig,
+) -> dict[str, Any]:
+    current = state.get("selection") or {}
+    if int(current.get("version") or 0) >= SELECTOR_VERSION:
+        return current
+    refreshed = build_selection(
+        trace_output=config.trace_output,
+        store_dir=config.store_dir,
+        cwd=event.get("cwd"),
+        catalog_mode=config.selector_surface,
+    )
+    for key in ("pending_task", "held_cursor"):
+        if current.get(key) is not None:
+            refreshed[key] = current[key]
+    state["selection"] = refreshed
+    return refreshed
+
+
+def _launch_selection_browser(
+    state: dict[str, Any],
+    event: dict[str, Any],
+    config: CodexConfig,
+    *,
+    event_name: str,
+) -> dict:
+    selection = state.get("selection") or {}
+    try:
+        picker = start_browser_picker(
+            config.trace_output,
+            _session_id(event),
+            store_dir=config.store_dir,
+            selection=selection,
+            event=event,
+            routing_root=config.routing_root or config.trace_output,
+            default_trace_output=(
+                config.default_trace_output or config.trace_output
+            ),
+            task_group=config.task_group,
+            project_scope=config.project_scope,
+            project_id=config.project_id,
+            timeout_seconds=config.worker_timeout_seconds,
+        )
+    except (OSError, RuntimeError, ValueError) as exc:
+        return _add_context(
+            "ATLAS could not open its local taxonomy library. Do not perform "
+            "the held task yet; report the selector error to the user.",
+            event_name=event_name,
+            system_message=f"ATLAS could not open the taxonomy library: {exc}",
+        )
+    selection["status"] = "browser_pending"
+    selection["browser_picker"] = picker
+    state["selection"] = selection
+    save_state(config.trace_output, _session_id(event), state)
+    open_browser_picker(picker)
+    return _browser_opened_output(selection, event_name)
+
+
+def _browser_opened_output(selection: dict[str, Any], event_name: str) -> dict:
+    picker = selection.get("browser_picker") or {}
+    url = str(picker.get("url") or "the local ATLAS catalog")
+    return _add_context(
+        "ATLAS taxonomy selection is waiting in the local browser. The catalog "
+        f"opened at {url}. Do not perform the held task yet. Ask the user to "
+        "choose a taxonomy there. The browser applies it directly to this "
+        "conversation; return to Codex when the page confirms activation.",
+        event_name=event_name,
+        system_message="ATLAS taxonomy library opened in the browser.",
+    )
+
+
+def _browser_waiting_output(
+    selection: dict[str, Any],
+    event_name: str,
+) -> dict:
+    picker = selection.get("browser_picker") or {}
+    url = str(picker.get("url") or "the local ATLAS catalog")
+    return _add_context(
+        "ATLAS is still waiting for a taxonomy choice in the local browser at "
+        f"{url}. Do not perform the held task yet. Ask the user to finish the "
+        "browser selection and send another message.",
+        event_name=event_name,
+        system_message="ATLAS is waiting for the browser taxonomy selection.",
+    )
+
+
 def _selection_inactive(state: dict[str, Any]) -> bool:
-    return (state.get("selection") or {}).get("status") in {"pending", "disabled"}
+    return (state.get("selection") or {}).get("status") in {
+        "pending",
+        "browser_pending",
+        "disabled",
+    }
+
+
+def _browser_continuation_prompt(prompt: str) -> bool:
+    return str(prompt or "").strip().casefold() in {
+        "continue",
+        "done",
+        "selected",
+        "i selected it",
+        "selection complete",
+    }
 
 
 def _selected_context(selection: dict[str, Any]) -> str:
-    return (
+    context = (
         f"ATLAS taxonomy is pinned to {selection.get('selected_label') or selection.get('selected_taxonomy_id')} "
         "for this conversation. Do not ask for taxonomy selection again."
     )
+    if selection.get("fresh_task_group"):
+        context += (
+            " This conversation starts a new taxonomy from MAST in isolated "
+            f"task group {selection['fresh_task_group']}; the existing shared "
+            "project taxonomy remains unchanged."
+        )
+    return context
 
 
 def _selection_accepted_context(

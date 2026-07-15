@@ -101,6 +101,20 @@ def fetch_by_id(taxonomy_id: str, store_dir=DEFAULT_STORE_DIR) -> dict:
     return data
 
 
+def display_name(record: dict) -> str:
+    """Return a human-facing name without changing the immutable store key."""
+    explicit = str(record.get("display_name") or "").strip()
+    if explicit:
+        return explicit
+    domain = str(record.get("domain") or "").strip()
+    if domain:
+        return domain
+    repo = str(record.get("repo") or "").strip()
+    if repo:
+        return f"{repo} failure modes"
+    return str(record.get("taxonomy_id") or "Stored taxonomy").strip()
+
+
 def register(record: dict, store_dir=DEFAULT_STORE_DIR, *, replace: bool = False) -> Path:
     """Validate and atomically store one taxonomy by taxonomy_id.
 
@@ -154,6 +168,11 @@ def _validate_record(record: dict) -> None:
     for field in ("repo", "domain"):
         if not isinstance(record[field], str):
             raise InvalidTaxonomy(f"{field} must be a string")
+    for field in ("display_name", "summary"):
+        if field in record and (
+            not isinstance(record[field], str) or not record[field].strip()
+        ):
+            raise InvalidTaxonomy(f"{field} must be a non-empty string")
     if not isinstance(record["codes"], list) or not record["codes"]:
         raise InvalidTaxonomy("codes must be a non-empty list")
     for index, code in enumerate(record["codes"]):

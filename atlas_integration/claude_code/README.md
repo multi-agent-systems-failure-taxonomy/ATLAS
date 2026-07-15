@@ -57,8 +57,10 @@ atlas-doctor --claude-code
 User-level installation writes `~/.claude/atlas-skill.json` and merges hooks
 into `~/.claude/settings.json`. With the same base runtime root and task group,
 Claude Code and Codex share the taxonomy and refinement lineage for a project.
-The native Claude worker reuses local Claude Code authentication; it does not
-require a separately supplied model API key.
+The native Claude worker is one Agent subtask in the active session; it does
+not require a separately supplied model API key, standalone `claude -p`
+process, or second login. The default browser selector can be replaced with
+the inline numbered surface via `--selector-surface inline`.
 
 The matching reversible cleanup command is
 `atlas-claude-uninstall --user-level`; unrelated Claude settings remain.
@@ -73,7 +75,8 @@ The installer verifies the locally installed Claude Code binary before writing
 - `SessionEnd`: idempotent fallback capture for interrupted sessions that did
   not finish through the Stop gate.
 - `TaskCompleted`: blocking sub-task checkpoint.
-- `SubagentStop`: blocking subagent checkpoint.
+- `SubagentStop`: blocking subagent checkpoint, except for a signed taxonomy
+  receipt, which is captured without recursively gating the learning worker.
 - `Stop`: blocking full submission gate.
 - `PostToolUse`: nonblocking nudge when a nominally successful tool response
   contains a failure signature.
@@ -139,12 +142,14 @@ or refinement at its configured thresholds without duplicating learning logic
 in the harness.
 
 With `claude_code.learning_backend: "claude_subagent"`, `end_session()` freezes
-eligible episode traces and launches one detached, proposal-only worker. Claude
-runs with `--safe-mode`, `--tools ""`, `--permission-mode dontAsk`, strict
-structured output, and no session persistence. Foreground reconciliation
-checks the snapshot hash, evidence ids, project version, and idle episode
-boundary before activation. Trigger and finish notices are delivered exactly
-once to the originating conversation on its next hook event.
+eligible episode traces and queues one proposal-only job. The next
+`SessionStart` or `UserPromptSubmit` claims it and instructs the active Claude
+session to launch one native Agent subtask against `prompt.txt` and the strict
+output schema. Its signed receipt is captured through `SubagentStop`.
+Foreground reconciliation checks the claim, snapshot hash, evidence ids,
+project version, and idle episode boundary before activation. Trigger and
+finish notices are delivered exactly once to the originating conversation on
+its next hook event.
 
 When the final Stop reflection returns `REPAIR_REQUIRED`, the hook blocks and
 grants one repair opportunity. The next completion attempt is blocked again
@@ -240,8 +245,11 @@ their built-in handler regardless; a custom hook on a built-in event
 | [`custom.py`](custom.py) | Reflection runtime for `CustomHookSpec` entries: `custom_blocking_checkpoint` + `custom_advisory` reuse the same reflection-shape validator as the built-in gates |
 | [`dispatcher.py`](dispatcher.py) | Single command entry point. Built-in events route by `hook_event_name`; custom hooks route via `--custom <spec_name>` |
 | [`install.py`](install.py) | `atlas-claude-install` CLI: write project-local or user-level settings + `atlas-skill.json`, register built-in events + every `custom_hooks` entry, verify Claude Code binary contract |
-| [`learning_jobs.py`](learning_jobs.py) | Claude adapter for durable frozen-snapshot jobs and foreground reconciliation |
-| [`native_worker.py`](native_worker.py) | Isolated Claude Code structured-output worker; proposal-only by contract |
+| [`learning_jobs.py`](learning_jobs.py) | Claude policy facade for shared durable jobs, threshold polling, and foreground reconciliation |
+| [`subagent_protocol.py`](subagent_protocol.py) | Claude Agent-instruction facade for the shared signed receipt protocol |
+| [`session_routes.py`](session_routes.py) | Claude-namespaced facade for shared fresh-conversation routing |
+| [`browser_picker.py`](browser_picker.py) | Claude-namespaced facade for the shared localhost picker transport |
+| [`native_worker.py`](native_worker.py) | Legacy detached-worker compatibility entry point; native in-session learning does not invoke it |
 | [`manage_hooks.py`](manage_hooks.py) | `atlas-claude-add-hook` / `remove-hook` / `list-hooks` CLIs to mutate `custom_hooks` and refresh `settings.local.json` in one command |
 | [`prompts.py`](prompts.py) | Claude Code standing instruction + Claude-specific final-gate wrapper around the shared checkpoint prompt |
 | [`reflection.py`](reflection.py) | Compatibility re-export for the shared `atlas_runtime.reflection` parser |
@@ -257,3 +265,8 @@ their built-in handler regardless; a custom hook on a built-in event
   `PostToolUse`, `PostToolUseFailure`). Each file exports a thin `handle`
   function that the dispatcher routes to; all real behavior lives in
   [`runtime.py`](runtime.py).
+
+Host-neutral implementations live in
+[`../interactive/`](../interactive/). Keep Claude hook contracts and transcript
+handling here; place selector, route, job, and receipt behavior in the shared
+package.

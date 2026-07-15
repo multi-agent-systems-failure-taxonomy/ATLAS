@@ -8,8 +8,10 @@ ATLAS supports a dependency-light base install plus optional model-provider extr
 - A project directory where ATLAS can write local hook config, if you use a harness integration
 - A writable trace directory
 
-Native interactive taxonomy learning also requires a runnable, signed-in CLI
-for the selected host: `codex` for Codex or `claude` for Claude Code.
+Codex- and Claude-native taxonomy learning use the active conversation's
+subagent capability and need no standalone host CLI or second login. Explicit
+provider-backed project configurations still require the selected provider's
+normal credentials.
 
 ## Install from GitHub
 
@@ -43,9 +45,10 @@ atlas-doctor --claude-code
 ```
 
 These defaults use `~/.atlas-skill/interactive`, automatic Git-project
-scoping, the in-chat selector, and the host's authenticated CLI as a detached
-taxonomy worker. They do not require `atlas.json` or a separate provider API
-key. Run both installers to share project/task-group state across both hosts.
+scoping, and the browser selector. Codex and Claude Code use a native subagent
+in the active task for taxonomy learning and do not require a standalone host
+CLI login or separate provider API key. Run both installers to share
+project/task-group state across both hosts.
 
 See [Interactive setup](INTERACTIVE_SETUP.md) for behavior and uninstall steps.
 

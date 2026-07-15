@@ -61,11 +61,12 @@ If `generation_stops` is `false`, already-running tasks continue with MAST while
 
 If `generation_stops` is `true`, the task waits until generation finishes.
 
-For interactive use, `codex.learning_backend: "codex_subagent"` or
-`claude_code.learning_backend: "claude_subagent"` freezes the exact
-threshold-crossing episode set and launches an authenticated harness worker.
-Later episodes cannot change that worker's evidence. They continue on the
-current taxonomy and are retained for the next refinement window.
+For interactive Codex use, `codex.learning_backend: "codex_subagent"` freezes
+the exact threshold-crossing episode set and queues a native in-task subagent.
+Each lifecycle hook polls for missed threshold triggers, so repeated checks are
+safe and an interrupted trigger is repaired on the next event. Later episodes
+cannot change that worker's evidence. They continue on the current taxonomy and
+are retained for the next refinement window.
 
 ## Accepted vs rejected generation
 
