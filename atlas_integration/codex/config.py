@@ -11,6 +11,7 @@ from atlas_runtime.traces import DEFAULT_TRACE_ROOT
 from atlas_runtime.project_scope import project_program_path, validate_scope_id
 from atlas_integration.codex.session_routes import (
     create_fresh_session_route,
+    resolve_conversation_scope,
     resolve_session_route,
 )
 
@@ -292,6 +293,15 @@ class CodexConfig:
                 task_group=base_task_group,
                 project_id=self.project_id,
             )
+        scope = resolve_conversation_scope(
+            routing_root,
+            event,
+            default_trace_output=default_trace_output,
+            default_task_group=base_task_group,
+        )
+        if scope:
+            default_trace_output = scope.trace_output
+            base_task_group = scope.task_group
         route = resolve_session_route(
             routing_root,
             event,

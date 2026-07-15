@@ -89,6 +89,21 @@ For Claude Code, list installed ATLAS custom hooks:
 atlas-claude-list-hooks --project-dir .
 ```
 
+## The taxonomy browser reopens after resuming Claude Code
+
+Current releases bind each Claude session ID to its first resolved ATLAS
+program. This prevents Claude's resumed or changed `cwd` from looking like a
+new conversation. Upgrade and reinstall the user-level hooks:
+
+```bash
+python -m pip install --upgrade "git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
+atlas-claude-install --user-level
+atlas-doctor --claude-code
+```
+
+The first hook after upgrading also migrates any existing selected or disabled
+session state into the binding. It should not ask for the taxonomy again.
+
 ## Native taxonomy learning cannot launch
 
 The conversation hooks can run even when a taxonomy worker cannot be

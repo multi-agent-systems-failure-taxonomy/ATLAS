@@ -62,6 +62,10 @@ not require a separately supplied model API key, standalone `claude -p`
 process, or second login. The default browser selector can be replaced with
 the inline numbered surface via `--selector-surface inline`.
 
+ATLAS pins the first resolved project and task group to Claude's stable session
+ID. Resuming that session from another shell, changing directories, or entering
+a nested repository does not reopen the selector or change its taxonomy.
+
 The matching reversible cleanup command is
 `atlas-claude-uninstall --user-level`; unrelated Claude settings remain.
 
@@ -247,7 +251,7 @@ their built-in handler regardless; a custom hook on a built-in event
 | [`install.py`](install.py) | `atlas-claude-install` CLI: write project-local or user-level settings + `atlas-skill.json`, register built-in events + every `custom_hooks` entry, verify Claude Code binary contract |
 | [`learning_jobs.py`](learning_jobs.py) | Claude policy facade for shared durable jobs, threshold polling, and foreground reconciliation |
 | [`subagent_protocol.py`](subagent_protocol.py) | Claude Agent-instruction facade for the shared signed receipt protocol |
-| [`session_routes.py`](session_routes.py) | Claude-namespaced facade for shared fresh-conversation routing |
+| [`session_routes.py`](session_routes.py) | Claude-namespaced facade for stable conversation scope and fresh-conversation routing |
 | [`browser_picker.py`](browser_picker.py) | Claude-namespaced facade for the shared localhost picker transport |
 | [`native_worker.py`](native_worker.py) | Legacy detached-worker compatibility entry point; native in-session learning does not invoke it |
 | [`manage_hooks.py`](manage_hooks.py) | `atlas-claude-add-hook` / `remove-hook` / `list-hooks` CLIs to mutate `custom_hooks` and refresh `settings.local.json` in one command |

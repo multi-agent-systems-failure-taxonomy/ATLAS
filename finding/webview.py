@@ -387,7 +387,7 @@ def build_server(
                 result["value"] = chosen
                 option = valid_choices[chosen]
                 label = html.escape(str(option.get("label") or chosen))
-                self._send(_success_page(label, chosen, picker_context is not None))
+                self._send(_success_page(label, chosen, picker_context))
                 done.set()
                 return
 
@@ -397,10 +397,16 @@ def build_server(
     return server, result, done
 
 
-def _success_page(label: str, choice: str, codex_bound: bool) -> str:
+def _success_page(
+    label: str,
+    choice: str,
+    picker_context: dict[str, Any] | None,
+) -> str:
+    host_label = str((picker_context or {}).get("host_label") or "agent session")
     next_step = (
-        "Return to Codex. The next lifecycle event will continue with this choice."
-        if codex_bound
+        f"Return to {host_label}. The next lifecycle event will continue "
+        "with this choice."
+        if picker_context is not None
         else "You may close this tab and return to the terminal."
     )
     body = (

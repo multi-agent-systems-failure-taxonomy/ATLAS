@@ -1,4 +1,4 @@
-"""Host-neutral durable routing for fresh interactive taxonomy branches."""
+"""Host-neutral conversation scope and fresh taxonomy branch routing."""
 
 from __future__ import annotations
 
@@ -25,6 +25,66 @@ def event_session_id(event: dict[str, Any]) -> str:
         if value:
             return str(value)
     return str(event.get("transcript_path") or "").strip()
+
+
+def resolve_conversation_scope(
+    routing_root: Path,
+    event: dict[str, Any],
+    *,
+    default_trace_output: Path,
+    default_task_group: str,
+    scope_dir: str,
+    state_dir: str,
+    host_label: str,
+) -> SessionRoute | None:
+    """Pin one host conversation to one program despite later cwd drift.
+
+    Interactive hosts report their current working directory on every event.
+    Resuming a conversation after ``cd``-ing (or from a different shell) must
+    not turn that existing conversation into a new ATLAS session.  Existing
+    installations are migrated by locating an already selected state before
+    the binding is written.
+    """
+    session_id = event_session_id(event)
+    if not session_id:
+        return None
+    root = Path(routing_root).expanduser().resolve()
+    path = _conversation_scope_path(root, session_id, scope_dir=scope_dir)
+    resolved = _read_scope_record(path, root)
+    if resolved:
+        return resolved
+
+    migrated = _discover_selected_scope(
+        root,
+        session_id,
+        state_dir=state_dir,
+        default_task_group=default_task_group,
+    )
+    target = migrated or SessionRoute(
+        task_group=validate_scope_id(
+            default_task_group,
+            label="task_group",
+        ),
+        trace_output=Path(default_trace_output).expanduser().resolve(),
+    )
+    if not _is_within(target.trace_output, root):
+        raise ValueError(
+            f"{host_label} conversation scope must remain inside the ATLAS "
+            f"routing root: {target.trace_output}"
+        )
+    record = {
+        "version": 1,
+        "session_id": session_id,
+        "task_group": target.task_group,
+        "trace_output": str(target.trace_output),
+        "bound_cwd": str(event.get("cwd") or ""),
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_text_atomic_retry(
+        path,
+        json.dumps(record, indent=2, ensure_ascii=False) + "\n",
+    )
+    return target
 
 
 def resolve_session_route(
@@ -140,6 +200,89 @@ def _route_path(
         )
     ).hexdigest()
     return Path(routing_root).expanduser().resolve() / route_dir / f"{digest}.json"
+
+
+def _conversation_scope_path(
+    routing_root: Path,
+    session_id: str,
+    *,
+    scope_dir: str,
+) -> Path:
+    digest = hashlib.sha256(session_id.encode("utf-8", "replace")).hexdigest()
+    return Path(routing_root).expanduser().resolve() / scope_dir / f"{digest}.json"
+
+
+def _read_scope_record(path: Path, routing_root: Path) -> SessionRoute | None:
+    try:
+        record = json.loads(read_text_retry(path))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if record.get("version") != 1:
+        return None
+    try:
+        task_group = validate_scope_id(
+            str(record.get("task_group") or ""),
+            label="task_group",
+        )
+        trace_output = Path(str(record["trace_output"])).expanduser().resolve()
+    except (KeyError, TypeError, ValueError, OSError):
+        return None
+    if not _is_within(trace_output, routing_root):
+        return None
+    return SessionRoute(task_group=task_group, trace_output=trace_output)
+
+
+def _discover_selected_scope(
+    routing_root: Path,
+    session_id: str,
+    *,
+    state_dir: str,
+    default_task_group: str,
+) -> SessionRoute | None:
+    safe_id = "".join(
+        char if char.isalnum() or char in "._-" else "_"
+        for char in session_id
+    )
+    candidates: list[tuple[int, int, SessionRoute]] = []
+    for path in routing_root.rglob(f"{safe_id}.json"):
+        if path.parent.name != state_dir:
+            continue
+        try:
+            state = json.loads(read_text_retry(path))
+            status = str((state.get("selection") or {}).get("status") or "")
+            if status not in {"selected", "disabled"}:
+                continue
+            trace_output = path.parent.parent.resolve()
+            if not _is_within(trace_output, routing_root):
+                continue
+            task_group = _task_group_from_program(
+                trace_output,
+                default=default_task_group,
+            )
+            sequence = int(state.get("episode_sequence") or 0)
+            modified = path.stat().st_mtime_ns
+        except (OSError, TypeError, ValueError, json.JSONDecodeError):
+            continue
+        candidates.append(
+            (
+                sequence,
+                modified,
+                SessionRoute(task_group=task_group, trace_output=trace_output),
+            )
+        )
+    if not candidates:
+        return None
+    return max(candidates, key=lambda item: (item[0], item[1]))[2]
+
+
+def _task_group_from_program(path: Path, *, default: str) -> str:
+    parent = Path(path).parent
+    if parent.parent.name == "groups":
+        try:
+            return validate_scope_id(parent.name, label="task_group")
+        except ValueError:
+            pass
+    return validate_scope_id(default, label="task_group")
 
 
 def _scope_fingerprint(path: Path) -> str:

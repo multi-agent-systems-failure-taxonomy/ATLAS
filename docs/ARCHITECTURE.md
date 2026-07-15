@@ -55,6 +55,12 @@ of one project. Choosing MAST in a project that already has a learned taxonomy
 creates a conversation-specific `fresh-*` group without replacing the shared
 default.
 
+The first resolved program path is also bound to the host's stable conversation
+ID. Subsequent events use that binding before inspecting `cwd`, which keeps a
+resumed conversation on the same taxonomy even after a shell or directory
+change. On upgrade, ATLAS locates an existing selected or disabled session and
+writes the binding before it can create a new pending selector.
+
 ## Stability rules
 
 - Host adapters preserve their documented import and CLI paths.

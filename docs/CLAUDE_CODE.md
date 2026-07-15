@@ -70,6 +70,11 @@ When a project already has a shared learned taxonomy, choosing MAST creates a
 durable isolated `fresh-*` task group for that Claude conversation and leaves
 the shared taxonomy unchanged.
 
+The taxonomy choice remains pinned to Claude's session ID. Resuming the
+conversation from another shell or changing its current working directory does
+not recompute the project, reopen the browser selector, or replace the selected
+taxonomy.
+
 ## Customize built-in hooks
 
 Examples:

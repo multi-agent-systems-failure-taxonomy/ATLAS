@@ -314,7 +314,8 @@ class CodexBrowserReceiptTests(unittest.TestCase):
                 picker["url"] + "choose?id=tax-flask-routing-004",
                 timeout=5,
             ) as response:
-                response.read()
+                success_page = response.read().decode("utf-8")
+            self.assertIn("Return to Codex", success_page)
             deadline = time.monotonic() + 5
             state = {}
             while time.monotonic() < deadline:

@@ -9,6 +9,8 @@ or transcript format.
 One completed assistant episode becomes one trace. A project and task group
 share the active taxonomy. A conversation may choose the shared taxonomy,
 disable ATLAS, or start from MAST in a durable isolated `fresh-*` group.
+The first resolved program scope is pinned to the conversation identity, so a
+later host `cwd` change or resumed shell cannot reopen taxonomy selection.
 
 When a generation or refinement threshold is reached, the coordinator freezes
 eligible evidence and queues one job. The active host claims that job, launches
@@ -21,7 +23,7 @@ hook reconciliation validates and activates the candidate.
 |---|---|
 | [`selector.py`](selector.py) | Builds, renders, and parses MAST, stored-taxonomy, browser, and ATLAS-off choices. |
 | [`browser_picker.py`](browser_picker.py) | Host-neutral localhost server transport and direct choice application. |
-| [`session_routes.py`](session_routes.py) | Durable per-conversation routing for fresh MAST task groups. |
+| [`session_routes.py`](session_routes.py) | Durable conversation-to-program bindings and fresh-MAST task-group routes. |
 | [`learning_jobs.py`](learning_jobs.py) | Frozen snapshots, polling, job state, validation, notices, and atomic activation. |
 | [`subagent_protocol.py`](subagent_protocol.py) | Claim leases, signed receipt envelopes, transcript extraction, and proposal completion. |
 | [`worker_contract.py`](worker_contract.py) | Outcome-blind taxonomy prompt and strict candidate JSON schema. |

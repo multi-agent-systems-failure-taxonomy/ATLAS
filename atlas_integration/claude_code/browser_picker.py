@@ -91,6 +91,7 @@ def serve_picker(
         request_path=request_path,
         open_browser=open_browser,
         apply_choice=apply_browser_choice,
+        host_label="Claude Code",
         open_url=webbrowser.open,
     )
 

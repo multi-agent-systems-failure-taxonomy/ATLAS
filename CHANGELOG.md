@@ -48,6 +48,12 @@ All notable user-facing changes are documented here.
 
 ### Fixed
 
+- Resumed Codex and Claude Code conversations now retain their original ATLAS
+  program scope even when the host reports a different current working
+  directory. Existing selected or disabled session state is migrated into the
+  new durable conversation-scope binding before a selector can reopen.
+- The browser selector confirmation now names the active host instead of
+  always telling Claude Code users to return to Codex.
 - Codex Desktop sessions that omit `UserPromptSubmit` no longer remain stuck in
   `ATLAS is waiting for taxonomy selection` after a browser choice.
 - The Codex selector now displays MAST as a numbered choice even when the

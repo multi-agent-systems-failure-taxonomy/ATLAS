@@ -272,6 +272,7 @@ def serve_picker(
     request_path: Path | None,
     open_browser: bool,
     apply_choice: Callable[[dict[str, Any], str], dict[str, Any]],
+    host_label: str,
     open_url: Callable[[str], Any] = webbrowser.open,
 ) -> int:
     request = None
@@ -285,6 +286,7 @@ def serve_picker(
             "project": (selection or {}).get("project"),
             "project_root": (selection or {}).get("project_root"),
             "project_taxonomy_id": (selection or {}).get("project_taxonomy_id"),
+            "host_label": host_label,
         }
         on_choose = lambda value: apply_choice(request, value)
 
