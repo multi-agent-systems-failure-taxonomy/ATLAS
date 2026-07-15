@@ -4,6 +4,8 @@ All notable user-facing changes are documented here.
 
 ## Unreleased
 
+## 1.1.0b3 - 2026-07-15
+
 ### Added
 
 - Codex-native taxonomy learning now uses a subagent in the active task with a
