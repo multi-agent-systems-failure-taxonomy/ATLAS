@@ -298,6 +298,12 @@ def main(argv: list[str] | None = None) -> int:
         help="ask for a taxonomy when a new Codex conversation starts",
     )
     parser.add_argument(
+        "--selector-surface",
+        choices=("browser", "inline"),
+        default=None,
+        help="open the browser taxonomy library or use the inline fallback",
+    )
+    parser.add_argument(
         "--learning-backend",
         choices=("provider", "codex_subagent"),
         default=None,
@@ -427,6 +433,10 @@ def main(argv: list[str] | None = None) -> int:
                     "prompt" if args.user_level else "off",
                 )
             )
+        ),
+        selector_surface=(
+            args.selector_surface
+            or str(adapter_config.get("selector_surface", "browser"))
         ),
         learning_backend=(
             args.learning_backend

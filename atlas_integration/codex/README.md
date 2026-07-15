@@ -35,6 +35,10 @@ Or with a shared `atlas.json`:
 atlas-codex-install --project-dir . --config atlas.json
 ```
 
+Use `--selector-surface browser` (the default) or
+`--selector-surface inline` to override `codex.selector_surface` for one
+install.
+
 For user-level hooks that apply to every Codex project, use automatic project
 scope. In this mode `trace_output` is the Atlas interactive-data base rather
 than one program directory:
@@ -47,6 +51,7 @@ than one program directory:
     "project_scope": "auto",
     "task_group": "default",
     "session_selector": "prompt",
+    "selector_surface": "browser",
     "learning_backend": "codex_subagent"
   }
 }
@@ -63,25 +68,33 @@ different `cwd` or `workdir`, Stop still commits the trace but emits a visible
 scope-mismatch warning; the runtime never silently moves an active conversation
 between project programs.
 
-With `session_selector` set to `prompt`, a new Codex conversation receives a
-compact in-chat taxonomy selector. The first substantive user request is held
-until the user replies with a number, taxonomy name, `MAST`, or `No taxonomy`.
-After selection, Codex resumes the held request automatically. The selector
-exchange is not used as the episode task label.
+With `session_selector` set to `prompt`, a new Codex conversation opens the
+session-bound localhost taxonomy library from `SessionStart`. The browser
+applies the choice directly to the conversation before it reports success, so
+selection does not depend on a later `UserPromptSubmit` hook. The first
+substantive request remains outside the selector exchange and becomes the
+episode task on the next lifecycle event.
 
-For an unbound project, MAST is recommended and stored taxonomies are listed.
+For an unbound project, MAST is recommended alongside the compatible stored
+taxonomies and `No taxonomy`. The picker runs in a detached, time-bounded
+process and writes a durable activation receipt after updating the Codex state.
 Choosing a stored taxonomy establishes it as the shared taxonomy for the
-project task group. Once bound, later conversations see that taxonomy as the
-recommended compatible choice. `No taxonomy` disables ATLAS gates and trace
+project task group immediately. Once bound, later
+conversations see its human-facing display name as the recommended compatible
+choice. MAST remains a numbered option: choosing it in a bound project creates
+a durable conversation-specific `fresh-*` task group and learns from zero while
+preserving the shared default. `No taxonomy` disables ATLAS gates and trace
 capture for only that conversation.
 
-`learning_backend: "codex_subagent"` uses a detached, authenticated
-`codex exec` worker and does not require an external API key. The worker reads
-an immutable outcome-blind snapshot and submits a staged candidate. Hook
-reconciliation owns validation and project-local activation. Generation and
-refinement trigger notices appear immediately; completion appears once on the
-triggering conversation's next hook event because command hooks cannot push a
-message into an idle Codex task.
+`learning_backend: "codex_subagent"` uses a native subagent in the active
+Codex task and does not require a standalone CLI login or external API key.
+Every hook polls the durable project state: it reconciles completed receipts,
+checks the generation or refinement threshold, and idempotently queues any
+missing job. On the next `SessionStart` or `UserPromptSubmit`, the active agent
+receives a claimed task and launches the taxonomy subagent while normal work
+continues. The subagent reads an immutable outcome-blind snapshot and returns
+a staged receipt through `SubagentStop`; hook reconciliation alone owns
+validation and activation.
 
 The installer writes:
 
@@ -97,8 +110,8 @@ trust against the hook definition hash, so changed hooks need review again.
 
 | Event | ATLAS behavior |
 |---|---|
-| `SessionStart` | Start/load ATLAS or initialize the conversation selector. |
-| `UserPromptSubmit` | Hold the first task, resolve the choice, and start the selected episode. |
+| `SessionStart` | Start/load ATLAS or open the session-bound taxonomy library. |
+| `UserPromptSubmit` | Inline-selector fallback and episode boundary handling where the host emits this event. |
 | `Stop` | Single-pass compact final checkpoint and episode commit. |
 | `SubagentStop` | Observational, non-blocking compact checkpoint capture. |
 | `PostToolUse` | Advisory failure nudge after selected failed tool outputs. |
@@ -167,3 +180,13 @@ For the zero-config user-level integration, use
 | [`install.py`](install.py) | Writes `.codex/hooks.json`, `.codex/atlas-skill.json`, and optional skill files. |
 | [`uninstall.py`](uninstall.py) | Removes ATLAS hook registrations and optional skill files. |
 | [`state.py`](state.py) | Per-session Codex hook state under the program trace output. |
+| [`learning_jobs.py`](learning_jobs.py) | Codex policy facade for shared durable jobs and threshold polling. |
+| [`subagent_protocol.py`](subagent_protocol.py) | Codex claim-instruction facade for the shared receipt protocol. |
+| [`session_routes.py`](session_routes.py) | Codex-namespaced facade for shared fresh-conversation routing. |
+| [`browser_picker.py`](browser_picker.py) | Codex-namespaced facade for the shared localhost picker transport. |
+| [`native_worker.py`](native_worker.py) | Legacy detached-worker compatibility entry point; the native runtime does not invoke it. |
+
+Host-neutral implementations live in
+[`../interactive/`](../interactive/). Keep Codex event parsing and transcript
+normalization here; place selector, route, job, and receipt behavior in the
+shared package.

@@ -1,33 +1,19 @@
-"""Blocking localhost web view for explicit interactive taxonomy picking.
-
-Serves:
-  * GET /                       -> table: exactly 3 columns repo, taxonomy_id,
-                                   domain; global across all repos; rows click
-                                   through to detail. Plus a "use none" option.
-  * GET /taxonomy/<id>          -> full content of one taxonomy (every code:
-                                   number, name, explanation, and any extra
-                                   fields).
-  * GET /choose?id=<id|__none__> -> records the choice and ends the session.
-
-run_webview() blocks until a choice is made, then returns the chosen
-taxonomy_id, or "none".
-"""
+"""Local ATLAS taxonomy library and blocking selection web view."""
 
 from __future__ import annotations
 
 import html
+import json
 from importlib import resources
 import threading
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from urllib.parse import parse_qs, urlparse
+from typing import Any, Callable
+from urllib.parse import parse_qs, quote, urlparse
 
-from . import store
+from . import mast, store
 
-NONE_SENTINEL = "__none__"  # query value meaning "start from 0"
-
-# Fields rendered with dedicated emphasis in the detail view; any other field
-# on a code is still shown generically ("all fields").
+NONE_SENTINEL = "__none__"
 _CODE_PRIMARY = ("id", "name", "description", "category")
 
 
@@ -38,90 +24,310 @@ def _text_asset(name: str) -> str:
         .read_text(encoding="utf-8")
     )
 
+
 _PAGE = _text_asset("webview.html")
 
 
-def _render_table(store_dir) -> str:
-    rows = []
-    for rec in store.list_all(store_dir):
-        tid = html.escape(str(rec["taxonomy_id"]))
-        rows.append(
-            '<tr class="row" onclick="location=\'/taxonomy/{tid}\'">'
-            "<td>{repo}</td>"
-            '<td><a href="/taxonomy/{tid}">{tid}</a></td>'
-            "<td>{domain}</td></tr>".format(
-                tid=tid,
-                repo=html.escape(str(rec["repo"])),
-                domain=html.escape(str(rec["domain"])),
-            )
-        )
-    # Build the "none" link on its own so `.format` never runs over `rows`,
-    # which contain user-controlled repo/domain text that may include `{`/`}`.
-    none_link = (
-        '<a class="none" href="/choose?id={none}">Use none / start from 0</a>'
-    ).format(none=html.escape(NONE_SENTINEL))
-    body = (
-        "<h1>Inherit a taxonomy</h1>"
-        "<p class='meta'>Pick a taxonomy to inherit, or start from 0. "
-        "The table is global across all repos.</p>"
-        "<table><thead><tr><th>repo</th><th>taxonomy_id</th><th>domain</th></tr>"
-        "</thead><tbody>" + "".join(rows) + "</tbody></table>" + none_link
+def _render_table(
+    store_dir,
+    *,
+    allow_none: bool = True,
+    choice_options: list[dict[str, Any]] | None = None,
+    picker_context: dict[str, Any] | None = None,
+    selected: str | None = None,
+) -> str:
+    """Render the full taxonomy workspace; retained as the public list helper."""
+    options = _catalog_options(store_dir, allow_none, choice_options)
+    selected_value = selected or _recommended_value(options)
+    selected_option = next(
+        (option for option in options if _choice_value(option) == selected_value),
+        options[0] if options else None,
     )
-    return _PAGE.format(title="Inherit a taxonomy", body=body)
+    body = _render_workspace(options, selected_option, store_dir, picker_context)
+    return _PAGE.format(title="ATLAS taxonomy library", body=body)
 
 
 def _render_detail(taxonomy_id, store_dir) -> str:
-    record = store.fetch_by_id(taxonomy_id, store_dir)
-    tid = html.escape(str(record["taxonomy_id"]))
-    blocks = []
-    for code in record.get("codes", []):
-        num = html.escape(str(code["id"]))
-        name = html.escape(str(code["name"]))
-        explanation = html.escape(str(code["description"]))
-        extras = "".join(
-            '<div class="extra"><b>{k}:</b> {v}</div>'.format(
-                k=html.escape(str(k)), v=html.escape(str(v))
-            )
-            for k, v in code.items()
-            if k not in _CODE_PRIMARY
+    """Render one stored taxonomy inside the library workspace."""
+    return _render_table(store_dir, selected=str(taxonomy_id))
+
+
+def _catalog_options(
+    store_dir,
+    allow_none: bool,
+    choice_options: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]]:
+    if choice_options is not None:
+        return [dict(option) for option in choice_options]
+    options = []
+    for header in store.list_all(store_dir):
+        taxonomy_id = str(header["taxonomy_id"])
+        record = store.fetch_by_id(taxonomy_id, store_dir)
+        options.append(
+            {
+                "kind": "taxonomy",
+                "taxonomy_id": taxonomy_id,
+                "label": store.display_name(record),
+                "description": str(
+                    record.get("summary")
+                    or record.get("description")
+                    or f"Failure modes for {record.get('domain') or 'stored work'}."
+                ),
+                "domain": str(record.get("domain") or "Stored taxonomy"),
+                "origin": str(record.get("repo") or "Local store"),
+                "recommended": False,
+            }
         )
-        blocks.append(
-            '<div class="code-block">'
-            '<div><span class="code-num">{num}</span> <b>{name}</b></div>'
-            "<p>{explanation}</p>{extras}</div>".format(
-                num=num, name=name, explanation=explanation, extras=extras
+    if allow_none:
+        options.append(
+            {
+                "kind": "disabled",
+                "taxonomy_id": None,
+                "label": "Start without a stored taxonomy",
+                "description": "Return none so the calling workflow can start from zero.",
+                "domain": "Unbound",
+                "origin": "Session choice",
+                "recommended": not options,
+            }
+        )
+    return options
+
+
+def _render_workspace(
+    options: list[dict[str, Any]],
+    selected: dict[str, Any] | None,
+    store_dir,
+    picker_context: dict[str, Any] | None,
+) -> str:
+    context = picker_context or {}
+    project = html.escape(str(context.get("project") or "Local library"))
+    project_root = html.escape(str(context.get("project_root") or store_dir))
+    rows = []
+    for option in options:
+        value = _choice_value(option)
+        is_selected = bool(selected and value == _choice_value(selected))
+        label = html.escape(str(option.get("label") or value))
+        domain = html.escape(str(option.get("domain") or "General"))
+        origin = html.escape(str(option.get("origin") or "Local"))
+        internal_id = html.escape(
+            str(option.get("taxonomy_id") or option.get("kind") or value)
+        )
+        search = html.escape(
+            " ".join(
+                str(option.get(key) or "")
+                for key in ("label", "description", "domain", "origin", "taxonomy_id")
+            ).casefold(),
+            quote=True,
+        )
+        badge = "Recommended" if option.get("recommended") else origin
+        rows.append(
+            '<a class="library-item{selected}" data-search="{search}" '
+            'href="/?preview={value}" aria-current="{current}">'
+            '<span class="item-top"><strong>{label}</strong>'
+            '<span class="item-badge">{badge}</span></span>'
+            '<span class="item-domain">{domain}</span>'
+            '<span class="item-id">{internal_id}</span></a>'.format(
+                selected=" is-selected" if is_selected else "",
+                search=search,
+                value=quote(value, safe=""),
+                current="true" if is_selected else "false",
+                label=label,
+                badge=html.escape(badge),
+                domain=domain,
+                internal_id=internal_id,
             )
         )
-    body = (
-        '<p><a href="/">&larr; back to all taxonomies</a></p>'
-        "<h1>{tid}</h1>"
-        '<p class="meta">repo <code>{repo}</code> &middot; '
-        "domain <code>{domain}</code></p>"
-        "{blocks}"
-        '<a class="none" href="/choose?id={tid}">Inherit this taxonomy</a>'
-    ).format(
-        tid=tid,
-        repo=html.escape(str(record.get("repo"))),
-        domain=html.escape(str(record.get("domain"))),
-        blocks="".join(blocks),
+
+    detail = _render_option_detail(selected, store_dir) if selected else _empty_detail()
+    return (
+        '<main class="app-shell">'
+        '<header class="atlas-header">'
+        '<div class="brand-line"><span class="brand">ATLAS</span>'
+        '<span class="header-divider"></span><span class="product">Taxonomy library</span></div>'
+        '<div class="header-copy"><div><h1>Select the failure model for this conversation</h1>'
+        '<p>Inspect the scope and failure modes before activating a taxonomy.</p></div>'
+        '<span class="status"><span class="status-dot"></span>Selection required</span></div>'
+        '<div class="scope-row"><div><span>Project</span><strong>{project}</strong></div>'
+        '<div class="scope-path"><span>Scope</span><strong>{project_root}</strong></div>'
+        '<div><span>Available</span><strong>{count} choices</strong></div></div>'
+        '</header>'
+        '<div class="workspace">'
+        '<aside class="library-pane" aria-label="Taxonomy choices">'
+        '<div class="pane-heading"><div><span class="section-label">Library</span>'
+        '<h2>Taxonomies</h2></div><span class="result-count" id="result-count">{count}</span></div>'
+        '<label class="search-wrap"><span>Search</span>'
+        '<input id="catalog-search" type="search" placeholder="Name, domain, or project" '
+        'oninput="filterCatalog(this.value)"></label>'
+        '<div id="empty-state" class="empty" hidden>No matching taxonomies.</div>'
+        '<nav class="library-list">{rows}</nav></aside>'
+        '<section class="detail-pane">{detail}</section>'
+        '</div></main>'
+    ).format(project=project, project_root=project_root, count=len(options), rows="".join(rows), detail=detail)
+
+
+def _render_option_detail(option: dict[str, Any], store_dir) -> str:
+    kind = str(option.get("kind") or "taxonomy")
+    taxonomy_id = str(option.get("taxonomy_id") or "")
+    if kind == "taxonomy":
+        record = store.fetch_by_id(taxonomy_id, store_dir)
+    elif kind == "mast":
+        record = dict(mast.MAST)
+    else:
+        record = {"taxonomy_id": "none", "codes": []}
+
+    label = html.escape(str(option.get("label") or store.display_name(record)))
+    description = html.escape(str(option.get("description") or ""))
+    domain = html.escape(str(option.get("domain") or record.get("domain") or "General"))
+    origin = html.escape(str(option.get("origin") or record.get("repo") or "Local"))
+    stable_id = html.escape(str(option.get("taxonomy_id") or kind))
+    codes = list(record.get("codes") or [])
+    categories = len(
+        {str(code.get("category") or "Uncategorized") for code in codes}
     )
-    return _PAGE.format(title=tid, body=body)
+    action = (
+        "Disable ATLAS for this conversation"
+        if kind == "disabled"
+        else f"Use {label}"
+    )
+    notice = ""
+    if option.get("starts_fresh"):
+        notice = (
+            '<div class="mode-notice"><strong>Starts a new taxonomy branch.</strong> '
+            "The project's existing shared taxonomy stays unchanged.</div>"
+        )
+    elif option.get("recommended"):
+        notice = (
+            '<div class="mode-notice recommended"><strong>Recommended for this scope.</strong> '
+            "ATLAS will use this as the conversation's failure model.</div>"
+        )
+
+    code_rows = "".join(_render_code(code) for code in codes)
+    if not code_rows:
+        code_rows = (
+            '<div class="no-codes"><strong>No failure-mode gates will run.</strong>'
+            " Trace learning and ATLAS checkpoints are disabled only for this conversation.</div>"
+        )
+    code_tools = ""
+    if codes:
+        code_tools = (
+            '<div class="code-toolbar"><div><span class="section-label">Failure modes</span>'
+            '<h3>Code catalog</h3></div><label><span>Filter codes</span>'
+            '<input type="search" placeholder="ID, name, or category" '
+            'oninput="filterCodes(this.value)"></label></div>'
+        )
+    return (
+        '<div class="detail-header"><div class="detail-title">'
+        '<span class="section-label">{kind_label}</span><h2>{label}</h2>'
+        '<p class="stable-id">{stable_id}</p></div>'
+        '<a class="primary-action" href="/choose?id={value}">{action}</a></div>'
+        '<p class="detail-summary">{description}</p>{notice}'
+        '<div class="facts"><div><span>Domain</span><strong>{domain}</strong></div>'
+        '<div><span>Origin</span><strong>{origin}</strong></div>'
+        '<div><span>Codes</span><strong>{code_count}</strong></div>'
+        '<div><span>Categories</span><strong>{category_count}</strong></div></div>'
+        '{code_tools}<div class="code-list">{code_rows}</div>'
+    ).format(
+        kind_label="Built-in baseline" if kind == "mast" else "Session setting" if kind == "disabled" else "Stored taxonomy",
+        label=label,
+        stable_id=stable_id,
+        value=quote(_choice_value(option), safe=""),
+        action=action,
+        description=description,
+        notice=notice,
+        domain=domain,
+        origin=origin,
+        code_count=len(codes),
+        category_count=categories,
+        code_tools=code_tools,
+        code_rows=code_rows,
+    )
 
 
-def build_server(store_dir=store.DEFAULT_STORE_DIR, host="127.0.0.1", port=0):
-    """Build (server, result, done) without starting it.
+def _render_code(code: dict[str, Any]) -> str:
+    code_id = html.escape(str(code.get("id") or "-"))
+    name = html.escape(str(code.get("name") or "Unnamed failure mode"))
+    description = html.escape(str(code.get("description") or ""))
+    category = html.escape(str(code.get("category") or "Uncategorized"))
+    extras = "".join(
+        _render_extra(key, value)
+        for key, value in code.items()
+        if key not in _CODE_PRIMARY
+    )
+    search = html.escape(
+        " ".join((code_id, name, description, category)).casefold(), quote=True
+    )
+    return (
+        '<article class="code-row" data-code-search="{search}">'
+        '<div class="code-id">{code_id}</div><div class="code-copy">'
+        '<div class="code-heading"><h4>{name}</h4><span>{category}</span></div>'
+        '<p>{description}</p>{extras}</div></article>'
+    ).format(
+        search=search,
+        code_id=code_id,
+        name=name,
+        category=category,
+        description=description,
+        extras=extras,
+    )
 
-    `result` is a dict whose "value" is set to the chosen taxonomy_id or
-    "none" once a choice is made; `done` is a threading.Event set at that
-    point. Exposed separately so tests can drive the server directly.
-    """
-    result: dict = {"value": None}
+
+def _render_extra(key, value) -> str:
+    if key == "evidence" and isinstance(value, dict):
+        trace_ids = [str(item) for item in value.get("trace_ids") or []]
+        rationale = html.escape(str(value.get("rationale") or ""))
+        citations = "".join(
+            f"<li><code>{html.escape(trace_id)}</code></li>" for trace_id in trace_ids
+        )
+        count = len(trace_ids)
+        return (
+            '<details class="evidence"><summary>Generation evidence '
+            f"({count} {'trace' if count == 1 else 'traces'})</summary>"
+            f"<p>{rationale}</p><ul>{citations}</ul></details>"
+        )
+    rendered = html.escape(
+        json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else str(value)
+    )
+    return '<div class="extra"><strong>{key}</strong><span>{value}</span></div>'.format(
+        key=html.escape(str(key)), value=rendered
+    )
+
+
+def _empty_detail() -> str:
+    return '<div class="no-codes"><strong>No taxonomies are stored yet.</strong></div>'
+
+
+def _choice_value(option: dict[str, Any]) -> str:
+    if option.get("kind") == "disabled":
+        return "none"
+    return str(option.get("taxonomy_id") or "").strip()
+
+
+def _recommended_value(options: list[dict[str, Any]]) -> str:
+    option = next((item for item in options if item.get("recommended")), None)
+    return _choice_value(option or (options[0] if options else {}))
+
+
+def build_server(
+    store_dir=store.DEFAULT_STORE_DIR,
+    host="127.0.0.1",
+    port=0,
+    *,
+    allow_none: bool = True,
+    choice_options: list[dict[str, Any]] | None = None,
+    picker_context: dict[str, Any] | None = None,
+    on_choose: Callable[[str], Any] | None = None,
+):
+    """Build ``(server, result, done)`` without starting the server."""
+    result: dict[str, Any] = {"value": None}
     done = threading.Event()
-    # Only ids actually in the store may be fetched -> no path traversal.
-    valid_ids = {r["taxonomy_id"] for r in store.list_all(store_dir)}
+    options = _catalog_options(store_dir, allow_none, choice_options)
+    valid_choices = {_choice_value(option): option for option in options}
+    valid_taxonomy_ids = {
+        value for value, option in valid_choices.items() if option.get("kind") == "taxonomy"
+    }
 
     class Handler(BaseHTTPRequestHandler):
-        def log_message(self, *args):  # keep the console quiet
+        def log_message(self, *args):
             pass
 
         def _send(self, body, status=200, content_type="text/html; charset=utf-8"):
@@ -129,71 +335,105 @@ def build_server(store_dir=store.DEFAULT_STORE_DIR, host="127.0.0.1", port=0):
             self.send_response(status)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(payload)))
+            self.send_header("Cache-Control", "no-store")
             self.end_headers()
             self.wfile.write(payload)
 
         def do_GET(self):
             parsed = urlparse(self.path)
             path = parsed.path
-
             if path == "/":
-                self._send(_render_table(store_dir))
+                preview = (parse_qs(parsed.query).get("preview") or [None])[0]
+                self._send(
+                    _render_table(
+                        store_dir,
+                        allow_none=allow_none,
+                        choice_options=options,
+                        picker_context=picker_context,
+                        selected=preview,
+                    )
+                )
                 return
 
             if path.startswith("/taxonomy/"):
-                tid = path[len("/taxonomy/"):]
-                if tid not in valid_ids:
-                    self._send(
-                        _PAGE.format(title="not found", body="<h1>404</h1>"
-                                     "<p>No such taxonomy.</p>"
-                                     '<p><a href="/">back</a></p>'),
-                        status=404,
-                    )
+                taxonomy_id = path[len("/taxonomy/") :]
+                if taxonomy_id not in valid_taxonomy_ids:
+                    self._send(_error_page("Taxonomy not found", "No such taxonomy."), 404)
                     return
-                self._send(_render_detail(tid, store_dir))
+                self._send(
+                    _render_table(
+                        store_dir,
+                        allow_none=allow_none,
+                        choice_options=options,
+                        picker_context=picker_context,
+                        selected=taxonomy_id,
+                    )
+                )
                 return
 
             if path == "/choose":
-                params = parse_qs(parsed.query)
-                chosen = (params.get("id") or [""])[0]
-                if chosen == NONE_SENTINEL:
-                    result["value"] = "none"
-                elif chosen in valid_ids:
-                    result["value"] = chosen
-                else:
-                    self._send(
-                        _PAGE.format(title="bad choice", body="<h1>400</h1>"
-                                     "<p>Unknown choice.</p>"
-                                     '<p><a href="/">back</a></p>'),
-                        status=400,
-                    )
+                chosen = (parse_qs(parsed.query).get("id") or [""])[0]
+                if chosen == NONE_SENTINEL and allow_none:
+                    chosen = "none"
+                if chosen not in valid_choices:
+                    self._send(_error_page("Unknown choice", "Return to the library and select an available option."), 400)
                     return
-                self._send(
-                    _PAGE.format(
-                        title="done",
-                        body="<h1>Choice recorded</h1>"
-                        "<p>Selected: <code>{}</code>.</p>"
-                        "<p>You may close this tab and return to the terminal.</p>".format(
-                            html.escape(result["value"])
-                        ),
-                    )
-                )
+                try:
+                    if on_choose is not None:
+                        on_choose(chosen)
+                except (OSError, TimeoutError, ValueError) as exc:
+                    self._send(_error_page("Selection was not applied", str(exc)), 409)
+                    return
+                result["value"] = chosen
+                option = valid_choices[chosen]
+                label = html.escape(str(option.get("label") or chosen))
+                self._send(_success_page(label, chosen, picker_context))
                 done.set()
                 return
 
-            self._send(_PAGE.format(title="not found", body="<h1>404</h1>"), status=404)
+            self._send(_error_page("Page not found", "Return to the taxonomy library."), 404)
 
     server = HTTPServer((host, port), Handler)
     return server, result, done
 
 
-def run_webview(store_dir=store.DEFAULT_STORE_DIR, host="127.0.0.1", port=0,
-                open_browser=True, on_serving=None) -> str:
-    """Launch the blocking web view; return the chosen taxonomy_id or "none".
+def _success_page(
+    label: str,
+    choice: str,
+    picker_context: dict[str, Any] | None,
+) -> str:
+    host_label = str((picker_context or {}).get("host_label") or "agent session")
+    next_step = (
+        f"Return to {host_label}. The next lifecycle event will continue "
+        "with this choice."
+        if picker_context is not None
+        else "You may close this tab and return to the terminal."
+    )
+    body = (
+        '<main class="result-page"><span class="result-state success">Activated</span>'
+        f"<h1>{label}</h1><p>{html.escape(next_step)}</p>"
+        f'<p class="stable-id">{html.escape(choice)}</p></main>'
+    )
+    return _PAGE.format(title="ATLAS selection activated", body=body)
 
-    Blocks until the user makes a choice in the browser.
-    `on_serving(host, port)` is invoked once the server is up (used by tests).
-    """
+
+def _error_page(title: str, message: str) -> str:
+    body = (
+        '<main class="result-page"><span class="result-state error">Not applied</span>'
+        f"<h1>{html.escape(title)}</h1><p>{html.escape(message)}</p>"
+        '<a class="secondary-action" href="/">Return to library</a></main>'
+    )
+    return _PAGE.format(title=title, body=body)
+
+
+def run_webview(
+    store_dir=store.DEFAULT_STORE_DIR,
+    host="127.0.0.1",
+    port=0,
+    open_browser=True,
+    on_serving=None,
+) -> str:
+    """Launch the blocking web view and return a taxonomy id or ``none``."""
     server, result, done = build_server(store_dir, host, port)
     actual_port = server.server_address[1]
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -210,4 +450,4 @@ def run_webview(store_dir=store.DEFAULT_STORE_DIR, host="127.0.0.1", port=0,
         server.shutdown()
         thread.join()
         server.server_close()
-    return result["value"]
+    return str(result["value"])

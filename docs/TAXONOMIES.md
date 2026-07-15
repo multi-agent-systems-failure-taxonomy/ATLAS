@@ -1,16 +1,20 @@
 # Taxonomies
 
-ATLAS taxonomies are selected by one key: `taxonomy_id`.
+ATLAS taxonomies are selected by one immutable key: `taxonomy_id`.
 
-`repo` and `domain` are display metadata. They do not route, group, or select taxonomies.
+`display_name`, `repo`, `domain`, and `summary` are user-facing metadata. They
+do not route, group, or select taxonomies. Changing `display_name` changes what
+people see without breaking stored traces or lineage references.
 
 ## Record shape
 
 ```json
 {
   "taxonomy_id": "my-taxonomy-v1",
+  "display_name": "Checkout Workflow Reliability",
   "repo": "display-only",
   "domain": "display-only",
+  "summary": "Failure modes affecting checkout implementation and verification.",
   "codes": [
     {
       "id": "C-1",
@@ -44,13 +48,11 @@ Interactive picker:
 atlas-find --inherit-pick
 ```
 
-The picker shows a global table with exactly:
+The searchable picker shows human-readable names, coverage summaries, source
+projects, code counts, and immutable IDs as secondary metadata.
 
-- repo
-- taxonomy_id
-- domain
-
-Clicking a row opens the full taxonomy content. Choosing “use none / start from 0” returns `none`.
+Clicking a row opens the full taxonomy content. Choosing "use none / start from
+0" returns `none` in the blocking CLI flow.
 
 ## Register a taxonomy
 

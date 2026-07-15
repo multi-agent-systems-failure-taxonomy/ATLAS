@@ -1340,6 +1340,7 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
             self.assertEqual(config.atlas_model, "interactive-session")
             self.assertEqual(config.project_scope, "auto")
             self.assertEqual(config.session_selector, "prompt")
+            self.assertEqual(config.selector_surface, "browser")
             self.assertEqual(config.learning_backend, "claude_subagent")
             self.assertIsNone(config.openai_api_key_env)
 

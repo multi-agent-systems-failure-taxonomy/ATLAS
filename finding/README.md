@@ -48,3 +48,8 @@ The `tax-` prefix is a convention, not a requirement — when registering
 with `atlas-register-taxonomy --id <id>` you can pass any filesystem-safe
 string (except `mast`). Auto-allocators always use the `tax-...` shape so
 downstream tooling can filter on it cheaply.
+
+`display_name` is the optional human-facing alias shown by selectors and the
+browser catalog. It can change without changing `taxonomy_id`; older records
+without it fall back to their `domain`. Native learning workers propose a short
+display name for newly generated taxonomy records.

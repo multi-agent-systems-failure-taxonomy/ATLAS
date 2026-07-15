@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from atlas_integration.codex.config import CodexConfig
+from atlas_integration.claude_code.config import ClaudeCodeConfig
 from atlas_runtime.doctor import ERROR, WARN, has_errors, run_checks
 
 
@@ -150,7 +151,7 @@ class DoctorCheckTests(unittest.TestCase):
             "ok",
         )
 
-    def test_native_codex_config_requires_a_runnable_cli(self):
+    def test_native_codex_config_uses_the_active_task_without_a_cli(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             config_dir = root / ".codex"
@@ -179,9 +180,50 @@ class DoctorCheckTests(unittest.TestCase):
 
         by_name = {check.name: check for check in checks}
         self.assertEqual(by_name["codex config"].status, "ok")
-        self.assertEqual(by_name["codex cli"].status, ERROR)
-        self.assertEqual(by_name["codex auth"].status, ERROR)
-        self.assertTrue(has_errors(checks))
+        self.assertEqual(by_name["codex cli"].status, "ok")
+        self.assertEqual(by_name["codex auth"].status, "ok")
+        self.assertFalse(has_errors(checks))
+
+    def test_native_claude_config_uses_active_session_without_auth_probe(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            config_dir = root / ".claude"
+            config_dir.mkdir()
+            config = ClaudeCodeConfig(
+                trace_output=root / ".atlas-skill" / "interactive",
+                atlas_model="interactive-session",
+                project_scope="auto",
+                session_selector="prompt",
+                selector_surface="browser",
+                learning_backend="claude_subagent",
+            )
+            (config_dir / "atlas-skill.json").write_text(
+                json.dumps(config.to_dict()),
+                encoding="utf-8",
+            )
+            with (
+                patch("atlas_runtime.doctor.Path.cwd", return_value=root / "project"),
+                patch("atlas_runtime.doctor.Path.home", return_value=root),
+                patch(
+                    "atlas_integration.claude_code.install.verify_installed_hooks",
+                    return_value="2.1.185",
+                ),
+                patch(
+                    "atlas_runtime.doctor._native_auth_check",
+                    side_effect=AssertionError("standalone auth must not be probed"),
+                ),
+            ):
+                checks = run_checks(
+                    store_dir=root / "taxonomies",
+                    trace_root=root / "traces",
+                    claude_code=True,
+                )
+
+        by_name = {check.name: check for check in checks}
+        self.assertEqual(by_name["claude code"].status, "ok")
+        self.assertEqual(by_name["claude config"].status, "ok")
+        self.assertEqual(by_name["claude auth"].status, "ok")
+        self.assertFalse(has_errors(checks))
 
 
 if __name__ == "__main__":

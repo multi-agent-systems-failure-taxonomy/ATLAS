@@ -147,10 +147,15 @@ def _run_codex(
     with events_path.open("w", encoding="utf-8") as stdout, stderr_path.open(
         "w", encoding="utf-8"
     ) as stderr:
+        # Explicit UTF-8: the default locale codec (cp1252 on Windows) cannot
+        # encode prompts containing characters like U+2192, which kills stdin
+        # before the CLI reads it.
         return subprocess.run(
             command,
             input=prompt,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             stdout=stdout,
             stderr=stderr,
             cwd=job_dir,

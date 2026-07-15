@@ -6,11 +6,14 @@ import argparse
 import json
 import os
 import sys
+from pathlib import Path
 
 try:  # pragma: no cover - script execution fallback
     from atlas_integration.codex.config import CodexConfig
     from atlas_integration.codex.learning_jobs import (
+        claim_learning_job,
         drain_learning_notices,
+        poll_learning_jobs,
         reconcile_learning_jobs,
     )
     from atlas_integration.codex.runtime import (
@@ -24,7 +27,12 @@ try:  # pragma: no cover - script execution fallback
     from atlas_integration.shared import force_utf8_stdio
 except ModuleNotFoundError:  # pragma: no cover
     from .config import CodexConfig
-    from .learning_jobs import drain_learning_notices, reconcile_learning_jobs
+    from .learning_jobs import (
+        claim_learning_job,
+        drain_learning_notices,
+        poll_learning_jobs,
+        reconcile_learning_jobs,
+    )
     from .runtime import (
         decisions_log,
         post_tool_use,
@@ -54,7 +62,10 @@ def main(argv: list[str] | None = None) -> int:
     config: CodexConfig | None = None
     try:
         event = json.loads(sys.stdin.read() or "{}")
-        config = CodexConfig.load(args.config).for_event(event)
+        if _is_internal_codex_event(event):
+            return 0
+        base_config = CodexConfig.load(args.config)
+        config = base_config.for_event(event)
         if config.learning_backend == "provider" and config.openai_base_url:
             os.environ["OPENAI_BASE_URL"] = config.openai_base_url
         if config.learning_backend == "provider" and config.openai_api_key_env:
@@ -75,8 +86,23 @@ def main(argv: list[str] | None = None) -> int:
                 trace_root=config.trace_root,
             )
         output = HANDLERS[event_name](event, config)
+        # Selection may have created a fresh per-conversation route.
+        config = base_config.for_event(event)
         if config.learning_backend == "codex_subagent":
             workspace = _workspace(config, event)
+            poll_learning_jobs(
+                workspace,
+                store_dir=config.store_dir,
+                trace_root=config.trace_root,
+                task_group=config.task_group,
+                conversation_id=_conversation_id(event),
+                generation_threshold=config.generation_threshold,
+                k_init=config.k_init,
+                k=config.k,
+                freeze=config.freeze,
+                worker_model=config.worker_model,
+                worker_timeout_seconds=config.worker_timeout_seconds,
+            )
             reconcile_learning_jobs(
                 workspace,
                 store_dir=config.store_dir,
@@ -86,6 +112,14 @@ def main(argv: list[str] | None = None) -> int:
                 output,
                 drain_learning_notices(workspace, _conversation_id(event)),
             )
+            if event_name in {"SessionStart", "UserPromptSubmit"}:
+                dispatch = claim_learning_job(
+                    workspace,
+                    conversation_id=_conversation_id(event),
+                    lease_seconds=config.worker_timeout_seconds,
+                )
+                if dispatch:
+                    output = _merge_learning_context(output, dispatch["directive"])
         decisions_log(config, event, output)
         if output:
             print(json.dumps(output, ensure_ascii=False))
@@ -105,6 +139,23 @@ def main(argv: list[str] | None = None) -> int:
                 pass
         print(f"ATLAS Codex hook failed: {exc}", file=sys.stderr)
         return 1
+
+
+def _is_internal_codex_event(event: dict) -> bool:
+    """Exclude host-maintenance tasks that are not user conversations."""
+    cwd = str(event.get("cwd") or "").strip()
+    if not cwd:
+        return False
+    codex_home = Path(
+        os.environ.get("CODEX_HOME") or (Path.home() / ".codex")
+    ).expanduser()
+    try:
+        relative = Path(cwd).expanduser().resolve().relative_to(
+            codex_home.resolve()
+        )
+    except (OSError, ValueError):
+        return False
+    return bool(relative.parts and relative.parts[0].casefold() == "memories")
 
 
 def _workspace(config: CodexConfig, event: dict):
@@ -135,6 +186,20 @@ def _merge_notices(output: dict | None, notices: list[str]) -> dict | None:
         messages.append(existing.strip())
     messages.extend(notice.strip() for notice in notices if notice.strip())
     merged["systemMessage"] = "\n\n".join(messages)
+    return merged
+
+
+def _merge_learning_context(output: dict | None, context: str) -> dict:
+    merged = dict(output or {})
+    specific = dict(merged.get("hookSpecificOutput") or {})
+    existing = specific.get("additionalContext")
+    contexts = []
+    if isinstance(existing, str) and existing.strip():
+        contexts.append(existing.strip())
+    contexts.append(context.strip())
+    specific["additionalContext"] = "\n\n".join(contexts)
+    merged["hookSpecificOutput"] = specific
+    merged.setdefault("continue", True)
     return merged
 
 

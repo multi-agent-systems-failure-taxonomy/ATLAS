@@ -62,15 +62,26 @@ def first_user_message(
     after: int = 0,
 ) -> str:
     """Return the first human-authored message after a byte cursor."""
+    messages = user_messages(path, after=after)
+    return messages[0] if messages else ""
+
+
+def user_messages(
+    path: Path | str | None,
+    *,
+    after: int = 0,
+) -> list[str]:
+    """Return human-authored messages in transcript order."""
     if not path:
-        return ""
+        return []
     try:
         source = Path(path)
         with source.open("rb") as handle:
             handle.seek(min(max(0, after), source.stat().st_size))
             lines = handle.read().decode("utf-8", "replace").splitlines()
     except OSError:
-        return ""
+        return []
+    messages: list[str] = []
     for line in lines:
         try:
             item = json.loads(line)
@@ -87,8 +98,8 @@ def first_user_message(
         chunks = list(_text_chunks(message if message is not None else item))
         text = "\n".join(chunk for chunk in chunks if chunk.strip()).strip()
         if text:
-            return text
-    return ""
+            messages.append(text)
+    return messages
 
 
 def _text_chunks(value: Any) -> Iterator[str]:

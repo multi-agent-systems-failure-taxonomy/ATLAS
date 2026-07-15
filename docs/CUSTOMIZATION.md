@@ -121,6 +121,7 @@ A taxonomy record is selected only by `taxonomy_id`.
 ```json
 {
   "taxonomy_id": "my-taxonomy-v1",
+  "display_name": "Checkout Workflow Reliability",
   "repo": "display-only",
   "domain": "display-only",
   "codes": [
@@ -146,8 +147,10 @@ Use it:
 atlas-single-run --config atlas.json --inherit my-taxonomy-v1 --model gpt-5 --task "..."
 ```
 
-`repo` and `domain` are display metadata. They do not route, group, or select
-taxonomies.
+`display_name`, `repo`, `domain`, and `summary` are display metadata. They do
+not route, group, or select taxonomies. Keep `taxonomy_id` immutable after a
+taxonomy has trace or lineage references; change `display_name` for a safer
+user-facing rename.
 
 ## What not to customize lightly
 

@@ -14,7 +14,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 from atlas_integration.codex.config import CodexConfig, parse_codex_hooks
-from atlas_integration.codex.dispatcher import _merge_notices
+from atlas_integration.codex.browser_picker import apply_browser_choice
+from atlas_integration.codex.dispatcher import (
+    _is_internal_codex_event,
+    _merge_learning_context,
+    _merge_notices,
+    main as dispatcher_main,
+)
 from atlas_integration.codex.install import (
     SKILL_NAME,
     install,
@@ -27,7 +33,7 @@ from atlas_integration.codex.runtime import (
     subagent_stop,
     user_prompt_submit,
 )
-from atlas_integration.codex.state import load_state
+from atlas_integration.codex.state import load_state, save_state
 from atlas_integration.codex.transcript import (
     first_user_message,
     read_raw_transcript,
@@ -35,6 +41,7 @@ from atlas_integration.codex.transcript import (
 from atlas_integration.codex.uninstall import uninstall, uninstall_skill
 from atlas_runtime.evidence import EVIDENCE_FILE
 from atlas_runtime.program import ProgramWorkspace
+from atlas_runtime.traces import GenerationTrace
 
 ROOT = Path(__file__).resolve().parent.parent
 STORE_DIR = ROOT / "tests" / "fixtures" / "taxonomies"
@@ -118,6 +125,7 @@ class CodexIntegrationTests(unittest.TestCase):
             self.base_config(root),
             store_dir=store_dir or STORE_DIR,
             session_selector="prompt",
+            selector_surface="inline",
         )
 
     def test_default_hooks_can_be_customized(self):
@@ -142,6 +150,109 @@ class CodexIntegrationTests(unittest.TestCase):
             output["systemMessage"],
             "ATLAS reflection accepted.\n\nATLAS taxonomy generation triggered",
         )
+
+    def test_learning_dispatch_preserves_existing_hook_context(self):
+        output = _merge_learning_context(
+            {
+                "hookSpecificOutput": {
+                    "hookEventName": "UserPromptSubmit",
+                    "additionalContext": "Existing ATLAS standing context.",
+                }
+            },
+            "Launch the native taxonomy subagent.",
+        )
+
+        specific = output["hookSpecificOutput"]
+        self.assertEqual(specific["hookEventName"], "UserPromptSubmit")
+        self.assertEqual(
+            specific["additionalContext"],
+            "Existing ATLAS standing context.\n\n"
+            "Launch the native taxonomy subagent.",
+        )
+        self.assertTrue(output["continue"])
+
+    def test_dispatcher_ignores_codex_internal_memory_tasks(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            codex_home = root / ".codex"
+            memories = codex_home / "memories"
+            memories.mkdir(parents=True)
+            config = self.base_config(root)
+            config_path = root / "atlas-skill.json"
+            config_path.write_text(
+                json.dumps(config.to_dict()),
+                encoding="utf-8",
+            )
+            event = {
+                "hook_event_name": "SessionStart",
+                "session_id": "internal-memory-task",
+                "cwd": str(memories),
+            }
+            stdout = io.StringIO()
+
+            with (
+                patch.dict("os.environ", {"CODEX_HOME": str(codex_home)}),
+                patch("sys.stdin", io.StringIO(json.dumps(event))),
+                redirect_stdout(stdout),
+            ):
+                code = dispatcher_main(["--config", str(config_path)])
+                self.assertTrue(_is_internal_codex_event(event))
+                self.assertFalse(
+                    _is_internal_codex_event(
+                        {**event, "cwd": str(root / "project")}
+                    )
+                )
+
+            self.assertEqual(code, 0)
+            self.assertEqual(stdout.getvalue(), "")
+            self.assertFalse(config.trace_output.exists())
+
+    def test_dispatcher_polls_and_claims_missed_generation_on_user_prompt(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            config = replace(
+                self.base_config(root),
+                learning_backend="codex_subagent",
+                generation_threshold=5,
+            )
+            config_path = root / "atlas-skill.json"
+            config_path.write_text(json.dumps(config.to_dict()), encoding="utf-8")
+            workspace = ProgramWorkspace(config.trace_output, repo="demo")
+            workspace.pending.append_many_with_names(
+                GenerationTrace(
+                    problem_id=f"episode-{index}",
+                    task=f"Task {index}",
+                    raw_trajectory=f"Completed trace {index}",
+                )
+                for index in range(5)
+            )
+            transcript = root / "codex.jsonl"
+            transcript.write_text("", encoding="utf-8")
+            event = {
+                "hook_event_name": "UserPromptSubmit",
+                "session_id": "poll-session",
+                "cwd": str(root),
+                "transcript_path": str(transcript),
+                "prompt": "Continue the main task.",
+            }
+            stdout = io.StringIO()
+            with patch("sys.stdin", io.StringIO(json.dumps(event))), redirect_stdout(
+                stdout
+            ):
+                code = dispatcher_main(["--config", str(config_path)])
+
+            self.assertEqual(code, 0)
+            output = json.loads(stdout.getvalue())
+            context = output["hookSpecificOutput"]["additionalContext"]
+            self.assertIn("ATLAS native taxonomy learning is ready", context)
+            self.assertIn("SUBAGENT TASK BEGIN", context)
+            job_path = next(
+                (config.trace_output / "learning_jobs").glob("*/job.json")
+            )
+            self.assertEqual(
+                json.loads(job_path.read_text(encoding="utf-8"))["state"],
+                "claimed",
+            )
 
     def test_auto_project_scope_derives_program_from_event_cwd(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -195,10 +306,12 @@ class CodexIntegrationTests(unittest.TestCase):
             config = replace(
                 self.base_config(root),
                 session_selector="prompt",
+                selector_surface="inline",
             )
             path.write_text(json.dumps(config.to_dict()), encoding="utf-8")
             loaded = CodexConfig.load(path)
             self.assertEqual(loaded.session_selector, "prompt")
+            self.assertEqual(loaded.selector_surface, "inline")
 
     def test_native_learning_backend_round_trips_without_api_configuration(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -267,11 +380,68 @@ class CodexIntegrationTests(unittest.TestCase):
             self.assertEqual(config.atlas_model, "interactive-session")
             self.assertEqual(config.project_scope, "auto")
             self.assertEqual(config.session_selector, "prompt")
+            self.assertEqual(config.selector_surface, "browser")
             self.assertEqual(config.learning_backend, "codex_subagent")
             self.assertIsNone(config.openai_api_key_env)
             self.assertTrue(
                 (root / ".agents" / "skills" / SKILL_NAME / "SKILL.md").is_file()
             )
+
+    def test_install_main_preserves_configured_selector_surface(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            config_path = root / "atlas.json"
+            configured = replace(
+                self.base_config(root),
+                session_selector="prompt",
+                selector_surface="inline",
+            )
+            config_path.write_text(
+                json.dumps(configured.to_dict()),
+                encoding="utf-8",
+            )
+            with redirect_stdout(io.StringIO()):
+                code = install_main(
+                    [
+                        "--config",
+                        str(config_path),
+                        "--project-dir",
+                        str(root),
+                    ]
+                )
+
+            self.assertEqual(code, 0)
+            installed = CodexConfig.load(root / ".codex" / "atlas-skill.json")
+            self.assertEqual(installed.selector_surface, "inline")
+
+    def test_install_main_selector_surface_flag_overrides_config(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            config_path = root / "atlas.json"
+            configured = replace(
+                self.base_config(root),
+                session_selector="prompt",
+                selector_surface="browser",
+            )
+            config_path.write_text(
+                json.dumps(configured.to_dict()),
+                encoding="utf-8",
+            )
+            with redirect_stdout(io.StringIO()):
+                code = install_main(
+                    [
+                        "--config",
+                        str(config_path),
+                        "--project-dir",
+                        str(root),
+                        "--selector-surface",
+                        "inline",
+                    ]
+                )
+
+            self.assertEqual(code, 0)
+            installed = CodexConfig.load(root / ".codex" / "atlas-skill.json")
+            self.assertEqual(installed.selector_surface, "inline")
 
     def test_user_level_install_rejects_project_target(self):
         with self.assertRaises(SystemExit):
@@ -847,6 +1017,152 @@ class CodexIntegrationTests(unittest.TestCase):
             self.assertIn("ORIGINAL TASK ANSWER MARKER", traces[0].raw_trajectory)
             self.assertNotIn("ATLAS SELECTOR MARKER", traces[0].raw_trajectory)
 
+    def test_resume_recovers_missed_inline_choice_before_browser_launch(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            transcript = root / "codex.jsonl"
+            transcript.write_text("", encoding="utf-8")
+            config = self.selector_config(root)
+            event = {
+                "session_id": "selector-resume-recovery",
+                "cwd": str(root),
+                "transcript_path": str(transcript),
+            }
+            session_start(
+                {**event, "hook_event_name": "SessionStart"},
+                config,
+            )
+            append_text(transcript, "Inspect the existing experiment.", role="user")
+            append_text(transcript, "MAST", role="user")
+
+            browser_config = replace(config, selector_surface="browser")
+            with patch(
+                "atlas_integration.codex.runtime.start_browser_picker"
+            ) as launch:
+                resumed = session_start(
+                    {**event, "hook_event_name": "SessionStart"},
+                    browser_config,
+                )
+
+            launch.assert_not_called()
+            state = load_state(config.trace_output, event["session_id"])
+            self.assertEqual(state["selection"]["status"], "selected")
+            self.assertEqual(
+                state["selection"]["selected_taxonomy_id"],
+                "mast",
+            )
+            self.assertEqual(
+                state["selector_recovery"]["source"],
+                "transcript",
+            )
+            self.assertIn(
+                "taxonomy is pinned to MAST",
+                resumed["hookSpecificOutput"]["additionalContext"],
+            )
+            self.assertIn("recovered", resumed["systemMessage"].lower())
+
+    def test_browser_catalog_launches_on_session_start_and_applies_directly(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            transcript = root / "codex.jsonl"
+            transcript.write_text("", encoding="utf-8")
+            result_path = root / "browser-result.json"
+            config = replace(
+                self.selector_config(root),
+                selector_surface="browser",
+            )
+            event = {
+                "session_id": "selector-browser",
+                "cwd": str(root),
+                "transcript_path": str(transcript),
+            }
+
+            picker = {
+                "pid": 123,
+                "url": "http://127.0.0.1:43210/",
+                "result_path": str(result_path),
+            }
+            with (
+                patch(
+                    "atlas_integration.codex.runtime.start_browser_picker",
+                    return_value=picker,
+                ) as launch,
+                patch(
+                    "atlas_integration.codex.runtime.open_browser_picker",
+                    return_value=True,
+                ) as opened,
+            ):
+                started = session_start(
+                    {**event, "hook_event_name": "SessionStart"}, config
+                )
+            self.assertIn("taxonomy library opened", started["systemMessage"])
+            launch.assert_called_once()
+            opened.assert_called_once_with(picker)
+            waiting = load_state(config.trace_output, event["session_id"])
+            self.assertEqual(waiting["selection"]["status"], "browser_pending")
+
+            apply_browser_choice(
+                {
+                    "version": 1,
+                    "session_id": event["session_id"],
+                    "trace_output": str(config.trace_output),
+                    "store_dir": str(config.store_dir),
+                    "selection": waiting["selection"],
+                    "event": {
+                        "cwd": str(root),
+                        "session_id": event["session_id"],
+                    },
+                    "routing_root": str(config.trace_output),
+                    "default_trace_output": str(config.trace_output),
+                    "task_group": config.task_group,
+                    "project_scope": config.project_scope,
+                    "project_id": config.project_id,
+                    "result_path": str(result_path),
+                },
+                "tax-django-orm-001",
+            )
+            state = load_state(config.trace_output, event["session_id"])
+            self.assertEqual(state["selection"]["status"], "selected")
+            self.assertEqual(
+                state["selection"]["selected_taxonomy_id"],
+                "tax-django-orm-001",
+            )
+
+    def test_legacy_pending_selector_refreshes_before_parsing_old_number(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            transcript = root / "codex.jsonl"
+            transcript.write_text("", encoding="utf-8")
+            config = self.selector_config(root)
+            event = {
+                "session_id": "selector-refresh",
+                "cwd": str(root),
+                "transcript_path": str(transcript),
+            }
+            session_start({**event, "hook_event_name": "SessionStart"}, config)
+            state = load_state(config.trace_output, event["session_id"])
+            state["selection"].pop("version", None)
+            state["selection"]["options"] = [
+                state["selection"]["options"][0],
+                *state["selection"]["catalog_options"],
+                state["selection"]["options"][-1],
+            ]
+            save_state(config.trace_output, event["session_id"], state)
+
+            refreshed = user_prompt_submit(
+                {
+                    **event,
+                    "hook_event_name": "UserPromptSubmit",
+                    "prompt": "2",
+                },
+                config,
+            )
+            context = refreshed["hookSpecificOutput"]["additionalContext"]
+            self.assertIn("2. web-backend", context)
+            self.assertIn("8. No taxonomy", context)
+            updated = load_state(config.trace_output, event["session_id"])
+            self.assertEqual(updated["selection"]["status"], "pending")
+
     def test_no_taxonomy_disables_gates_and_trace_capture(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -907,7 +1223,7 @@ class CodexIntegrationTests(unittest.TestCase):
                 },
                 config,
             )
-            self.assertIn("tax-django-orm-001", json.dumps(chosen))
+            self.assertIn("ATLAS selected web-backend", json.dumps(chosen))
             user_prompt_submit(
                 {
                     **first,
@@ -931,9 +1247,118 @@ class CodexIntegrationTests(unittest.TestCase):
                 {**second, "hook_event_name": "SessionStart"}, config
             )
             context = next_start["hookSpecificOutput"]["additionalContext"]
-            self.assertIn("tax-django-orm-001  [Recommended]", context)
+            self.assertIn("web-backend  [Recommended]", context)
             self.assertNotIn("tax-flask-routing-004", context)
-            self.assertNotIn("1. MAST", context)
+            self.assertIn("2. MAST", context)
+            self.assertIn("3. No taxonomy", context)
+            self.assertIn("learn a new taxonomy from zero", context)
+
+    def test_mast_in_bound_project_routes_conversation_to_fresh_group(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            transcript = root / "codex.jsonl"
+            transcript.write_text("", encoding="utf-8")
+            raw_config = replace(
+                self.selector_config(root),
+                trace_output=root / "atlas-home",
+                project_scope="auto",
+            )
+
+            first = {
+                "session_id": "shared-taxonomy",
+                "cwd": str(root),
+                "transcript_path": str(transcript),
+            }
+            shared_config = raw_config.for_event(first)
+            session_start(
+                {**first, "hook_event_name": "SessionStart"}, shared_config
+            )
+            user_prompt_submit(
+                {
+                    **first,
+                    "hook_event_name": "UserPromptSubmit",
+                    "prompt": "tax-django-orm-001",
+                },
+                shared_config,
+            )
+            user_prompt_submit(
+                {
+                    **first,
+                    "hook_event_name": "UserPromptSubmit",
+                    "prompt": "Inspect the ORM.",
+                },
+                shared_config,
+            )
+            shared_program = shared_config.trace_output
+            self.assertEqual(
+                ProgramWorkspace(shared_program).load()["taxonomy_id"],
+                "tax-django-orm-001",
+            )
+
+            fresh_event = {
+                **first,
+                "session_id": "fresh-taxonomy-conversation",
+            }
+            before_choice = raw_config.for_event(fresh_event)
+            shown = session_start(
+                {**fresh_event, "hook_event_name": "SessionStart"},
+                before_choice,
+            )
+            context = shown["hookSpecificOutput"]["additionalContext"]
+            self.assertIn("1. web-backend  [Recommended]", context)
+            self.assertIn("2. MAST", context)
+
+            accepted = user_prompt_submit(
+                {
+                    **fresh_event,
+                    "hook_event_name": "UserPromptSubmit",
+                    "prompt": "MAST",
+                },
+                before_choice,
+            )
+            self.assertIn(
+                "existing shared project taxonomy remains unchanged",
+                json.dumps(accepted),
+            )
+
+            routed = raw_config.for_event(fresh_event)
+            self.assertNotEqual(routed.trace_output, shared_program)
+            self.assertTrue(routed.task_group.startswith("fresh-"))
+            selected = load_state(routed.trace_output, fresh_event["session_id"])
+            self.assertEqual(selected["selection"]["status"], "selected")
+            self.assertEqual(
+                selected["selection"]["shared_taxonomy_preserved"],
+                "tax-django-orm-001",
+            )
+
+            user_prompt_submit(
+                {
+                    **fresh_event,
+                    "hook_event_name": "UserPromptSubmit",
+                    "prompt": "Build a separate workflow.",
+                },
+                routed,
+            )
+            fresh_state = load_state(
+                routed.trace_output,
+                fresh_event["session_id"],
+            )
+            self.assertEqual(fresh_state["taxonomy_id"], "mast")
+            self.assertEqual(
+                ProgramWorkspace(shared_program).load()["taxonomy_id"],
+                "tax-django-orm-001",
+            )
+
+            third = {**first, "session_id": "still-shared-default"}
+            third_config = raw_config.for_event(third)
+            self.assertEqual(third_config.trace_output, shared_program)
+            next_selector = session_start(
+                {**third, "hook_event_name": "SessionStart"}, third_config
+            )
+            self.assertIn(
+                "web-backend  [Recommended]",
+                next_selector["hookSpecificOutput"]["additionalContext"],
+            )
 
     def test_optional_skill_install_uninstall_still_works(self):
         with tempfile.TemporaryDirectory() as temp:

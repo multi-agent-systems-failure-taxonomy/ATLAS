@@ -17,17 +17,22 @@ This merges ATLAS into `~/.claude/settings.json` and writes
 Claude and Codex resolve the same project/task-group program when their base
 `trace_output`, project root, and task group match.
 
-No external model API key is required for `claude_subagent`. The worker invokes
-the authenticated local `claude -p` automation surface with safe mode, tools
-disabled, no session persistence, and a strict JSON schema. It receives a
-frozen outcome-blind trace snapshot and writes only a proposal receipt. A
-foreground hook validates evidence and activates between episodes.
+No external model API key, standalone `claude -p` process, or second login is
+required for `claude_subagent`. A hook claims the frozen job and tells the
+active Claude Code session to launch exactly one native Agent subtask. That
+subtask reads only the frozen outcome-blind prompt and schema and returns a
+signed proposal receipt through `SubagentStop`. Foreground hook reconciliation
+validates evidence and activates between episodes.
 
 One completed assistant episode is one trace. Generation starts after five
 eligible traces by default, first refinement review after `k_init` (ten), and
 later reviews every `k` traces (twenty). MAST or the current learned taxonomy
 remains active while the worker runs. Trigger and completion notices appear in
 Claude's visible `systemMessage` and agent-facing `additionalContext`.
+
+After activation, Claude context names the active learned taxonomy by display
+name and immutable ID. The original selector choice, including MAST, remains
+recorded only as the lineage seed; checkpoints use the active taxonomy's codes.
 
 Remove only the user-level ATLAS registration with:
 
@@ -45,18 +50,38 @@ Then start Claude Code in that project.
 
 ATLAS will:
 
-1. ask for MAST, a compatible stored taxonomy, or `No taxonomy` when enabled;
+1. open the local taxonomy library for MAST, stored taxonomies, or `No taxonomy`;
 2. hold the first substantive prompt until that choice is resolved;
 3. fire checkpoint reflections at configured boundaries;
 4. block final completion until the final gate passes or exhausts the retry envelope;
 5. record one canonical episode trace at each accepted Stop boundary;
 6. trigger durable generation or refinement jobs when thresholds are reached.
 
-If a detached worker disappears without a receipt, the coordinator expires its
-lease, keeps the current taxonomy active, and permits a retry from the same
+If a native Agent subtask disappears without a receipt, the coordinator expires
+its claim, keeps the current taxonomy active, and permits a retry from the same
 frozen evidence. Automatic secret redaction runs before trace persistence by
 default. Redaction is a defense in depth measure, not permission to place
 credentials in task transcripts.
+
+The user-level installer defaults to the browser selector. Use the inline
+numbered fallback when needed:
+
+```bash
+atlas-claude-install --user-level --selector-surface inline
+```
+
+When a project already has a shared learned taxonomy, choosing MAST creates a
+durable isolated `fresh-*` task group for that Claude conversation and leaves
+the shared taxonomy unchanged.
+
+The taxonomy choice remains pinned to Claude's session ID. Resuming the
+conversation from another shell or changing its current working directory does
+not recompute the project, reopen the browser selector, or replace the selected
+taxonomy.
+
+For older inline-selector sessions, SessionStart also checks the transcript
+after the saved selector boundary. An exact offered reply such as `MAST` is
+migrated before the browser can reopen; ordinary task prose does not match.
 
 ## Customize built-in hooks
 
