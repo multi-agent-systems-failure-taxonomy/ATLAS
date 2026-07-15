@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 from unittest.mock import patch
 from pathlib import Path
@@ -687,6 +690,54 @@ class CodexLearningJobTests(unittest.TestCase):
         self.assertEqual(job["state"], "rejected")
         self.assertEqual(self.workspace.load()["taxonomy_id"], "tax-unrelated")
         self.assertFalse(store.exists(job["taxonomy_id"], self.store_dir))
+
+    def test_run_codex_feeds_prompt_as_utf8_under_locale_codec(self) -> None:
+        # Same regression class as the Claude worker: the prompt pipe must
+        # be UTF-8 regardless of the host locale codec.
+        harness = textwrap.dedent(
+            """
+            import sys
+            from pathlib import Path
+
+            from atlas_integration.codex.native_worker import _run_codex
+
+            echo = (
+                "import sys;"
+                "data = sys.stdin.buffer.read().decode('utf-8');"
+                "sys.stdout.buffer.write(data.encode('utf-8'))"
+            )
+            job_dir = Path(sys.argv[1])
+            completed = _run_codex(
+                [sys.executable, "-c", echo],
+                prompt="taxonomy \\u2192 worker",
+                job_dir=job_dir,
+                timeout_seconds=60,
+            )
+            stderr_text = (job_dir / "stderr.log").read_text(
+                encoding="utf-8", errors="replace"
+            )
+            assert completed.returncode == 0, stderr_text
+            events = (job_dir / "events.jsonl").read_text(encoding="utf-8")
+            assert "\\u2192" in events, ascii(events)
+            print("ROUNDTRIP-OK")
+            """
+        )
+        env = {
+            key: value
+            for key, value in os.environ.items()
+            if key not in {"PYTHONIOENCODING", "PYTHONUTF8"}
+        }
+        env["LC_ALL"] = "C"  # POSIX twin of the Windows ANSI code page
+        env["LANG"] = "C"
+        completed = subprocess.run(
+            [sys.executable, "-X", "utf8=0", "-c", harness, str(self.root)],
+            capture_output=True,
+            timeout=120,
+            env=env,
+            cwd=Path(__file__).resolve().parent.parent,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn(b"ROUNDTRIP-OK", completed.stdout)
 
 
 if __name__ == "__main__":

@@ -4,8 +4,10 @@ import io
 import json
 import os
 import signal
+import subprocess
 import sys
 import tempfile
+import textwrap
 import time
 import unittest
 from pathlib import Path
@@ -526,6 +528,50 @@ class ClaudeNativeLearningTests(unittest.TestCase):
                 os.kill(int(picker["pid"]), signal.SIGTERM)
             except OSError:
                 pass
+
+    def test_run_claude_feeds_prompt_as_utf8_under_locale_codec(self) -> None:
+        # Learning prompts routinely contain characters like U+2192 that the
+        # Windows ANSI code page cannot encode; without an explicit UTF-8
+        # stdin the writer thread died and the CLI exited 1 on empty input.
+        harness = textwrap.dedent(
+            """
+            import sys
+            from pathlib import Path
+
+            from atlas_integration.claude_code.native_worker import _run_claude
+
+            echo = (
+                "import sys;"
+                "data = sys.stdin.buffer.read().decode('utf-8');"
+                "sys.stdout.buffer.write(data.encode('utf-8'))"
+            )
+            completed = _run_claude(
+                [sys.executable, "-c", echo],
+                prompt="taxonomy \\u2192 worker",
+                job_dir=Path(sys.argv[1]),
+                timeout_seconds=60,
+            )
+            assert completed.returncode == 0, completed.stderr
+            assert "\\u2192" in completed.stdout, ascii(completed.stdout)
+            print("ROUNDTRIP-OK")
+            """
+        )
+        env = {
+            key: value
+            for key, value in os.environ.items()
+            if key not in {"PYTHONIOENCODING", "PYTHONUTF8"}
+        }
+        env["LC_ALL"] = "C"  # POSIX twin of the Windows ANSI code page
+        env["LANG"] = "C"
+        completed = subprocess.run(
+            [sys.executable, "-X", "utf8=0", "-c", harness, str(self.root)],
+            capture_output=True,
+            timeout=120,
+            env=env,
+            cwd=Path(__file__).resolve().parent.parent,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn(b"ROUNDTRIP-OK", completed.stdout)
 
     def test_notice_merging_is_visible_to_user_and_agent(self) -> None:
         merged = _merge_notices(
