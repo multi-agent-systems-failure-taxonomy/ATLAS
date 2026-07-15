@@ -155,7 +155,7 @@ def _run_codex(
             input=prompt,
             text=True,
             encoding="utf-8",
-            errors="replace",
+            errors="strict",
             stdout=stdout,
             stderr=stderr,
             cwd=job_dir,

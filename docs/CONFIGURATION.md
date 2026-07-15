@@ -122,7 +122,7 @@ Codex user-level interactive hooks may also set:
 | `codex.learning_backend` | `"provider"` | Set to `"codex_subagent"` for durable learning through a native subagent in the active Codex task, without a separate API key or CLI login. |
 | `codex.worker_model` | unset | Legacy compatibility field; native spawned subagents use the active Codex task's model policy. |
 | `codex.codex_cli_path` | unset | Legacy compatibility field; not required by native in-task learning. |
-| `codex.worker_timeout_seconds` | `1800` | Claim lease for one native generation or refinement subagent. |
+| `codex.worker_timeout_seconds` | `1800` | Claim lease for each native generation/refinement and support-review subagent. |
 
 Claude Code accepts parallel interactive fields:
 
@@ -133,10 +133,10 @@ Claude Code accepts parallel interactive fields:
 | `claude_code.task_group` | `"default"` | Project-local taxonomy and refinement group, shared with Codex when equal. |
 | `claude_code.session_selector` | `"off"` | `"prompt"` asks for MAST, a compatible taxonomy, or ATLAS-off. |
 | `claude_code.selector_surface` | `"inline"` | `"browser"` opens the session-bound local library; user-level installs default to `"browser"`. |
-| `claude_code.learning_backend` | `"provider"` | `"claude_subagent"` uses one native Agent subtask in the active Claude Code session without a separate API key or CLI login. |
+| `claude_code.learning_backend` | `"provider"` | `"claude_subagent"` uses native generator and support-review Agent subtasks without a separate API key or CLI login. |
 | `claude_code.worker_model` | unset | Legacy compatibility field; the native Agent follows the active session's model policy. |
 | `claude_code.claude_cli_path` | unset | Legacy detached-worker compatibility field; native in-session learning does not use it. |
-| `claude_code.worker_timeout_seconds` | `1800` | Claim lease for one native generation or refinement Agent. |
+| `claude_code.worker_timeout_seconds` | `1800` | Claim lease for each native generation/refinement and support-review Agent. |
 
 ## Display metadata
 

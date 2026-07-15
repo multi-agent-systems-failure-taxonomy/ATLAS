@@ -101,10 +101,11 @@ python -m pip install --upgrade "git+https://github.com/multi-agent-systems-fail
    MAST, a stored project taxonomy, or No taxonomy.
 2. **Work.** The main agent keeps owning the task. One completed assistant
    episode becomes one canonical trace.
-3. **Learn.** At the default five-trace threshold, one native host subagent
-   proposes an evidence-grounded taxonomy while normal work continues.
-4. **Activate.** Foreground validation checks the frozen evidence and atomically
-   activates a valid candidate. The current taxonomy stays active on failure.
+3. **Learn.** At the default five-trace threshold, a native generator proposes
+   an evidence-grounded taxonomy while normal work continues.
+4. **Validate.** Foreground checks verify exact spans, then a separate native
+   support reviewer evaluates every replacement code before atomic activation.
+   The current taxonomy stays active on failure.
 
 <div class="atlas-note">
 When a project already has a learned taxonomy, choosing MAST creates an

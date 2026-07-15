@@ -29,8 +29,13 @@ from atlas_runtime.generation import trigger_generation
 from atlas_runtime.refinement import trigger_refinement
 from atlas_runtime.traces import GenerationTrace, TraceStore
 
-JOB_PROTOCOL_VERSION = 1
-PROMPT_VERSION = 1
+from .worker_contract import (
+    build_support_review_prompt,
+    support_review_schema,
+)
+
+JOB_PROTOCOL_VERSION = 2
+PROMPT_VERSION = 2
 JOBS_DIR = "learning_jobs"
 LEARNING_STATE_KEY = "interactive_learning"
 LEGACY_LEARNING_STATE_KEY = "codex_learning"
@@ -355,8 +360,11 @@ def _build_snapshot(
         for path in workspace.pending.trace_files():
             try:
                 trace = GenerationTrace.from_dict(_read_json(path))
-            except (OSError, TypeError, ValueError, json.JSONDecodeError):
-                continue
+            except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
+                raise LearningJobError(
+                    f"generation snapshot is incomplete; invalid or unreadable "
+                    f"trace {path.name}: {exc}"
+                ) from exc
             names.append(path.name)
             traces.append(outcome_blind_trace(trace.to_dict()))
         if not traces:
@@ -379,8 +387,11 @@ def _build_snapshot(
         path = trace_root / taxonomy_id / filename
         try:
             trace = GenerationTrace.from_dict(_read_json(path))
-        except (OSError, TypeError, ValueError, json.JSONDecodeError):
-            continue
+        except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise LearningJobError(
+                f"refinement snapshot is incomplete; invalid or unreadable "
+                f"trace {path}: {exc}"
+            ) from exc
         valid_refs.append({"taxonomy_id": taxonomy_id, "filename": filename})
         traces.append(outcome_blind_trace(trace.to_dict()))
     if not traces:
@@ -401,12 +412,39 @@ def _reconcile_one(
 ) -> None:
     job_path = job_dir / "job.json"
     receipt_path = job_dir / "receipt.json"
+    support_receipt_path = job_dir / "support_receipt.json"
     snapshot_path = job_dir / "snapshot.json"
     if not job_path.exists() or not snapshot_path.exists():
         return
     with _job_lock(job_dir):
         job = _read_json(job_path)
         if job.get("state") in TERMINAL_STATES:
+            return
+        if (
+            job.get("dispatch_mode") == "host_subagent"
+            and int(job.get("version", 0) or 0) < JOB_PROTOCOL_VERSION
+        ):
+            _fail_job(
+                workspace,
+                job_dir,
+                job,
+                "native learning job uses an older evidence-review protocol; "
+                "the next hook will queue a replacement from the frozen traces",
+            )
+            return
+        if (
+            job.get("dispatch_mode") == "host_subagent"
+            and job.get("state") == "claimed"
+            and job.get("claim_phase") == "support"
+        ):
+            if support_receipt_path.exists():
+                return
+            expires_at = float(job.get("claim_expires_at_unix", 0) or 0)
+            if expires_at and time.time() >= expires_at:
+                job["state"] = "support_queued"
+                job["updated_at_unix"] = time.time()
+                _clear_claim(job)
+                _write_json_atomic(job_path, job)
             return
         if (
             job.get("dispatch_mode") == "host_subagent"
@@ -417,19 +455,12 @@ def _reconcile_one(
             if expires_at and time.time() >= expires_at:
                 job["state"] = "queued"
                 job["updated_at_unix"] = time.time()
-                for key in (
-                    "claim_token",
-                    "claimed_by",
-                    "claimed_at_unix",
-                    "claim_expires_at_unix",
-                ):
-                    job.pop(key, None)
+                _clear_claim(job)
                 _write_json_atomic(job_path, job)
             return
         if (
             job.get("dispatch_mode") == "host_subagent"
-            and job.get("state") == "queued"
-            and not receipt_path.exists()
+            and job.get("state") in {"queued", "support_queued"}
         ):
             # A host job has no lease until a live Codex task claims it.
             return
@@ -458,7 +489,65 @@ def _reconcile_one(
             _reject_job(workspace, job_dir, job, "immutable snapshot hash mismatch")
             return
 
-        if job.get("state") != "activating":
+        if job.get("state") == "awaiting_support_reconcile":
+            candidate = _read_json(job_dir / "validated_candidate.json")
+            try:
+                support_receipt = _read_json(support_receipt_path)
+            except (OSError, ValueError, json.JSONDecodeError) as exc:
+                _reject_job(
+                    workspace,
+                    job_dir,
+                    job,
+                    f"malformed support-review receipt: {exc}",
+                )
+                return
+            if support_receipt.get("job_id") != job.get("job_id"):
+                _reject_job(workspace, job_dir, job, "support receipt job id mismatch")
+                return
+            if support_receipt.get("snapshot_hash") != job.get("snapshot_hash"):
+                _reject_job(
+                    workspace,
+                    job_dir,
+                    job,
+                    "support receipt snapshot hash mismatch",
+                )
+                return
+            if support_receipt.get("status") == "failed":
+                _fail_job(
+                    workspace,
+                    job_dir,
+                    job,
+                    str(
+                        support_receipt.get("error")
+                        or "taxonomy support reviewer failed"
+                    ),
+                )
+                return
+            if support_receipt.get("status") != "support_review":
+                _reject_job(
+                    workspace,
+                    job_dir,
+                    job,
+                    "unsupported support-review receipt status",
+                )
+                return
+            try:
+                review = validate_support_review(
+                    support_receipt.get("review"),
+                    candidate,
+                    snapshot,
+                )
+            except LearningJobError as exc:
+                _reject_job(workspace, job_dir, job, str(exc))
+                return
+            _attach_support_review(candidate, review)
+            _write_json_atomic(job_dir / "validated_candidate.json", candidate)
+            _write_json_atomic(job_dir / "support_validation.json", review)
+            job["state"] = "activating"
+            job["taxonomy_id"] = _taxonomy_id(job, candidate)
+            job["updated_at_unix"] = time.time()
+            _write_json_atomic(job_path, job)
+        elif job.get("state") != "activating":
             try:
                 receipt = _read_json(receipt_path)
             except (OSError, ValueError, json.JSONDecodeError) as exc:
@@ -492,6 +581,16 @@ def _reconcile_one(
                 _reject_job(workspace, job_dir, job, str(exc))
                 return
             _write_json_atomic(job_dir / "validated_candidate.json", candidate)
+            if (
+                job.get("dispatch_mode") == "host_subagent"
+                and candidate["decision"] == "replace"
+            ):
+                _prepare_support_review_files(job_dir, snapshot, candidate)
+                job["state"] = "support_queued"
+                job["updated_at_unix"] = time.time()
+                _clear_claim(job)
+                _write_json_atomic(job_path, job)
+                return
             job["state"] = "activating"
             job["taxonomy_id"] = _taxonomy_id(job, candidate)
             job["updated_at_unix"] = time.time()
@@ -499,6 +598,7 @@ def _reconcile_one(
         else:
             candidate = _read_json(job_dir / "validated_candidate.json")
 
+        workspace.reconcile_stale_sessions()
         if workspace.load().get("active_sessions"):
             return
         try:
@@ -545,13 +645,14 @@ def _reconcile_one(
                 f"Project/group: {job['repo']} / {job['task_group']}\n"
                 f"{result}\n"
                 f"Evidence: {job['trace_count']} frozen traces; "
-                f"snapshot {str(job['snapshot_hash'])[:12]}; validation passed."
+                f"snapshot {str(job['snapshot_hash'])[:12]}; structure and "
+                "exact-quote validation passed."
             ),
         )
 
 
 def validate_candidate(candidate: Any, snapshot: dict[str, Any]) -> dict[str, Any]:
-    """Validate structure and require every code to cite frozen evidence."""
+    """Validate structure and exact evidence spans against the frozen snapshot."""
     if not isinstance(candidate, dict):
         raise LearningJobError("candidate must be an object")
     decision = candidate.get("decision", "replace")
@@ -575,11 +676,30 @@ def validate_candidate(candidate: Any, snapshot: dict[str, Any]) -> dict[str, An
         )
     if not isinstance(summary, str) or not summary.strip():
         raise LearningJobError("candidate summary must be a non-empty string")
-    if not isinstance(codes, list) or not codes:
-        raise LearningJobError("candidate codes must be a non-empty list")
+    if not isinstance(codes, list):
+        raise LearningJobError("candidate codes must be a list")
+    if decision == "no_change":
+        if codes:
+            raise LearningJobError("no_change candidate codes must be empty")
+        current = snapshot.get("current_taxonomy")
+        if not isinstance(current, dict):
+            raise LearningJobError("no_change requires a frozen current taxonomy")
+        return {
+            "decision": "no_change",
+            "repo": str(current.get("repo") or snapshot.get("repo") or ""),
+            "display_name": store.display_name(current),
+            "domain": str(current.get("domain") or "").strip(),
+            "summary": str(current.get("summary") or "").strip(),
+            "codes": list(current.get("codes") or []),
+        }
+    if not codes:
+        raise LearningJobError("replacement candidate codes must be non-empty")
     if len(codes) > 30:
         raise LearningJobError("candidate must contain at most 30 codes")
-    trace_ids = {str(trace.get("problem_id")) for trace in snapshot["traces"]}
+    traces_by_id = {
+        str(trace.get("problem_id")): trace for trace in snapshot["traces"]
+    }
+    trace_ids = set(traces_by_id)
     seen_ids: set[str] = set()
     seen_names: set[str] = set()
     normalized_codes = []
@@ -600,11 +720,50 @@ def validate_candidate(candidate: Any, snapshot: dict[str, Any]) -> dict[str, An
         if not isinstance(evidence, dict):
             raise LearningJobError(f"candidate code {code_id} has no evidence")
         cited = evidence.get("trace_ids")
+        quotes = evidence.get("quotes")
         rationale = evidence.get("rationale")
         if not isinstance(cited, list) or not cited:
             raise LearningJobError(f"candidate code {code_id} cites no traces")
         if any(str(item) not in trace_ids for item in cited):
             raise LearningJobError(f"candidate code {code_id} cites foreign traces")
+        if not isinstance(quotes, list) or not quotes:
+            raise LearningJobError(f"candidate code {code_id} has no evidence quotes")
+        checked_quotes: list[dict[str, str]] = []
+        quoted_trace_ids: set[str] = set()
+        for quote_index, quote_record in enumerate(quotes):
+            if not isinstance(quote_record, dict):
+                raise LearningJobError(
+                    f"candidate code {code_id} quote {quote_index} must be an object"
+                )
+            quote_trace_id = str(quote_record.get("trace_id") or "")
+            quote = quote_record.get("quote")
+            if quote_trace_id not in trace_ids or quote_trace_id not in {
+                str(item) for item in cited
+            }:
+                raise LearningJobError(
+                    f"candidate code {code_id} quote cites an uncited trace"
+                )
+            if not isinstance(quote, str) or len(quote.strip()) < 8:
+                raise LearningJobError(
+                    f"candidate code {code_id} quote must contain at least 8 characters"
+                )
+            trace = traces_by_id[quote_trace_id]
+            source = f"{trace.get('task') or ''}\n{trace.get('raw_trajectory') or ''}"
+            if _normalized_span(quote) not in _normalized_span(source):
+                raise LearningJobError(
+                    f"candidate code {code_id} contains a quote absent from "
+                    f"trace {quote_trace_id}"
+                )
+            checked_quotes.append(
+                {"trace_id": quote_trace_id, "quote": quote.strip()}
+            )
+            quoted_trace_ids.add(quote_trace_id)
+        missing_quotes = {str(item) for item in cited} - quoted_trace_ids
+        if missing_quotes:
+            raise LearningJobError(
+                f"candidate code {code_id} has no quote for cited trace(s): "
+                + ", ".join(sorted(missing_quotes))
+            )
         if not isinstance(rationale, str) or not rationale.strip():
             raise LearningJobError(f"candidate code {code_id} has no evidence rationale")
         seen_ids.add(str(code_id))
@@ -617,7 +776,13 @@ def validate_candidate(candidate: Any, snapshot: dict[str, Any]) -> dict[str, An
                 "category": category,
                 "evidence": {
                     "trace_ids": [str(item) for item in cited],
+                    "quotes": checked_quotes,
                     "rationale": rationale.strip(),
+                    "validation": {
+                        "method": "exact_normalized_trace_quote_v1",
+                        "supported": True,
+                        "checked_quote_count": len(checked_quotes),
+                    },
                 },
             }
         )
@@ -633,6 +798,106 @@ def validate_candidate(candidate: Any, snapshot: dict[str, Any]) -> dict[str, An
         "summary": summary.strip(),
         "codes": normalized_codes,
     }
+
+
+def _normalized_span(value: Any) -> str:
+    """Collapse harmless whitespace differences for exact span validation."""
+    return " ".join(str(value or "").split()).casefold()
+
+
+def validate_support_review(
+    review: Any,
+    candidate: dict[str, Any],
+    snapshot: dict[str, Any],
+) -> dict[str, Any]:
+    """Require an independent, complete support verdict for every replacement code."""
+    if not isinstance(review, dict):
+        raise LearningJobError("support review must be an object")
+    rows = review.get("codes")
+    if not isinstance(rows, list):
+        raise LearningJobError("support review codes must be a list")
+    candidate_by_id = {str(code["id"]): code for code in candidate["codes"]}
+    snapshot_ids = {str(trace.get("problem_id")) for trace in snapshot["traces"]}
+    normalized_rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            raise LearningJobError("support review code rows must be objects")
+        code_id = str(row.get("id") or "")
+        if code_id not in candidate_by_id or code_id in seen:
+            raise LearningJobError(f"support review has invalid code id {code_id!r}")
+        reason = row.get("reason")
+        trace_ids = row.get("trace_ids")
+        if not isinstance(reason, str) or not reason.strip():
+            raise LearningJobError(f"support review for {code_id} has no reason")
+        if not isinstance(trace_ids, list) or not trace_ids:
+            raise LearningJobError(f"support review for {code_id} cites no traces")
+        normalized_trace_ids = [str(item) for item in trace_ids]
+        cited = {
+            str(item)
+            for item in candidate_by_id[code_id]["evidence"]["trace_ids"]
+        }
+        if any(
+            item not in cited or item not in snapshot_ids
+            for item in normalized_trace_ids
+        ):
+            raise LearningJobError(
+                f"support review for {code_id} cites evidence outside the candidate"
+            )
+        supported = row.get("supported") is True
+        normalized_rows.append(
+            {
+                "id": code_id,
+                "supported": supported,
+                "reason": reason.strip(),
+                "trace_ids": normalized_trace_ids,
+            }
+        )
+        seen.add(code_id)
+    missing = set(candidate_by_id) - seen
+    if missing:
+        raise LearningJobError(
+            "support review omitted candidate code(s): " + ", ".join(sorted(missing))
+        )
+    unsupported = [row["id"] for row in normalized_rows if not row["supported"]]
+    if review.get("supported") is not True or unsupported:
+        suffix = ", ".join(unsupported) if unsupported else "top-level verdict"
+        raise LearningJobError(f"independent support review rejected: {suffix}")
+    return {"supported": True, "codes": normalized_rows}
+
+
+def _attach_support_review(
+    candidate: dict[str, Any],
+    review: dict[str, Any],
+) -> None:
+    rows = {str(row["id"]): row for row in review["codes"]}
+    for code in candidate["codes"]:
+        validation = code["evidence"].setdefault("validation", {})
+        validation["independent_support_review"] = rows[str(code["id"])]
+
+
+def _prepare_support_review_files(
+    job_dir: Path,
+    snapshot: dict[str, Any],
+    candidate: dict[str, Any],
+) -> None:
+    _write_json_atomic(job_dir / "support_output.schema.json", support_review_schema())
+    write_text_atomic_retry(
+        job_dir / "support_prompt.txt",
+        build_support_review_prompt(snapshot, candidate),
+        encoding="utf-8",
+    )
+
+
+def _clear_claim(job: dict[str, Any]) -> None:
+    for key in (
+        "claim_token",
+        "claimed_by",
+        "claimed_at_unix",
+        "claim_expires_at_unix",
+        "claim_phase",
+    ):
+        job.pop(key, None)
 
 
 def _activate_generation(

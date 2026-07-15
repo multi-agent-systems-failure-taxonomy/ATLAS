@@ -289,7 +289,8 @@ def serve_picker(
             "project_taxonomy_id": (selection or {}).get("project_taxonomy_id"),
             "host_label": host_label,
         }
-        on_choose = lambda value: apply_choice(request, value)
+        def on_choose(value):
+            return apply_choice(request, value)
 
     server, result, done = webview.build_server(
         store_dir,

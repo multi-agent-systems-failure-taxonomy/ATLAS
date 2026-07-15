@@ -4,15 +4,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 from pathlib import Path
+from typing import Any
 
 from atlas_integration.shared import write_json_atomic
 
-CURRENT_MARKERS = (
-    "atlas_integration.claude_code.dispatcher",
-    "atlas-skill.json",
-)
-LEGACY_MARKERS = (
+DISPATCHER_MODULE = "atlas_integration.claude_code.dispatcher"
+LEGACY_COMMANDS = (
     "atlas-failure-modes",
     "atlas_claude_code",
 )
@@ -21,12 +20,11 @@ LEGACY_MARKERS = (
 def remove_atlas_hooks(
     settings: dict,
     *,
-    include_legacy: bool = True,
+    include_legacy: bool = False,
 ) -> int:
     hooks = settings.get("hooks")
     if not isinstance(hooks, dict):
         return 0
-    markers = CURRENT_MARKERS + (LEGACY_MARKERS if include_legacy else ())
     removed = 0
     for event in list(hooks):
         entries = hooks.get(event)
@@ -34,8 +32,7 @@ def remove_atlas_hooks(
             continue
         kept = []
         for entry in entries:
-            text = json.dumps(entry, sort_keys=True)
-            if any(marker in text for marker in markers):
+            if _is_managed_hook_entry(entry, include_legacy=include_legacy):
                 removed += 1
             else:
                 kept.append(entry)
@@ -46,6 +43,32 @@ def remove_atlas_hooks(
     if not hooks:
         settings.pop("hooks", None)
     return removed
+
+
+def _is_managed_hook_entry(entry: Any, *, include_legacy: bool) -> bool:
+    if not isinstance(entry, dict):
+        return False
+    hooks = entry.get("hooks")
+    if not isinstance(hooks, list):
+        return False
+    for hook in hooks:
+        if not isinstance(hook, dict) or hook.get("type") != "command":
+            continue
+        command = hook.get("command")
+        if not isinstance(command, str):
+            continue
+        try:
+            tokens = shlex.split(command)
+        except ValueError:
+            continue
+        if any(
+            tokens[index : index + 2] == ["-m", DISPATCHER_MODULE]
+            for index in range(max(0, len(tokens) - 1))
+        ):
+            return True
+        if include_legacy and any(token in LEGACY_COMMANDS for token in tokens):
+            return True
+    return False
 
 
 def uninstall(
@@ -59,7 +82,7 @@ def uninstall(
     settings_path = claude_dir / (
         "settings.json" if user_level else "settings.local.json"
     )
-    removed = _clean_settings(settings_path, include_legacy=True)
+    removed = _clean_settings(settings_path, include_legacy=False)
     config_path = claude_dir / "atlas-skill.json"
     config_removed = False
     if config_path.is_file():

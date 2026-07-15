@@ -33,6 +33,20 @@ fixtures (under [`fixtures/`](fixtures/)) — no live LLM calls.
 | [`test_traces.py`](test_traces.py) | Generation-trace storage + retention reports |
 | [`test_traces_cli.py`](test_traces_cli.py) | `atlas-traces` status/export/prune behavior, including dry-run pruning |
 | [`test_webview.py`](test_webview.py) | Webview HTTP server: table rendering, detail view, choice recording (no browser needed) |
+| [`test_adapter_contracts.py`](test_adapter_contracts.py) | Shared adapter prompt, checkpoint, and lifecycle contracts |
+| [`test_claude_native_learning.py`](test_claude_native_learning.py) | Claude native subagent claims, UTF-8 receipts, polling, and activation |
+| [`test_codex_integration.py`](test_codex_integration.py) | Codex hooks, selector recovery, compact checkpoints, traces, and install/uninstall |
+| [`test_codex_learning_jobs.py`](test_codex_learning_jobs.py) | Native Codex learning jobs, receipts, evidence validation, and activation |
+| [`test_conversation_scope.py`](test_conversation_scope.py) | Durable host-conversation routing across cwd changes and resumes |
+| [`test_custom_hooks.py`](test_custom_hooks.py) | Claude custom-hook dispatch and evidence recording |
+| [`test_fsio.py`](test_fsio.py) | Retried file reads and atomic-write behavior |
+| [`test_judge_implementations.py`](test_judge_implementations.py) | Concrete judge behavior and malformed-output handling |
+| [`test_project_scope.py`](test_project_scope.py) | Project-key discovery and task-group path isolation |
+| [`test_refiner_no_retire.py`](test_refiner_no_retire.py) | Refiner constraints around stable and retired codes |
+| [`test_reflection_parser.py`](test_reflection_parser.py) | Markdown-tolerant reflection parsing and format repair |
+| [`test_register_taxonomy.py`](test_register_taxonomy.py) | Existing-taxonomy registration CLI and validation |
+| [`test_runtime_robustness.py`](test_runtime_robustness.py) | Manifest, worker, and persistence recovery paths |
+| [`test_status.py`](test_status.py) | Program status output and health fields |
 
 ## Sub-folders
 

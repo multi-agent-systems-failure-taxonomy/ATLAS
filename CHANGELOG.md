@@ -20,7 +20,7 @@ All notable user-facing changes are documented here.
 - The taxonomy library now uses the ATLAS runtime visual language, provides a
   searchable taxonomy rail and full code inspection, and treats generated
   evidence as secondary expandable provenance.
-- Claude Code taxonomy learning now uses one native Agent subtask in the active
+- Claude Code taxonomy learning now uses native Agent subtasks in the active
   session with the same durable claim/receipt lifecycle as Codex. It no longer
   requires a standalone `claude -p` login or external model API key.
 - Claude Code now supports the session-bound browser library, direct taxonomy
@@ -47,6 +47,21 @@ All notable user-facing changes are documented here.
   Claude Code retain stable facade modules for compatibility.
 
 ### Fixed
+
+- Final-gate status parsing now accepts a bounded vocabulary and uses a
+  runtime-owned repair counter, preventing negated prose or model-supplied
+  attempt counts from bypassing the gate.
+- Native taxonomy replacement codes now require exact frozen-trace quotes;
+  activation verifies every span and records a per-code validation result.
+- Active sessions now carry heartbeat leases, and activation/status paths
+  conservatively reconcile abandoned sessions after a legacy grace lease.
+- Malformed or unreadable trace files now abort learning snapshots with the
+  affected path instead of silently changing the evidence set.
+- Codex compact checkpoints recognize `no further action required` as complete.
+- Codex and Claude uninstallers now remove exact managed dispatcher commands
+  while preserving unrelated hooks with ATLAS-like names or config paths.
+- Repository licensing, vendored-pipeline provenance, result-artifact claims,
+  package maps, linting, and a 78% coverage floor now match the shipped files.
 
 - Codex user-level hooks now ignore host-maintenance conversations rooted in
   `~/.codex/memories`, preventing internal memory work from opening a taxonomy

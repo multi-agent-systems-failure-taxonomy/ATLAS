@@ -29,14 +29,17 @@ queued -> claimed -> awaiting_reconcile -> activating
 1. ATLAS freezes the exact trace references and source taxonomy version.
 2. A `SessionStart` or `UserPromptSubmit` hook claims the job with a time-bound
    token.
-3. The main host agent launches exactly one taxonomy subagent and continues the
-   user's task.
+3. The main host agent launches one taxonomy-generator subagent and continues
+   the user's task.
 4. The subagent reads `prompt.txt` and `output.schema.json`, then returns one
    bounded receipt through `SubagentStop`.
-5. Foreground reconciliation validates the claim, snapshot hash, trace
-   evidence, candidate structure, lineage, and idle activation boundary.
-6. A valid candidate is registered and activated atomically. Failure leaves
-   MAST or the current taxonomy active.
+5. Foreground reconciliation validates the claim, snapshot hash, candidate
+   structure, and every exact evidence quote.
+6. For a replacement, a separately claimed support-review subagent decides
+   whether every code is semantically supported by the cited traces. A
+   `no_change` refinement skips this phase because it changes no taxonomy data.
+7. A supported candidate is registered and activated atomically at the idle
+   boundary. Failure leaves MAST or the current taxonomy active.
 
 The selector choice remains the conversation's lineage seed after activation.
 For example, a conversation that selected MAST still records MAST as its root,
@@ -45,7 +48,8 @@ immutable ID as active. Checkpoints must use codes from that active taxonomy.
 
 ## Worker boundary
 
-The taxonomy subagent may read only its frozen prompt and schema. It must not:
+Each taxonomy subagent may read only its phase-specific frozen prompt and
+schema. It must not:
 
 - browse the repository or network;
 - inspect credentials;
@@ -53,7 +57,14 @@ The taxonomy subagent may read only its frozen prompt and schema. It must not:
 - invoke `codex exec`, `claude -p`, or another taxonomy agent;
 - perform the user's main task.
 
-Candidate codes must cite supporting frozen trace IDs and include a rationale.
+Replacement codes must cite supporting frozen trace IDs, include a verbatim
+span from every cited trace, and include a rationale. The coordinator verifies
+each normalized quote against the immutable snapshot and records the result per
+code. A `no_change` refinement returns an empty code list and preserves the
+current taxonomy verbatim.
+Native replacements contain one to 30 codes. The 15-to-30 guidance used by the
+research refinement prompt is a generation target, not a runtime minimum;
+smaller evidence-grounded taxonomies remain valid.
 That evidence is retained for validation and audit. The runtime-facing code
 definition remains its ID, name, description, and category.
 

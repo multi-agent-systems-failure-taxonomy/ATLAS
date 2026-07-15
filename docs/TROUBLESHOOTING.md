@@ -141,8 +141,9 @@ Codex CLI is required.
 
 For Claude Code, inspect the next `SessionStart` or `UserPromptSubmit` hook
 context for `ATLAS native taxonomy learning is ready`. The active Claude agent
-must launch exactly one native Agent subtask and return its receipt through
-`SubagentStop`. A standalone `claude -p` login and
+must launch exactly one native Agent subtask for the requested phase and return
+its receipt through `SubagentStop`. A separate support-review phase follows a
+valid replacement proposal. A standalone `claude -p` login and
 `claude_code.claude_cli_path` are not used by the native path.
 
 No external provider API key is needed for `codex_subagent` or

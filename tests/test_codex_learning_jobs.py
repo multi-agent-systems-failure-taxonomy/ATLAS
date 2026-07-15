@@ -26,6 +26,7 @@ from atlas_integration.codex.subagent_protocol import (
     capture_learning_receipt,
     claim_learning_job,
     complete_learning_job,
+    complete_support_review,
 )
 from atlas_runtime import GenerationTrace, ProgramWorkspace
 from atlas_runtime.traces import TraceStore
@@ -71,6 +72,13 @@ class CodexLearningJobTests(unittest.TestCase):
     @staticmethod
     def _candidate(snapshot: dict, *, suffix: str = "") -> dict:
         trace_ids = [item["problem_id"] for item in snapshot["traces"]]
+        quotes = [
+            {
+                "trace_id": item["problem_id"],
+                "quote": item["raw_trajectory"],
+            }
+            for item in snapshot["traces"]
+        ]
         return {
             "decision": "replace",
             "repo": snapshot["repo"],
@@ -84,6 +92,7 @@ class CodexLearningJobTests(unittest.TestCase):
                     "category": "C",
                     "evidence": {
                         "trace_ids": trace_ids,
+                        "quotes": quotes,
                         "rationale": "Each cited episode exposed a missing durable boundary.",
                     },
                 }
@@ -126,6 +135,17 @@ class CodexLearningJobTests(unittest.TestCase):
         self.assertIn("taxonomy generation triggered", notices[0])
         self.assertEqual(drain_learning_notices(self.workspace, "conversation-1"), [])
 
+    def test_generation_snapshot_aborts_on_invalid_trace(self) -> None:
+        self._append_pending(1, 4)
+        broken = self.workspace.pending.root / "trace-broken.json"
+        broken.write_text("{not-json", encoding="utf-8")
+
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "snapshot is incomplete.*trace-broken.json",
+        ):
+            self._enqueue()
+
     def test_native_host_job_claims_without_resolving_or_spawning_cli(self) -> None:
         self._append_pending(1, 5)
         with patch(
@@ -166,6 +186,130 @@ class CodexLearningJobTests(unittest.TestCase):
                 lease_seconds=300,
             )
         )
+
+    def test_native_candidate_requires_independent_support_review(self) -> None:
+        self._append_pending(1, 5)
+        job_id = enqueue_learning_job(
+            self.workspace,
+            kind="generation",
+            store_dir=self.store_dir,
+            trace_root=self.trace_root,
+            task_group="default",
+            conversation_id="conversation-1",
+        )
+        job_dir = self.program / "learning_jobs" / job_id
+        snapshot = json.loads((job_dir / "snapshot.json").read_text(encoding="utf-8"))
+        candidate = self._candidate(snapshot)
+
+        generator = claim_learning_job(
+            self.workspace,
+            conversation_id="conversation-2",
+        )
+        complete_learning_job(
+            job_dir,
+            claim_token=generator["claim_token"],
+            candidate=candidate,
+        )
+        reconcile_learning_jobs(
+            self.workspace,
+            store_dir=self.store_dir,
+            trace_root=self.trace_root,
+        )
+
+        staged = json.loads((job_dir / "job.json").read_text(encoding="utf-8"))
+        self.assertEqual(staged["state"], "support_queued")
+        self.assertIsNone(self.workspace.load()["taxonomy_id"])
+        self.assertTrue((job_dir / "support_prompt.txt").is_file())
+        reviewer = claim_learning_job(
+            self.workspace,
+            conversation_id="conversation-3",
+        )
+        self.assertIn("support-review subagent", reviewer["task_prompt"])
+        complete_support_review(
+            job_dir,
+            claim_token=reviewer["claim_token"],
+            review={
+                "supported": True,
+                "codes": [
+                    {
+                        "id": candidate["codes"][0]["id"],
+                        "supported": True,
+                        "reason": "The cited episodes directly describe the failure.",
+                        "trace_ids": candidate["codes"][0]["evidence"]["trace_ids"],
+                    }
+                ],
+            },
+        )
+        reconcile_learning_jobs(
+            self.workspace,
+            store_dir=self.store_dir,
+            trace_root=self.trace_root,
+        )
+
+        completed = json.loads((job_dir / "job.json").read_text(encoding="utf-8"))
+        self.assertEqual(completed["state"], "activated")
+        stored = store.fetch_by_id(completed["taxonomy_id"], self.store_dir)
+        validation = stored["codes"][0]["evidence"]["validation"]
+        self.assertTrue(validation["independent_support_review"]["supported"])
+
+    def test_independent_support_review_can_reject_a_real_but_irrelevant_quote(self) -> None:
+        self._append_pending(1, 5)
+        job_id = enqueue_learning_job(
+            self.workspace,
+            kind="generation",
+            store_dir=self.store_dir,
+            trace_root=self.trace_root,
+            task_group="default",
+            conversation_id="conversation-1",
+        )
+        job_dir = self.program / "learning_jobs" / job_id
+        snapshot = json.loads((job_dir / "snapshot.json").read_text(encoding="utf-8"))
+        candidate = self._candidate(snapshot)
+        candidate["codes"][0]["name"] = "Rocket fuel leak"
+        generator = claim_learning_job(
+            self.workspace,
+            conversation_id="conversation-2",
+        )
+        complete_learning_job(
+            job_dir,
+            claim_token=generator["claim_token"],
+            candidate=candidate,
+        )
+        reconcile_learning_jobs(
+            self.workspace,
+            store_dir=self.store_dir,
+            trace_root=self.trace_root,
+        )
+        reviewer = claim_learning_job(
+            self.workspace,
+            conversation_id="conversation-3",
+        )
+        complete_support_review(
+            job_dir,
+            claim_token=reviewer["claim_token"],
+            review={
+                "supported": False,
+                "codes": [
+                    {
+                        "id": candidate["codes"][0]["id"],
+                        "supported": False,
+                        "reason": "The quote is real but unrelated to rocket fuel.",
+                        "trace_ids": candidate["codes"][0]["evidence"]["trace_ids"],
+                    }
+                ],
+            },
+        )
+
+        reconcile_learning_jobs(
+            self.workspace,
+            store_dir=self.store_dir,
+            trace_root=self.trace_root,
+        )
+
+        rejected = json.loads((job_dir / "job.json").read_text(encoding="utf-8"))
+        self.assertEqual(rejected["state"], "rejected")
+        self.assertIn("independent support review rejected", rejected["last_error"])
+        self.assertIsNone(self.workspace.load()["taxonomy_id"])
 
     def test_poll_repairs_a_missed_generation_trigger_idempotently(self) -> None:
         self._append_pending(1, 5)
@@ -330,6 +474,30 @@ class CodexLearningJobTests(unittest.TestCase):
             store_dir=self.store_dir,
             trace_root=self.trace_root,
         )
+        reviewer = claim_learning_job(
+            self.workspace,
+            conversation_id="conversation-3",
+        )
+        complete_support_review(
+            job_dir,
+            claim_token=reviewer["claim_token"],
+            review={
+                "supported": True,
+                "codes": [
+                    {
+                        "id": candidate["codes"][0]["id"],
+                        "supported": True,
+                        "reason": "The cited episodes directly support this code.",
+                        "trace_ids": candidate["codes"][0]["evidence"]["trace_ids"],
+                    }
+                ],
+            },
+        )
+        reconcile_learning_jobs(
+            self.workspace,
+            store_dir=self.store_dir,
+            trace_root=self.trace_root,
+        )
 
         job = json.loads((job_dir / "job.json").read_text(encoding="utf-8"))
         self.assertEqual(job["state"], "activated")
@@ -420,6 +588,27 @@ class CodexLearningJobTests(unittest.TestCase):
         self.assertEqual(job["state"], "rejected")
         notices = drain_learning_notices(self.workspace, "conversation-1")
         self.assertIn("MAST remains active", notices[-1])
+
+    def test_fabricated_evidence_quote_is_rejected_without_activation(self) -> None:
+        self._append_pending(1, 5)
+        _, job_dir = self._enqueue()
+        snapshot = json.loads((job_dir / "snapshot.json").read_text(encoding="utf-8"))
+        candidate = self._candidate(snapshot)
+        candidate["codes"][0]["name"] = "Rocket fuel leak"
+        candidate["codes"][0]["evidence"]["quotes"][0]["quote"] = (
+            "Rocket fuel leaked from the launch vehicle"
+        )
+        self._complete_worker(job_dir, candidate)
+
+        reconcile_learning_jobs(
+            self.workspace,
+            store_dir=self.store_dir,
+            trace_root=self.trace_root,
+        )
+
+        job = json.loads((job_dir / "job.json").read_text(encoding="utf-8"))
+        self.assertEqual(job["state"], "rejected")
+        self.assertIn("absent from trace", job["last_error"])
 
     def test_oversized_candidate_is_rejected_without_activation(self) -> None:
         self._append_pending(1, 5)

@@ -7,7 +7,12 @@ import time
 import unittest
 from pathlib import Path
 
-from atlas_runtime.traces import GenerationTrace, RetentionPolicy, TraceStore
+from atlas_runtime.traces import (
+    GenerationTrace,
+    RetentionPolicy,
+    TraceReadError,
+    TraceStore,
+)
 
 FIXTURE = Path(__file__).parent / "fixtures" / "atlas_generation_trace.json"
 
@@ -35,6 +40,16 @@ class GenerationTraceTests(unittest.TestCase):
 
 
 class TraceStoreTests(unittest.TestCase):
+    def test_invalid_trace_is_reported_instead_of_silently_dropped(self):
+        with tempfile.TemporaryDirectory() as td:
+            store = TraceStore(td)
+            store.root.mkdir(parents=True, exist_ok=True)
+            broken = store.root / "trace-broken.json"
+            broken.write_text("{not-json", encoding="utf-8")
+
+            with self.assertRaisesRegex(TraceReadError, "trace-broken.json"):
+                list(store.iter_traces())
+
     def test_append_creates_independent_json_records(self):
         with tempfile.TemporaryDirectory() as td:
             store = TraceStore(td)

@@ -5,7 +5,7 @@
 ```bash
 git clone https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git
 cd ATLAS
-python -m pip install -e .
+python -m pip install -e ".[test]"
 ```
 
 Python 3.10 or newer is required.
@@ -14,7 +14,8 @@ Python 3.10 or newer is required.
 
 ```bash
 python -m compileall atlas_runtime atlas_integration finding judge_types vendor
-python -m pytest -q
+python -m ruff check atlas_runtime atlas_integration finding judge_types tests
+python -m pytest -q --cov=atlas_runtime --cov=atlas_integration --cov=finding --cov=judge_types --cov-report=term --cov-fail-under=78
 git diff --check
 ```
 

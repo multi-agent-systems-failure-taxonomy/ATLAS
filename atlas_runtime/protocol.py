@@ -44,10 +44,48 @@ _DECIDE_RE = re.compile(
     r"((?:no\s+change\s+needed)|(?:change\s*:))",
     re.IGNORECASE,
 )
-_ATTEMPTS_RE = re.compile(
-    r"Repair\s+attempts\s+used\s*(?:\*\*)?\s*[:\-]\s*(?:\*\*)?\s*(\d+)",
-    re.IGNORECASE,
-)
+_STATUS_ALIASES = {
+    "ready to submit": READY,
+    "ready for release": READY,
+    "ready for submission": READY,
+    "ready for final answer": READY,
+    "ready": READY,
+    "task complete": READY,
+    "computation verified": READY,
+    "complete": READY,
+    "verified": READY,
+    "pass": READY,
+    "passed": READY,
+    "success": READY,
+    "successful": READY,
+    "approve": READY,
+    "approved": READY,
+    "accept": READY,
+    "accepted": READY,
+    "submit": READY,
+    "repair required": REPAIR,
+    "requires repair": REPAIR,
+    "needs repair": REPAIR,
+    "need repair": REPAIR,
+    "report unresolved": REPAIR,
+    "unresolved": REPAIR,
+    "not ready": REPAIR,
+    "not complete": REPAIR,
+    "incomplete": REPAIR,
+    "unsuccessful": REPAIR,
+    "not successful": REPAIR,
+    "not passed": REPAIR,
+    "not pass": REPAIR,
+    "did not pass": REPAIR,
+    "unverified": REPAIR,
+    "not verified": REPAIR,
+    "verification failed": REPAIR,
+    "failed verification": REPAIR,
+    "repair": REPAIR,
+    "fail": REPAIR,
+    "failed": REPAIR,
+    "failure": REPAIR,
+}
 
 
 @dataclass(frozen=True)
@@ -77,29 +115,33 @@ def evaluate_pre_submission(
     gate_text: str,
     *,
     max_retries: int = 3,
+    repair_attempts_used: int = 0,
 ) -> GateDecision:
     """Classify the latest final-gate block.
 
     Missing/invalid gate text blocks. REPAIR_REQUIRED blocks while retry budget
     remains, then allows an honest unresolved report once the cap is reached.
+
+    ``repair_attempts_used`` is trusted runtime state. The model may echo the
+    field for humans, but generated text never controls the retry budget.
     """
     if max_retries < 0:
         raise ValueError("max_retries must be non-negative")
+    if repair_attempts_used < 0:
+        raise ValueError("repair_attempts_used must be non-negative")
 
     statuses = extract_statuses(gate_text or "")
-    attempts = _ATTEMPTS_RE.findall(gate_text or "")
     if not statuses:
         return GateDecision(
             allow=False,
             decision="block",
             reason="missing `Final ATLAS status:` block",
             status=None,
-            repair_attempts_used=0,
+            repair_attempts_used=repair_attempts_used,
         )
 
-    used = int(attempts[-1]) if attempts else 0
     return _decision_for_status(
-        statuses[-1], used=used, max_retries=max_retries
+        statuses[-1], used=repair_attempts_used, max_retries=max_retries
     )
 
 
@@ -228,70 +270,4 @@ def _normalize_status(value: str) -> str | None:
         .split()
     )
     normalized = normalized.strip(" .:;,-")
-    if any(
-        phrase in normalized
-        for phrase in (
-            "repair required",
-            "requires repair",
-            "needs repair",
-            "need repair",
-            "report unresolved",
-            "unresolved",
-            "not ready",
-            "not complete",
-            "incomplete",
-            "unsuccessful",
-            "not successful",
-            "not passed",
-            "not pass",
-            "did not pass",
-            "unverified",
-            "not verified",
-            "verification failed",
-            "failed verification",
-        )
-    ):
-        return REPAIR
-    if normalized in {"repair", "fail", "failed", "failure"}:
-        return REPAIR
-    if normalized in {
-        "ready to submit",
-        "ready for release",
-        "ready for submission",
-        "ready for final answer",
-        "ready",
-        "task complete",
-        "computation verified",
-        "complete",
-        "verified",
-        "pass",
-        "success",
-        "successful",
-        "approve",
-        "approved",
-        "accept",
-        "accepted",
-        "submit",
-    }:
-        return READY
-    if any(
-        phrase in normalized
-        for phrase in (
-            "ready",
-            "task complete",
-            "complete",
-            "verified",
-            "pass",
-            "success",
-            "approved",
-            "accepted",
-            "submit",
-            "submission",
-            "compliant",
-            "clearance",
-            "satisfied",
-            "no change needed",
-        )
-    ):
-        return READY
-    return None
+    return _STATUS_ALIASES.get(normalized)

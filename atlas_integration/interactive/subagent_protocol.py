@@ -60,8 +60,9 @@ def claim_learning_job(
             if not expires_at or time.time() < expires_at:
                 return None
             _release_claim(job)
-        if job.get("state") != "queued":
+        if job.get("state") not in {"queued", "support_queued"}:
             return None
+        phase = "support" if job.get("state") == "support_queued" else "candidate"
         now = time.time()
         token = secrets.token_urlsafe(24)
         job.update(
@@ -70,6 +71,7 @@ def claim_learning_job(
             claimed_by=str(conversation_id),
             claimed_at_unix=now,
             claim_expires_at_unix=now + max(60, int(lease_seconds)),
+            claim_phase=phase,
             attempts=int(job.get("attempts", 0)) + 1,
             updated_at_unix=now,
         )
@@ -108,7 +110,7 @@ def complete_learning_job(
                 raise LearningJobError("learning job claim token mismatch")
             receipt = _read_json(receipt_path)
             return receipt.get("job_id") == job.get("job_id")
-        _require_live_claim(job, claim_token)
+        _require_live_claim(job, claim_token, phase="candidate")
         receipt = {
             "version": 1,
             "job_id": job["job_id"],
@@ -119,6 +121,49 @@ def complete_learning_job(
         }
         _write_json_atomic(receipt_path, receipt)
         job["state"] = "awaiting_reconcile"
+        job["updated_at_unix"] = time.time()
+        job["last_error"] = None
+        _write_json_atomic(job_path, job)
+    return True
+
+
+def complete_support_review(
+    job_dir: Path | str,
+    *,
+    claim_token: str,
+    review: dict[str, Any],
+) -> bool:
+    """Submit the independent semantic-support review for a staged candidate."""
+    job_dir = Path(job_dir).expanduser().resolve()
+    job_path = job_dir / "job.json"
+    receipt_path = job_dir / "support_receipt.json"
+    with _job_lock(job_dir):
+        job = _read_json(job_path)
+        if receipt_path.exists() and job.get("state") in {
+            "awaiting_support_reconcile",
+            "activating",
+            "activated",
+            "no_change",
+        }:
+            if not secrets.compare_digest(
+                str(job.get("claim_token") or ""), str(claim_token)
+            ):
+                raise LearningJobError("learning job claim token mismatch")
+            receipt = _read_json(receipt_path)
+            return receipt.get("job_id") == job.get("job_id")
+        _require_live_claim(job, claim_token, phase="support")
+        _write_json_atomic(
+            receipt_path,
+            {
+                "version": 1,
+                "job_id": job["job_id"],
+                "snapshot_hash": job["snapshot_hash"],
+                "status": "support_review",
+                "review": review,
+                "completed_at_unix": time.time(),
+            },
+        )
+        job["state"] = "awaiting_support_reconcile"
         job["updated_at_unix"] = time.time()
         job["last_error"] = None
         _write_json_atomic(job_path, job)
@@ -136,9 +181,11 @@ def fail_learning_job(
     job_path = job_dir / "job.json"
     with _job_lock(job_dir):
         job = _read_json(job_path)
-        _require_live_claim(job, claim_token)
+        phase = str(job.get("claim_phase") or "candidate")
+        _require_live_claim(job, claim_token, phase=phase)
+        support_phase = phase == "support"
         _write_json_atomic(
-            job_dir / "receipt.json",
+            job_dir / ("support_receipt.json" if support_phase else "receipt.json"),
             {
                 "version": 1,
                 "job_id": job["job_id"],
@@ -148,7 +195,9 @@ def fail_learning_job(
                 "completed_at_unix": time.time(),
             },
         )
-        job["state"] = "awaiting_reconcile"
+        job["state"] = (
+            "awaiting_support_reconcile" if support_phase else "awaiting_reconcile"
+        )
         job["updated_at_unix"] = time.time()
         job["last_error"] = _short_error(reason)
         _write_json_atomic(job_path, job)
@@ -174,6 +223,12 @@ def capture_learning_receipt(
             claim_token=str(payload.get("claim_token") or ""),
             candidate=payload.get("candidate"),
         )
+    elif status == "support_review":
+        complete_support_review(
+            job_dir,
+            claim_token=str(payload.get("claim_token") or ""),
+            review=payload.get("review"),
+        )
     elif status == "failed":
         fail_learning_job(
             job_dir,
@@ -194,6 +249,7 @@ def _dispatch(
     subagent_capability: str,
     forbidden_cli: str,
 ) -> dict[str, Any]:
+    support_phase = job.get("claim_phase") == "support"
     candidate_envelope = json.dumps(
         {
             "version": 1,
@@ -216,21 +272,45 @@ def _dispatch(
         ensure_ascii=False,
         separators=(",", ":"),
     )
-    task_prompt = (
-        "You are the ATLAS taxonomy learning subagent for one frozen job. "
-        "Work independently from the user's main task. Read only the UTF-8 prompt "
-        f'at "{job_dir / "prompt.txt"}" and schema at '
-        f'"{job_dir / "output.schema.json"}". Do not browse the repository, use '
-        "network access, inspect credentials, edit files, or launch "
-        f"{forbidden_cli}. "
-        "Produce one candidate JSON object that satisfies the schema. Return only "
-        "one compact receipt with no Markdown or surrounding text, replacing the "
-        "candidate placeholder with that object:\n"
-        f"{RECEIPT_OPEN}{candidate_envelope}{RECEIPT_CLOSE}\n"
-        "If the job cannot be completed, return only this receipt with a concise "
-        "error:\n"
-        f"{RECEIPT_OPEN}{failed_envelope}{RECEIPT_CLOSE}"
-    )
+    if support_phase:
+        support_envelope = json.dumps(
+            {
+                "version": 1,
+                "job_id": job["job_id"],
+                "claim_token": token,
+                "status": "support_review",
+                "review": "<support review JSON object>",
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        task_prompt = (
+            "You are the independent ATLAS taxonomy support-review subagent. "
+            "Work independently from the generator and the user's main task. Read "
+            f'only the UTF-8 prompt at "{job_dir / "support_prompt.txt"}" and '
+            f'schema at "{job_dir / "support_output.schema.json"}". Do not browse '
+            "the repository, use network access, inspect credentials, edit files, "
+            f"or launch {forbidden_cli}. Produce one support review JSON object. "
+            "Return only one compact receipt with no Markdown or surrounding text, "
+            "replacing the placeholder with that object:\n"
+            f"{RECEIPT_OPEN}{support_envelope}{RECEIPT_CLOSE}\n"
+            "If the review cannot be completed, return only this receipt with a "
+            f"concise error:\n{RECEIPT_OPEN}{failed_envelope}{RECEIPT_CLOSE}"
+        )
+    else:
+        task_prompt = (
+            "You are the ATLAS taxonomy learning subagent for one frozen job. "
+            "Work independently from the user's main task. Read only the UTF-8 "
+            f'prompt at "{job_dir / "prompt.txt"}" and schema at '
+            f'"{job_dir / "output.schema.json"}". Do not browse the repository, '
+            "use network access, inspect credentials, edit files, or launch "
+            f"{forbidden_cli}. Produce one candidate JSON object that satisfies "
+            "the schema. Return only one compact receipt with no Markdown or "
+            "surrounding text, replacing the candidate placeholder with that "
+            f"object:\n{RECEIPT_OPEN}{candidate_envelope}{RECEIPT_CLOSE}\n"
+            "If the job cannot be completed, return only this receipt with a "
+            f"concise error:\n{RECEIPT_OPEN}{failed_envelope}{RECEIPT_CLOSE}"
+        )
     directive = (
         f"ATLAS native taxonomy learning is ready. Launch one native {host_label} "
         "subagent "
@@ -238,7 +318,8 @@ def _dispatch(
         f"parallel. Use {subagent_capability}, not {forbidden_cli}. "
         "Do not generate the taxonomy in the main agent and do not ask the user for "
         "an API key. Wait for the subagent before the final response when practical.\n\n"
-        f"Job: {job['job_id']} ({job['kind']})\n"
+        f"Job: {job['job_id']} ({job['kind']}, "
+        f"{'support review' if support_phase else 'candidate generation'})\n"
         "SUBAGENT TASK BEGIN\n"
         f"{task_prompt}\n"
         "SUBAGENT TASK END"
@@ -247,7 +328,11 @@ def _dispatch(
         "job_id": job["job_id"],
         "claim_token": token,
         "job_dir": str(job_dir),
-        "task_name": f"atlas_{job['kind']}",
+        "task_name": (
+            f"atlas_{job['kind']}_support"
+            if support_phase
+            else f"atlas_{job['kind']}"
+        ),
         "task_prompt": task_prompt,
         "directive": directive,
     }
@@ -333,11 +418,18 @@ def _nested_strings(value: Any) -> list[str]:
     return []
 
 
-def _require_live_claim(job: dict[str, Any], token: str) -> None:
+def _require_live_claim(
+    job: dict[str, Any],
+    token: str,
+    *,
+    phase: str,
+) -> None:
     if job.get("dispatch_mode") != "host_subagent":
         raise LearningJobError("job is not assigned to a host-subagent path")
     if job.get("state") != "claimed":
         raise LearningJobError("learning job is not currently claimed")
+    if job.get("claim_phase") != phase:
+        raise LearningJobError(f"learning job is not claimed for {phase}")
     if not secrets.compare_digest(str(job.get("claim_token") or ""), str(token)):
         raise LearningJobError("learning job claim token mismatch")
     expires_at = float(job.get("claim_expires_at_unix", 0) or 0)
@@ -346,12 +438,15 @@ def _require_live_claim(job: dict[str, Any], token: str) -> None:
 
 
 def _release_claim(job: dict[str, Any]) -> None:
-    job["state"] = "queued"
+    job["state"] = (
+        "support_queued" if job.get("claim_phase") == "support" else "queued"
+    )
     for key in (
         "claim_token",
         "claimed_by",
         "claimed_at_unix",
         "claim_expires_at_unix",
+        "claim_phase",
     ):
         job.pop(key, None)
 

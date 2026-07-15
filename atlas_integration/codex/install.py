@@ -31,10 +31,7 @@ from .config import CodexConfig, parse_codex_hooks
 
 SKILL_NAME = "atlas-failure-modes"
 SKILL_MARKER_FILE = ".atlas-codex-skill.json"
-HOOK_MARKERS = (
-    "atlas_integration.codex.dispatcher",
-    "atlas-skill.json",
-)
+DISPATCHER_MODULE = "atlas_integration.codex.dispatcher"
 
 
 @dataclass(frozen=True)
@@ -190,8 +187,7 @@ def remove_atlas_hooks(hooks_doc: dict) -> int:
             continue
         kept = []
         for entry in entries:
-            text = json.dumps(entry, sort_keys=True)
-            if any(marker in text for marker in HOOK_MARKERS):
+            if _is_managed_hook_entry(entry, module=DISPATCHER_MODULE):
                 removed += 1
             else:
                 kept.append(entry)
@@ -202,6 +198,30 @@ def remove_atlas_hooks(hooks_doc: dict) -> int:
     if not hooks:
         hooks_doc.pop("hooks", None)
     return removed
+
+
+def _is_managed_hook_entry(entry: Any, *, module: str) -> bool:
+    if not isinstance(entry, dict):
+        return False
+    hooks = entry.get("hooks")
+    if not isinstance(hooks, list):
+        return False
+    for hook in hooks:
+        if not isinstance(hook, dict) or hook.get("type") != "command":
+            continue
+        command = hook.get("command")
+        if not isinstance(command, str):
+            continue
+        try:
+            tokens = shlex.split(command)
+        except ValueError:
+            continue
+        if any(
+            tokens[index : index + 2] == ["-m", module]
+            for index in range(max(0, len(tokens) - 1))
+        ):
+            return True
+    return False
 
 
 def _append_registration(entries: list, *, command: str, matcher: str | None) -> None:

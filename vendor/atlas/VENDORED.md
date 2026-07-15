@@ -1,17 +1,27 @@
-# Vendored ATLAS
+# Maintained ATLAS research-pipeline fork
 
-This directory contains a faithful copy of the `atlas` Python package from:
+This directory began as the `atlas` Python package from:
 
 - Source: https://github.com/multi-agent-systems-failure-taxonomy/ATLAS
 - Commit: `85efae436daf5a4c8299ff7e9a46a6717cb0a3bd`
 - Upstream package version: `1.0.0`
 - License: Apache License 2.0; see `LICENSE` in this directory.
 
-The vendored source is intentionally distinct from atlas_skill-owned runtime code.
+It is now a maintained in-tree fork, intentionally distinct from the
+`atlas_skill` runtime. The source commit above is provenance, not a claim that
+the current directory is byte-for-byte or behaviorally unchanged.
 
-## Local import-path adjustment
+## Local changes
 
-The upstream package uses absolute imports beginning with `atlas`. Those imports
-were changed mechanically to begin with `vendor.atlas` so this copy is importable
-under its local namespace and does not depend on, or shadow, an externally
-installed `atlas` package. No other vendored pipeline logic was changed.
+Changes since the source snapshot include:
+
+- namespace changes from `atlas` to `vendor.atlas`;
+- model transport and token-budget handling used by the packaged runtime;
+- classifier, trace-normalization, prompt-loading, and JSON-repair behavior;
+- pipeline validation, deduplication, category generation, and support checks;
+- package assets, tests, and compatibility fixes for supported Python versions.
+
+These are semantic changes, not only mechanical import rewrites. Review the Git
+history for the authoritative patch sequence. To compare with the source
+snapshot, extract the `atlas/` tree from commit `85efae4` and run a recursive
+diff against this directory after accounting for the namespace prefix.

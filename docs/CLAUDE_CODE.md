@@ -18,11 +18,12 @@ Claude and Codex resolve the same project/task-group program when their base
 `trace_output`, project root, and task group match.
 
 No external model API key, standalone `claude -p` process, or second login is
-required for `claude_subagent`. A hook claims the frozen job and tells the
-active Claude Code session to launch exactly one native Agent subtask. That
-subtask reads only the frozen outcome-blind prompt and schema and returns a
-signed proposal receipt through `SubagentStop`. Foreground hook reconciliation
-validates evidence and activates between episodes.
+required for `claude_subagent`. A hook first asks the active Claude Code session
+to launch a native generator Agent. After exact evidence checks, a separately
+claimed support-review Agent evaluates every replacement code. Each subtask
+reads only its phase-specific frozen prompt and schema and returns a signed
+receipt through `SubagentStop`. Foreground reconciliation activates between
+episodes only after both phases pass.
 
 One completed assistant episode is one trace. Generation starts after five
 eligible traces by default, first refinement review after `k_init` (ten), and

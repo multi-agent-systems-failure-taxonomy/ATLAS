@@ -10,6 +10,7 @@ from atlas_integration.interactive.subagent_protocol import (
     RECEIPT_OPEN,
     capture_learning_receipt,
     complete_learning_job,
+    complete_support_review,
     fail_learning_job,
 )
 from atlas_integration.interactive.subagent_protocol import (
@@ -42,5 +43,6 @@ __all__ = [
     "capture_learning_receipt",
     "claim_learning_job",
     "complete_learning_job",
+    "complete_support_review",
     "fail_learning_job",
 ]

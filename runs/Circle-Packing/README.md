@@ -35,6 +35,10 @@ seeded from the previous segment's best solution.
 |---|---|
 | `circle_packing_taxonomy.json` | The 8-code failure-mode taxonomy used by the ATLAS run. |
 
+Per-evaluation candidates, scores, prompts, seeds, and run manifests are not
+included. The table above is a reported summary and cannot be recomputed from
+the files in this directory alone.
+
 ## Replicating the experiment
 
 1. Run [SkyDiscover](https://github.com/skydiscover-ai/skydiscover)'s Claude

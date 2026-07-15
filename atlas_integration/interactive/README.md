@@ -20,9 +20,10 @@ Both hosts recover exact legacy inline choices after the saved selector cursor
 before deciding that a pending conversation needs the browser again.
 
 When a generation or refinement threshold is reached, the coordinator freezes
-eligible evidence and queues one job. The active host claims that job, launches
-one native taxonomy subagent, and returns a signed receipt. Only foreground
-hook reconciliation validates and activates the candidate.
+eligible evidence and queues one job. The active host first launches a native
+taxonomy generator. After deterministic structure and exact-quote checks, a
+separate native support reviewer evaluates every replacement code. Only
+foreground hook reconciliation can activate a candidate after both receipts.
 
 ## Files
 

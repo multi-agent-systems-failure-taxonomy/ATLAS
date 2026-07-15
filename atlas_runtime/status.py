@@ -10,14 +10,20 @@ from typing import Any
 
 from .config import add_config_argument, config_value, load_atlas_config
 from .evidence import EVIDENCE_FILE
-from .program import MANIFEST_NAME
+from .program import MANIFEST_NAME, ProgramWorkspace
 from .traces import TraceStore
 
 
 def program_health(trace_output: Path | str) -> dict[str, Any]:
     root = Path(trace_output).expanduser().resolve()
     manifest_path = root / MANIFEST_NAME
-    manifest = _read_json(manifest_path) if manifest_path.is_file() else {}
+    if manifest_path.is_file():
+        workspace = ProgramWorkspace(root)
+        stale_sessions = workspace.reconcile_stale_sessions()
+        manifest = workspace.load()
+    else:
+        stale_sessions = []
+        manifest = {}
     evidence = _read_json(root / EVIDENCE_FILE)
     decisions = _recent_decisions(root)
     generation = manifest.get("generation") or {}
@@ -31,6 +37,7 @@ def program_health(trace_output: Path | str) -> dict[str, Any]:
         "atlas_model": manifest.get("atlas_model"),
         "active_taxonomy_id": manifest.get("taxonomy_id") or "mast",
         "active_sessions": manifest.get("active_sessions", []),
+        "reconciled_stale_sessions": stale_sessions,
         "pending_traces": TraceStore(root / "pending").count(),
         "generation": {
             "state": generation.get("state", "unknown"),
