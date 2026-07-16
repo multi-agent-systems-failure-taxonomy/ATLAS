@@ -141,8 +141,8 @@ inside Codex and trust the ATLAS hooks before relying on them.
 
 Default Codex events:
 
-1. `SessionStart`: deliver standing ATLAS context or open the local taxonomy library.
-2. `UserPromptSubmit`: handle inline-selector fallback and episode boundaries when emitted.
+1. `SessionStart`: recover standing ATLAS context for a selected conversation.
+2. `UserPromptSubmit`: open the taxonomy library for a new conversation and handle episode boundaries.
 3. `Stop`: capture the compact final checkpoint and commit the episode once.
 4. `SubagentStop`: capture a checkpoint when present without blocking.
 5. `PostToolUse`: add advisory nudges after selected failed tool outputs.

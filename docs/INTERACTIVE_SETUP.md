@@ -56,8 +56,8 @@ separate CLI login.
 
 ## 3. Start a conversation
 
-A new Codex or Claude Code task opens the local taxonomy library from
-`SessionStart`. Its choice list contains:
+A new Codex task opens the local taxonomy library after its first user message;
+Claude Code opens it from `SessionStart`. Its choice list contains:
 
 ```text
 MAST  [Recommended]

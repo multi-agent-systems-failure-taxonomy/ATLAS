@@ -118,7 +118,7 @@ Codex user-level interactive hooks may also set:
 | `codex.project_id` | unset | Optional stable identity override, useful for intentionally joined worktrees. |
 | `codex.task_group` | `"default"` | Project-local trace, taxonomy, and refinement group. |
 | `codex.session_selector` | `"off"` | Set to `"prompt"` to ask for MAST, a compatible stored taxonomy, or ATLAS-off at the start of a new Codex conversation. |
-| `codex.selector_surface` | `"browser"` | `"browser"` opens the session-bound local library from `SessionStart`; `"inline"` is a compatibility fallback for hosts that reliably emit `UserPromptSubmit`. |
+| `codex.selector_surface` | `"browser"` | `"browser"` opens the session-bound local library from the first `UserPromptSubmit`; `"inline"` presents the same choices in chat. `SessionStart` never launches a new browser selector. |
 | `codex.learning_backend` | `"provider"` | Set to `"codex_subagent"` for durable learning through a native subagent in the active Codex task, without a separate API key or CLI login. |
 | `codex.worker_model` | unset | Legacy compatibility field; native spawned subagents use the active Codex task's model policy. |
 | `codex.codex_cli_path` | unset | Legacy compatibility field; not required by native in-task learning. |

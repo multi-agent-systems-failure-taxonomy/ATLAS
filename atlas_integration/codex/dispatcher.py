@@ -24,6 +24,7 @@ try:  # pragma: no cover - script execution fallback
         subagent_stop,
         user_prompt_submit,
     )
+    from atlas_integration.codex.state import load_state
     from atlas_integration.shared import force_utf8_stdio
 except ModuleNotFoundError:  # pragma: no cover
     from .config import CodexConfig
@@ -41,6 +42,7 @@ except ModuleNotFoundError:  # pragma: no cover
         subagent_stop,
         user_prompt_submit,
     )
+    from .state import load_state
     from ..shared import force_utf8_stdio
 
 HANDLERS = {
@@ -88,7 +90,10 @@ def main(argv: list[str] | None = None) -> int:
         output = HANDLERS[event_name](event, config)
         # Selection may have created a fresh per-conversation route.
         config = base_config.for_event(event)
-        if config.learning_backend == "codex_subagent":
+        if (
+            config.learning_backend == "codex_subagent"
+            and _conversation_learning_active(config, event)
+        ):
             workspace = _workspace(config, event)
             poll_learning_jobs(
                 workspace,
@@ -173,6 +178,17 @@ def _conversation_id(event: dict) -> str:
     if transcript:
         return str(transcript)
     return "codex-session"
+
+
+def _conversation_learning_active(config: CodexConfig, event: dict) -> bool:
+    """Keep learning work attached to selected user conversations only."""
+    if config.session_selector != "prompt" or config.inherit is not None:
+        return True
+    state = load_state(config.trace_output, _conversation_id(event))
+    selection = state.get("selection") or {}
+    return bool(
+        selection.get("status") == "selected" and selection.get("selected_taxonomy_id")
+    )
 
 
 def _merge_notices(output: dict | None, notices: list[str]) -> dict | None:

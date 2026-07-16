@@ -4,6 +4,23 @@ All notable user-facing changes are documented here.
 
 ## Unreleased
 
+## 1.1.0b4 - 2026-07-15
+
+### Fixed
+
+- Codex no longer opens the taxonomy browser from a new `SessionStart` event.
+  The picker opens on the first real `UserPromptSubmit`, so background host
+  tasks and spawned agent sessions cannot create unsolicited browser windows.
+- Native learning polling and job claims now require an active taxonomy
+  selection when the conversation selector is enabled. Internal sessions no
+  longer receive recursive taxonomy-generation directives.
+- Resuming a selected Codex conversation remains silent and preserves its
+  existing taxonomy; resuming an unselected pending conversation waits for the
+  next user prompt instead of reopening the browser immediately.
+- Detached taxonomy pickers now tolerate slow Windows interpreter startup and
+  terminate their worker if readiness still fails, instead of leaving an
+  orphaned localhost process.
+
 ## 1.1.0b3 - 2026-07-15
 
 ### Added
