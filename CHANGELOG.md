@@ -4,6 +4,12 @@ All notable user-facing changes are documented here.
 
 ## Unreleased
 
+### Fixed
+
+- The managed dashboard's readiness budget is 15 seconds by default (was 5)
+  and can be overridden with `ADAMAST_DASHBOARD_TIMEOUT`; the previous fixed
+  budget made dashboard startup flake on slow hosts and CI runners.
+
 ## 0.1.0 - 2026-07-16
 
 AdaMAST is the new name of this project (previously ATLAS, distributed as
