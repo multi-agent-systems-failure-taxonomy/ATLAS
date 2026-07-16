@@ -160,7 +160,7 @@ class TaxonomyPipeline:
         )
 
         summary = "\n".join(
-            f"{c.get('code', '')}: {str(c.get('name', ''))[:60]} -- {str(c.get('definition', ''))[:120]}"
+            f"{c.get('code', '')}: {str(c.get('name', ''))[:60]} — {str(c.get('definition', ''))[:120]}"
             for c in all_codes
         )
 

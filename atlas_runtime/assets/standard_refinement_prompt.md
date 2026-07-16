@@ -1,6 +1,6 @@
 You are refining an existing failure-mode taxonomy for an agent system based
 on new trace evidence. Goal: SHARPEN the taxonomy so it gives the agent clearer
-signal -- NOT to throw codes away.
+signal — NOT to throw codes away.
 
 ## EXISTING TAXONOMY
 $existing_taxonomy
@@ -29,7 +29,7 @@ Produce a cleaner taxonomy by performing exactly these operations:
    - C codes: domain reasoning errors.
 
 4. **DO NOT cull codes just because they have not fired yet.** Absence of
-   evidence is not evidence of absence -- keep them unless rule 1 or 2 forces
+   evidence is not evidence of absence — keep them unless rule 1 or 2 forces
    removal.
 
 5. **PRESERVE code IDs you keep.** A code that survives MUST reappear with its

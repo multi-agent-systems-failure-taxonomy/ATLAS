@@ -4,6 +4,26 @@ All notable user-facing changes are documented here.
 
 ## Unreleased
 
+## 1.1.0b5 - 2026-07-15
+
+### Changed
+
+- Codex installs `SessionStart` for context compaction as well as startup and
+  resume, giving long-running desktop tasks a supported developer-context
+  boundary for native taxonomy dispatch when `UserPromptSubmit` is absent.
+- Native learning now reports the independent support-review stage explicitly,
+  and the manifest's diagnostic job summary stays aligned with the durable job
+  file while jobs are queued, claimed, or waiting for activation.
+- Native subagent receipt examples now contain real nested JSON objects instead
+  of quoted placeholders. One legacy stringified object layer is decoded before
+  the same strict candidate or support-review validation runs.
+
+### Fixed
+
+- Visible prose in refinement prompts and generated taxonomy summaries now uses
+  a typographic em dash instead of a double hyphen. Command options, CSS custom
+  properties, class names, badges, and Markdown syntax remain unchanged.
+
 ## 1.1.0b4 - 2026-07-15
 
 ### Fixed

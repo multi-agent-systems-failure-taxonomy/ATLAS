@@ -78,7 +78,7 @@ class CodexHookSpec:
 
 def default_hook(event: str) -> CodexHookSpec:
     matcher = {
-        "SessionStart": ("startup|resume",),
+        "SessionStart": ("startup|resume|compact",),
         "SubagentStop": ("*",),
         "PostToolUse": ("Bash|Edit|Write|apply_patch",),
     }.get(event, ())

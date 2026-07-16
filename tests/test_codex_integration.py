@@ -146,6 +146,10 @@ class CodexIntegrationTests(unittest.TestCase):
         )
         by_event = {spec.event: spec for spec in specs}
         self.assertTrue(by_event["UserPromptSubmit"].enabled)
+        self.assertEqual(
+            by_event["SessionStart"].matchers,
+            ("startup|resume|compact",),
+        )
         self.assertFalse(by_event["SubagentStop"].enabled)
         self.assertEqual(by_event["PostToolUse"].matchers, ("Bash", "Edit|Write"))
 
