@@ -445,6 +445,7 @@ def _reconcile_one(
                 job["updated_at_unix"] = time.time()
                 _clear_claim(job)
                 _write_json_atomic(job_path, job)
+                _sync_job_summary(workspace, job)
             return
         if (
             job.get("dispatch_mode") == "host_subagent"
@@ -457,12 +458,14 @@ def _reconcile_one(
                 job["updated_at_unix"] = time.time()
                 _clear_claim(job)
                 _write_json_atomic(job_path, job)
+                _sync_job_summary(workspace, job)
             return
         if (
             job.get("dispatch_mode") == "host_subagent"
             and job.get("state") in {"queued", "support_queued"}
         ):
             # A host job has no lease until a live Codex task claims it.
+            _sync_job_summary(workspace, job)
             return
         if not receipt_path.exists() and job.get("state") in {
             "queued",
@@ -590,16 +593,31 @@ def _reconcile_one(
                 job["updated_at_unix"] = time.time()
                 _clear_claim(job)
                 _write_json_atomic(job_path, job)
+                _sync_job_summary(workspace, job)
+                _append_notice(
+                    workspace,
+                    notice_id=f"support:{job['job_id']}",
+                    conversation_id=str(job["conversation_id"]),
+                    text=(
+                        f"ATLAS taxonomy {job['kind']} candidate validated\n"
+                        f"Project/group: {job['repo']} / {job['task_group']}\n"
+                        "Independent evidence-support review is now queued. "
+                        "The current taxonomy remains active until that review "
+                        "passes and activation is safe."
+                    ),
+                )
                 return
             job["state"] = "activating"
             job["taxonomy_id"] = _taxonomy_id(job, candidate)
             job["updated_at_unix"] = time.time()
             _write_json_atomic(job_path, job)
+            _sync_job_summary(workspace, job)
         else:
             candidate = _read_json(job_dir / "validated_candidate.json")
 
         workspace.reconcile_stale_sessions()
         if workspace.load().get("active_sessions"):
+            _sync_job_summary(workspace, job)
             return
         try:
             if job["kind"] == "generation":
@@ -1181,6 +1199,13 @@ def _clear_active_job(
             if len(jobs) > 50:
                 for old_id in list(jobs)[:-50]:
                     jobs.pop(old_id, None)
+
+
+def _sync_job_summary(workspace: ProgramWorkspace, job: dict[str, Any]) -> None:
+    """Keep the manifest's diagnostic view aligned with the durable job file."""
+    with workspace.locked_manifest() as manifest:
+        learning = _manifest_learning_state(manifest)
+        learning.setdefault("jobs", {})[str(job["job_id"])] = _job_summary(job)
 
 
 def _job_summary(job: dict[str, Any]) -> dict[str, Any]:

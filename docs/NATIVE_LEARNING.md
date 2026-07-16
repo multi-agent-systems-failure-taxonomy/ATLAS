@@ -21,14 +21,16 @@ original trigger was interrupted, the next hook repairs the missed trigger.
 ## Job lifecycle
 
 ```text
-queued -> claimed -> awaiting_reconcile -> activating
-       -> activated | no_change
-       -> rejected | failed
+queued -> claimed -> awaiting_reconcile -> support_queued
+       -> claimed -> awaiting_support_reconcile -> activating
+       -> activated | no_change | rejected | failed
 ```
 
 1. ATLAS freezes the exact trace references and source taxonomy version.
-2. A `SessionStart` or `UserPromptSubmit` hook claims the job with a time-bound
-   token.
+2. A `UserPromptSubmit` or supported `SessionStart` boundary claims the job
+   with a time-bound token. Codex installs `SessionStart` for startup, resume,
+   and context compaction so long-running desktop tasks have a second supported
+   dispatch path.
 3. The main host agent launches one taxonomy-generator subagent and continues
    the user's task.
 4. The subagent reads `prompt.txt` and `output.schema.json`, then returns one
@@ -71,9 +73,9 @@ definition remains its ID, name, description, and category.
 ## Visible notices
 
 The originating conversation receives exactly-once notices when generation or
-refinement is triggered and when it finishes. A finish notice may appear on
-the next lifecycle event if the host cannot inject output into an idle
-conversation.
+refinement is triggered, when a replacement reaches independent support review,
+and when it finishes. A finish notice may appear on the next lifecycle event if
+the host cannot inject output into an idle conversation.
 
 ## Recovery
 

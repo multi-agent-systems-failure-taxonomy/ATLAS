@@ -90,12 +90,15 @@ capture for only that conversation.
 Codex task and does not require a standalone CLI login or external API key.
 Every hook in an already selected conversation polls the durable project state:
 it reconciles completed receipts, checks the generation or refinement threshold,
-and idempotently queues any missing job. On the next `SessionStart` or
-`UserPromptSubmit`, the active agent receives a claimed task and launches the
-taxonomy subagent while normal work continues. Unselected internal sessions do
-not poll or claim learning jobs. The subagent reads an immutable outcome-blind
-snapshot and returns a staged receipt through `SubagentStop`; hook reconciliation
-alone owns validation and activation.
+and idempotently queues any missing job. On the next `UserPromptSubmit` or
+supported `SessionStart` boundary (`startup`, `resume`, or context compaction),
+the active agent receives a claimed task and launches the taxonomy subagent
+while normal work continues. Context compaction is included so a long-running
+desktop task can dispatch a queued job even when that Codex build does not emit
+`UserPromptSubmit`. Unselected internal sessions do not poll or claim learning
+jobs. The subagent reads an immutable outcome-blind snapshot and returns a
+staged receipt through `SubagentStop`; hook reconciliation alone owns
+validation and activation.
 
 The installer writes:
 
@@ -111,7 +114,7 @@ trust against the hook definition hash, so changed hooks need review again.
 
 | Event | ATLAS behavior |
 |---|---|
-| `SessionStart` | Recover ATLAS state for an already selected conversation. |
+| `SessionStart` | Recover ATLAS state and dispatch queued native learning at startup, resume, or context compaction. |
 | `UserPromptSubmit` | Open the taxonomy library for a new user conversation and handle episode boundaries. |
 | `Stop` | Single-pass compact final checkpoint and episode commit. |
 | `SubagentStop` | Observational, non-blocking compact checkpoint capture. |

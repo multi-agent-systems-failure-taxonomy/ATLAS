@@ -133,11 +133,19 @@ atlas-doctor --codex
 atlas-doctor --claude-code
 ```
 
-For Codex, the native taxonomy job is claimed on `SessionStart` or
-`UserPromptSubmit`, then launched by the active agent as a subagent. A queued
-job can remain safely dormant between tasks. Check the project program's
-`learning_jobs` directory and the next hook's developer context; no standalone
-Codex CLI is required.
+For Codex, the native taxonomy job is claimed on `UserPromptSubmit` or a
+supported `SessionStart` boundary, then launched by the active agent as a
+subagent. The default `SessionStart` matcher includes startup, resume, and
+context compaction. This matters for older or already-running desktop tasks
+whose host process does not emit `UserPromptSubmit`: polling still queues the
+job, and the next resume or compaction can deliver it safely. Reinstall the
+Codex hooks after upgrading so the `compact` matcher is present. A queued job
+can remain safely dormant between tasks; no standalone Codex CLI is required.
+
+If `job.json` reports `support_queued`, candidate generation already succeeded.
+ATLAS is waiting for the independent evidence-support subagent, not generating
+the same candidate again. The manifest mirrors this intermediate state and the
+originating conversation receives a one-time notice.
 
 For Claude Code, inspect the next `SessionStart` or `UserPromptSubmit` hook
 context for `ATLAS native taxonomy learning is ready`. The active Claude agent

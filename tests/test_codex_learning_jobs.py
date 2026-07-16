@@ -179,6 +179,7 @@ class CodexLearningJobTests(unittest.TestCase):
         self.assertEqual(dispatch["job_id"], job_id)
         self.assertIn("native Codex subagent", dispatch["directive"])
         self.assertIn(RECEIPT_OPEN, dispatch["task_prompt"])
+        self.assertNotIn('"candidate":"<candidate JSON object>"', dispatch["task_prompt"])
         self.assertIsNone(
             claim_learning_job(
                 self.workspace,
@@ -218,6 +219,12 @@ class CodexLearningJobTests(unittest.TestCase):
 
         staged = json.loads((job_dir / "job.json").read_text(encoding="utf-8"))
         self.assertEqual(staged["state"], "support_queued")
+        manifest_job = self.workspace.load()["interactive_learning"]["jobs"][job_id]
+        self.assertEqual(manifest_job["state"], "support_queued")
+        notices = drain_learning_notices(self.workspace, "conversation-1")
+        self.assertTrue(
+            any("evidence-support review is now queued" in item for item in notices)
+        )
         self.assertIsNone(self.workspace.load()["taxonomy_id"])
         self.assertTrue((job_dir / "support_prompt.txt").is_file())
         reviewer = claim_learning_job(
@@ -225,6 +232,8 @@ class CodexLearningJobTests(unittest.TestCase):
             conversation_id="conversation-3",
         )
         self.assertIn("support-review subagent", reviewer["task_prompt"])
+        self.assertIn('"review":{"supported":true', reviewer["task_prompt"])
+        self.assertNotIn('"review":"<support review JSON object>"', reviewer["task_prompt"])
         complete_support_review(
             job_dir,
             claim_token=reviewer["claim_token"],
@@ -251,6 +260,61 @@ class CodexLearningJobTests(unittest.TestCase):
         stored = store.fetch_by_id(completed["taxonomy_id"], self.store_dir)
         validation = stored["codes"][0]["evidence"]["validation"]
         self.assertTrue(validation["independent_support_review"]["supported"])
+
+    def test_capture_accepts_one_legacy_stringified_support_object(self) -> None:
+        self._append_pending(1, 5)
+        job_id = enqueue_learning_job(
+            self.workspace,
+            kind="generation",
+            store_dir=self.store_dir,
+            trace_root=self.trace_root,
+            task_group="default",
+            conversation_id="conversation-1",
+        )
+        job_dir = self.program / "learning_jobs" / job_id
+        snapshot = json.loads((job_dir / "snapshot.json").read_text(encoding="utf-8"))
+        candidate = self._candidate(snapshot)
+        generator = claim_learning_job(self.workspace, conversation_id="generator")
+        complete_learning_job(
+            job_dir,
+            claim_token=generator["claim_token"],
+            candidate=candidate,
+        )
+        reconcile_learning_jobs(
+            self.workspace,
+            store_dir=self.store_dir,
+            trace_root=self.trace_root,
+        )
+        reviewer = claim_learning_job(self.workspace, conversation_id="reviewer")
+        review = {
+            "supported": True,
+            "codes": [
+                {
+                    "id": candidate["codes"][0]["id"],
+                    "supported": True,
+                    "reason": "The cited episode directly supports this failure mode.",
+                    "trace_ids": candidate["codes"][0]["evidence"]["trace_ids"],
+                }
+            ],
+        }
+        receipt = {
+            "version": 1,
+            "job_id": job_id,
+            "claim_token": reviewer["claim_token"],
+            "status": "support_review",
+            "review": json.dumps(review),
+        }
+
+        captured = capture_learning_receipt(
+            self.workspace,
+            {"last_assistant_message": f"{RECEIPT_OPEN}{json.dumps(receipt)}{RECEIPT_CLOSE}"},
+        )
+
+        self.assertEqual(captured, job_id)
+        written = json.loads(
+            (job_dir / "support_receipt.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(written["review"], review)
 
     def test_independent_support_review_can_reject_a_real_but_irrelevant_quote(self) -> None:
         self._append_pending(1, 5)

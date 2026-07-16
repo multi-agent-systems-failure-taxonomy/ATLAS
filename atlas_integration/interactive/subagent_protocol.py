@@ -17,6 +17,7 @@ from atlas_integration.interactive.learning_jobs import (
     _job_lock,
     _read_json,
     _short_error,
+    _sync_job_summary,
     _write_json_atomic,
 )
 from atlas_runtime import ProgramWorkspace
@@ -76,6 +77,7 @@ def claim_learning_job(
             updated_at_unix=now,
         )
         _write_json_atomic(job_path, job)
+    _sync_job_summary(workspace, job)
     return _dispatch(
         job_dir,
         job,
@@ -221,13 +223,13 @@ def capture_learning_receipt(
         complete_learning_job(
             job_dir,
             claim_token=str(payload.get("claim_token") or ""),
-            candidate=payload.get("candidate"),
+            candidate=_receipt_object(payload.get("candidate"), "candidate"),
         )
     elif status == "support_review":
         complete_support_review(
             job_dir,
             claim_token=str(payload.get("claim_token") or ""),
-            review=payload.get("review"),
+            review=_receipt_object(payload.get("review"), "support review"),
         )
     elif status == "failed":
         fail_learning_job(
@@ -256,7 +258,13 @@ def _dispatch(
             "job_id": job["job_id"],
             "claim_token": token,
             "status": "candidate",
-            "candidate": "<candidate JSON object>",
+            "candidate": {
+                "decision": "replace",
+                "display_name": "<concise taxonomy name>",
+                "domain": "<taxonomy domain>",
+                "summary": "<taxonomy summary>",
+                "codes": [],
+            },
         },
         ensure_ascii=False,
         separators=(",", ":"),
@@ -279,7 +287,17 @@ def _dispatch(
                 "job_id": job["job_id"],
                 "claim_token": token,
                 "status": "support_review",
-                "review": "<support review JSON object>",
+                "review": {
+                    "supported": True,
+                    "codes": [
+                        {
+                            "id": "<candidate code id>",
+                            "supported": True,
+                            "reason": "<evidence-grounded reason>",
+                            "trace_ids": ["<cited trace id>"],
+                        }
+                    ],
+                },
             },
             ensure_ascii=False,
             separators=(",", ":"),
@@ -292,7 +310,7 @@ def _dispatch(
             "the repository, use network access, inspect credentials, edit files, "
             f"or launch {forbidden_cli}. Produce one support review JSON object. "
             "Return only one compact receipt with no Markdown or surrounding text, "
-            "replacing the placeholder with that object:\n"
+            "replacing the example review with the complete object:\n"
             f"{RECEIPT_OPEN}{support_envelope}{RECEIPT_CLOSE}\n"
             "If the review cannot be completed, return only this receipt with a "
             f"concise error:\n{RECEIPT_OPEN}{failed_envelope}{RECEIPT_CLOSE}"
@@ -306,7 +324,7 @@ def _dispatch(
             "use network access, inspect credentials, edit files, or launch "
             f"{forbidden_cli}. Produce one candidate JSON object that satisfies "
             "the schema. Return only one compact receipt with no Markdown or "
-            "surrounding text, replacing the candidate placeholder with that "
+            "surrounding text, replacing the example candidate with the complete "
             f"object:\n{RECEIPT_OPEN}{candidate_envelope}{RECEIPT_CLOSE}\n"
             "If the job cannot be completed, return only this receipt with a "
             f"concise error:\n{RECEIPT_OPEN}{failed_envelope}{RECEIPT_CLOSE}"
@@ -336,6 +354,20 @@ def _dispatch(
         "task_prompt": task_prompt,
         "directive": directive,
     }
+
+
+def _receipt_object(value: Any, label: str) -> dict[str, Any]:
+    """Accept a JSON object or one legacy receipt layer containing that object."""
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            decoded = json.loads(value)
+        except json.JSONDecodeError as exc:
+            raise LearningJobError(f"{label} must be an object") from exc
+        if isinstance(decoded, dict):
+            return decoded
+    raise LearningJobError(f"{label} must be an object")
 
 
 def _receipt_payload(event: dict[str, Any]) -> dict[str, Any] | None:

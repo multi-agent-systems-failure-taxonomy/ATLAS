@@ -39,7 +39,10 @@ ATLAS hooks.
 Codex taxonomy learning uses the active task's native subagent capability. It
 does not need a separately runnable Codex CLI, a second login, or an external
 model API key. `atlas-doctor --codex` verifies the hook and configuration
-contract before generation reaches its default five-trace threshold.
+contract before generation reaches its default five-trace threshold. The
+installed `SessionStart` hook includes context compaction, allowing a queued
+native job to reach the active task even when an already-running desktop task
+does not emit `UserPromptSubmit`.
 
 ## 2B. Enable Claude Code
 
@@ -83,9 +86,10 @@ One completed assistant episode becomes one trace. By default:
 - trace 10 after activation queues the first refinement review;
 - later reviews run every 20 new traces.
 
-The active taxonomy remains stable while a worker runs. Trigger and completion
-notices appear in the conversation; completion appears on the next lifecycle
-event when the host cannot inject into an idle conversation.
+The active taxonomy remains stable while a worker runs. Trigger,
+support-review, and completion notices appear in the conversation; completion
+appears on the next lifecycle event when the host cannot inject into an idle
+conversation.
 
 Native replacement candidates contain 1 to 30 failure codes. Each code must
 cite the frozen trace IDs that support it, quote an exact span from every cited
