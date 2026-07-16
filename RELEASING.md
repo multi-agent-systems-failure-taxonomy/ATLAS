@@ -1,8 +1,8 @@
 # Releasing AdaMAST
 
-Releases publish to GitHub and, once the one-time Trusted Publishing setup
-below is done, to PyPI as `adamast`. Do not advertise `pip install adamast`
-in the docs until the first PyPI release has succeeded and installs cleanly.
+Releases publish to GitHub and to PyPI as `adamast` through Trusted
+Publishing. The pending publisher was claimed by the v0.1.0 release and the
+public docs advertise `pip install adamast`.
 
 ## Prepare
 

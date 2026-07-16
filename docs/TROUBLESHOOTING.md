@@ -73,13 +73,13 @@ Install the provider extra you need and make sure credentials are in the environ
 Anthropic:
 
 ```bash
-python -m pip install "adamast[anthropic] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
+python -m pip install "adamast[anthropic]"
 ```
 
 Bedrock:
 
 ```bash
-python -m pip install "adamast[bedrock] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
+python -m pip install "adamast[bedrock]"
 export AWS_BEARER_TOKEN_BEDROCK="..."
 export AWS_REGION="us-east-1"
 ```
@@ -113,7 +113,7 @@ program. This prevents Claude's resumed or changed `cwd` from looking like a
 new conversation. Upgrade and reinstall the user-level hooks:
 
 ```bash
-python -m pip install --upgrade "git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
+python -m pip install --upgrade adamast
 adamast-claude-install --user-level
 adamast-doctor --claude-code
 ```

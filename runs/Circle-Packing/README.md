@@ -45,7 +45,7 @@ the files in this directory alone.
    Code search strategy on the circle-packing (n=26) task, with Claude Code
    on Bedrock (`CLAUDE_CODE_USE_BEDROCK=1`, Claude Haiku 4.5).
 2. **AdaMAST arm**: install the AdaMAST skill
-   (`pip install "git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"`),
+   (`pip install adamast`),
    register the included taxonomy
    (`adamast-register-taxonomy --file circle_packing_taxonomy.json --id <id>`),
    and install the Claude Code hooks with that taxonomy inherited

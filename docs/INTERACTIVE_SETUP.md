@@ -21,7 +21,7 @@ Durable polling repairs a missed threshold trigger on the next lifecycle event.
 Until the first PyPI release is published, install directly from GitHub:
 
 ```bash
-python -m pip install --upgrade "git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
+python -m pip install --upgrade adamast
 ```
 
 ## 2A. Enable Codex
