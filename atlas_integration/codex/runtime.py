@@ -48,6 +48,7 @@ from atlas_integration.codex.learning_jobs import (
 from atlas_integration.codex.browser_picker import (
     apply_browser_choice,
     open_browser_picker,
+    picker_alive,
     read_browser_choice,
     start_browser_picker,
 )
@@ -407,6 +408,15 @@ def user_prompt_submit(event: dict[str, Any], config: CodexConfig) -> dict | Non
                     and not _browser_continuation_prompt(prompt)
                 ):
                     selection["pending_task"] = prompt
+                if not picker_alive(selection.get("browser_picker")):
+                    # The detached picker worker timed out or died; relaunch
+                    # it so the conversation cannot wait on a dead page.
+                    return _launch_selection_browser(
+                        state,
+                        event,
+                        config,
+                        event_name="UserPromptSubmit",
+                    )
                 save_state(config.trace_output, session_id, state)
                 return _browser_waiting_output(selection, "UserPromptSubmit")
 

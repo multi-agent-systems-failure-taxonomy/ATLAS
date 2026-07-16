@@ -45,6 +45,7 @@ from atlas_integration.interactive.selector import (
 from .browser_picker import (
     apply_browser_choice,
     open_browser_picker,
+    picker_alive,
     read_browser_choice,
     start_browser_picker,
 )
@@ -76,6 +77,29 @@ FAILURE_PATTERNS = (
     re.compile(r"\b(?:exit|return)\s+code\s*[:=]?\s*[1-9]\d*", re.I),
     re.compile(r"\bModuleNotFoundError\b|\bImportError\b|\bSyntaxError\b", re.I),
 )
+
+
+def _new_selector_state(
+    event: dict[str, Any], config: ClaudeCodeConfig
+) -> dict[str, Any]:
+    session_id = _required(event, "session_id")
+    return {
+        "version": 1,
+        "session_id": session_id,
+        "conversation_id": session_id,
+        "cwd": str(event.get("cwd") or ""),
+        "episode_sequence": 0,
+        "main_cursor": transcript_size(event.get("transcript_path")),
+        "episode_cursor": transcript_size(event.get("transcript_path")),
+        "selection": build_selection(
+            trace_output=config.trace_output,
+            store_dir=config.store_dir,
+            cwd=event.get("cwd"),
+            catalog_mode=config.selector_surface,
+        ),
+        "finished": True,
+        "trace_captured": False,
+    }
 
 
 def session_start(event: dict[str, Any], config: ClaudeCodeConfig) -> dict:
@@ -117,12 +141,7 @@ def session_start(event: dict[str, Any], config: ClaudeCodeConfig) -> dict:
                 save_state(config.trace_output, session_id, existing)
                 if config.selector_surface == "inline":
                     return _selection_output("SessionStart", selection)
-                return _launch_selection_browser(
-                    existing,
-                    event,
-                    config,
-                    event_name="SessionStart",
-                )
+                return None
             if status == "browser_pending":
                 return _browser_waiting_output(selection, "SessionStart")
             if status == "disabled":
@@ -134,33 +153,16 @@ def session_start(event: dict[str, Any], config: ClaudeCodeConfig) -> dict:
                 + STANDING_PROMPT,
             )
         if not existing:
-            selection = build_selection(
-                trace_output=config.trace_output,
-                store_dir=config.store_dir,
-                cwd=event.get("cwd"),
-                catalog_mode=config.selector_surface,
-            )
-            state = {
-                "version": 1,
-                "session_id": session_id,
-                "conversation_id": session_id,
-                "cwd": str(event.get("cwd") or ""),
-                "episode_sequence": 0,
-                "main_cursor": transcript_size(event.get("transcript_path")),
-                "episode_cursor": transcript_size(event.get("transcript_path")),
-                "selection": selection,
-                "finished": True,
-                "trace_captured": False,
-            }
+            # Claude Code also emits SessionStart for short-lived internal
+            # agent sessions. Opening the browser here makes those invisible
+            # host tasks look like new user conversations. Browser selection
+            # starts on the first real UserPromptSubmit instead.
+            if config.selector_surface == "browser":
+                return None
+            state = _new_selector_state(event, config)
+            selection = state["selection"]
             save_state(config.trace_output, session_id, state)
-            if config.selector_surface == "inline":
-                return _selection_output("SessionStart", selection)
-            return _launch_selection_browser(
-                state,
-                event,
-                config,
-                event_name="SessionStart",
-            )
+            return _selection_output("SessionStart", selection)
     if existing and not existing.get("finished"):
         return _context("SessionStart", STANDING_PROMPT)
 
@@ -275,6 +277,9 @@ def user_prompt_submit(
     if not state:
         session_start({**event, "hook_event_name": "SessionStart"}, config)
         state = load_state(config.trace_output, session_id)
+    if not state and config.selector_surface == "browser":
+        state = _new_selector_state(event, config)
+        save_state(config.trace_output, session_id, state)
     selection = state.get("selection")
     if not selection:
         return None
@@ -333,6 +338,15 @@ def user_prompt_submit(
                     and not _browser_continuation_prompt(prompt)
                 ):
                     selection["pending_task"] = prompt
+                if not picker_alive(selection.get("browser_picker")):
+                    # The detached picker worker timed out or died; relaunch
+                    # it so the conversation cannot wait on a dead page.
+                    return _launch_selection_browser(
+                        state,
+                        event,
+                        config,
+                        event_name="UserPromptSubmit",
+                    )
                 save_state(config.trace_output, session_id, state)
                 return _browser_waiting_output(selection, "UserPromptSubmit")
 
@@ -345,6 +359,13 @@ def user_prompt_submit(
                     event.get("transcript_path")
                 )
                 save_state(config.trace_output, session_id, state)
+            if config.selector_surface == "browser" and prompt:
+                return _launch_selection_browser(
+                    state,
+                    event,
+                    config,
+                    event_name="UserPromptSubmit",
+                )
             return _selection_block(selection)
 
         if choice["kind"] == "browser":

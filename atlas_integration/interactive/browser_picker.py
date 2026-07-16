@@ -9,6 +9,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.request
 import webbrowser
 from pathlib import Path
 from typing import Any, Callable
@@ -138,6 +139,41 @@ def open_browser_picker(picker: dict[str, Any]) -> bool:
         return bool(url and webbrowser.open(url))
     except OSError:
         return False
+
+
+def picker_alive(picker: dict[str, Any] | None, *, timeout: float = 1.0) -> bool:
+    """True when a launched picker's local page still answers HTTP."""
+    if not isinstance(picker, dict):
+        return False
+    url = str(picker.get("url") or "").strip()
+    if not url:
+        return False
+    try:
+        with urllib.request.urlopen(url, timeout=timeout):
+            return True
+    except (OSError, ValueError):
+        return False
+
+
+def picker_page_context(
+    request: dict[str, Any] | None,
+    *,
+    host_label: str,
+) -> dict[str, Any] | None:
+    """Describe the requesting session so the page names who it selects for."""
+    if request is None:
+        return None
+    selection = request.get("selection") or {}
+    event = request.get("event") or {}
+    return {
+        "project": selection.get("project"),
+        "project_root": selection.get("project_root"),
+        "project_taxonomy_id": selection.get("project_taxonomy_id"),
+        "host_label": host_label,
+        "session_id": str(request.get("session_id") or ""),
+        "session_cwd": str(event.get("cwd") or ""),
+        "session_prompt": str(selection.get("pending_task") or ""),
+    }
 
 
 def read_browser_choice(
@@ -292,12 +328,7 @@ def serve_picker(
     if request_path is not None:
         request = json.loads(read_text_retry(request_path))
         selection = request.get("selection")
-        picker_context = {
-            "project": (selection or {}).get("project"),
-            "project_root": (selection or {}).get("project_root"),
-            "project_taxonomy_id": (selection or {}).get("project_taxonomy_id"),
-            "host_label": host_label,
-        }
+        picker_context = picker_page_context(request, host_label=host_label)
         def on_choose(value):
             return apply_choice(request, value)
 

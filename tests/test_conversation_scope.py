@@ -9,10 +9,18 @@ from urllib.request import urlopen
 
 from atlas_integration.claude_code.config import ClaudeCodeConfig
 from atlas_integration.claude_code.runtime import session_start, user_prompt_submit
-from atlas_integration.claude_code.state import save_state
+from atlas_integration.claude_code.state import load_state, save_state
 from atlas_integration.codex.config import CodexConfig
 from atlas_integration.codex.runtime import session_start as codex_session_start
+from atlas_integration.codex.runtime import (
+    user_prompt_submit as codex_user_prompt_submit,
+)
+from atlas_integration.codex.state import load_state as codex_load_state
 from atlas_integration.codex.state import save_state as save_codex_state
+from atlas_integration.interactive.browser_picker import (
+    picker_alive,
+    picker_page_context,
+)
 from atlas_integration.interactive.selector import (
     build_selection,
     render_active_selection_context,
@@ -274,6 +282,285 @@ class ConversationScopeTests(unittest.TestCase):
         )
 
         self.assertIn("taxonomy is pinned to MAST", context)
+
+    def test_claude_browser_selection_waits_for_first_user_prompt(self) -> None:
+        event = {
+            "hook_event_name": "SessionStart",
+            "session_id": "claude-browser-defer",
+            "cwd": str(self.project),
+            "transcript_path": str(self.transcript),
+        }
+        config = self.config(selector_surface="browser").for_event(event)
+        picker = {
+            "pid": 4242,
+            "url": "http://127.0.0.1:43210/",
+            "result_path": str(self.root / "browser-result.json"),
+        }
+        with (
+            patch(
+                "atlas_integration.claude_code.runtime.start_browser_picker",
+                return_value=picker,
+            ) as launch,
+            patch(
+                "atlas_integration.claude_code.runtime.open_browser_picker",
+                return_value=True,
+            ) as opened,
+        ):
+            started = session_start(event, config)
+            self.assertIsNone(started)
+            self.assertEqual(
+                load_state(config.trace_output, event["session_id"]), {}
+            )
+            launch.assert_not_called()
+            opened.assert_not_called()
+
+            blocked = user_prompt_submit(
+                {
+                    **event,
+                    "hook_event_name": "UserPromptSubmit",
+                    "prompt": "hey",
+                },
+                config,
+            )
+        launch.assert_called_once()
+        opened.assert_called_once_with(picker)
+        self.assertEqual(blocked["decision"], "block")
+        self.assertIn("taxonomy library opened", blocked["systemMessage"])
+        state = load_state(config.trace_output, event["session_id"])
+        self.assertEqual(state["selection"]["status"], "browser_pending")
+        self.assertEqual(state["selection"]["pending_task"], "hey")
+
+    def test_claude_browser_picker_relaunches_after_worker_death(self) -> None:
+        session_id = "claude-browser-dead"
+        event = {
+            "hook_event_name": "UserPromptSubmit",
+            "session_id": session_id,
+            "cwd": str(self.project),
+            "transcript_path": str(self.transcript),
+        }
+        config = self.config(selector_surface="browser").for_event(event)
+        selection = build_selection(
+            trace_output=config.trace_output,
+            store_dir=STORE_DIR,
+            cwd=self.project,
+            catalog_mode="browser",
+        )
+        selection.update(
+            status="browser_pending",
+            browser_picker={
+                "pid": 4243,
+                "url": "http://127.0.0.1:43211/",
+                "result_path": str(self.root / "missing-result.json"),
+            },
+        )
+        save_state(
+            config.trace_output,
+            session_id,
+            {
+                "version": 1,
+                "session_id": session_id,
+                "conversation_id": session_id,
+                "cwd": str(self.project),
+                "episode_sequence": 0,
+                "selection": selection,
+                "finished": True,
+            },
+        )
+        fresh_picker = {
+            "pid": 4244,
+            "url": "http://127.0.0.1:43212/",
+            "result_path": str(self.root / "fresh-result.json"),
+        }
+        with (
+            patch(
+                "atlas_integration.claude_code.runtime.picker_alive",
+                return_value=False,
+            ),
+            patch(
+                "atlas_integration.claude_code.runtime.start_browser_picker",
+                return_value=fresh_picker,
+            ) as relaunch,
+            patch(
+                "atlas_integration.claude_code.runtime.open_browser_picker",
+                return_value=True,
+            ) as opened,
+        ):
+            output = user_prompt_submit({**event, "prompt": "hey again"}, config)
+        relaunch.assert_called_once()
+        opened.assert_called_once_with(fresh_picker)
+        self.assertEqual(output["decision"], "block")
+        state = load_state(config.trace_output, session_id)
+        self.assertEqual(
+            state["selection"]["browser_picker"]["url"],
+            fresh_picker["url"],
+        )
+        self.assertEqual(state["selection"]["pending_task"], "hey again")
+
+        with (
+            patch(
+                "atlas_integration.claude_code.runtime.picker_alive",
+                return_value=True,
+            ),
+            patch(
+                "atlas_integration.claude_code.runtime.start_browser_picker"
+            ) as relaunch,
+            patch(
+                "atlas_integration.claude_code.runtime.open_browser_picker"
+            ) as opened,
+        ):
+            waiting = user_prompt_submit({**event, "prompt": "still here"}, config)
+        relaunch.assert_not_called()
+        opened.assert_not_called()
+        self.assertEqual(waiting["decision"], "block")
+        self.assertIn("waiting", waiting["systemMessage"])
+
+    def test_codex_browser_picker_relaunches_after_worker_death(self) -> None:
+        thread_id = "codex-browser-dead"
+        event = {
+            "hook_event_name": "UserPromptSubmit",
+            "thread_id": thread_id,
+            "cwd": str(self.project),
+            "transcript_path": str(self.transcript),
+            "prompt": "hey codex",
+        }
+        config = CodexConfig(
+            trace_output=self.routing_root,
+            atlas_model="test-model",
+            store_dir=STORE_DIR,
+            trace_root=self.root / "traces",
+            dashboard=False,
+            project_scope="auto",
+            task_group="default",
+            session_selector="prompt",
+            selector_surface="browser",
+        ).for_event(event)
+        selection = build_selection(
+            trace_output=config.trace_output,
+            store_dir=STORE_DIR,
+            cwd=self.project,
+            catalog_mode="browser",
+        )
+        selection.update(
+            status="browser_pending",
+            browser_picker={
+                "pid": 4245,
+                "url": "http://127.0.0.1:43213/",
+                "result_path": str(self.root / "missing-codex-result.json"),
+            },
+        )
+        save_codex_state(
+            config.trace_output,
+            thread_id,
+            {
+                "version": 1,
+                "session_id": thread_id,
+                "conversation_id": thread_id,
+                "episode_sequence": 0,
+                "selection": selection,
+                "finished": True,
+            },
+        )
+        fresh_picker = {
+            "pid": 4246,
+            "url": "http://127.0.0.1:43214/",
+            "result_path": str(self.root / "fresh-codex-result.json"),
+        }
+        with (
+            patch(
+                "atlas_integration.codex.runtime.picker_alive",
+                return_value=False,
+            ),
+            patch(
+                "atlas_integration.codex.runtime.start_browser_picker",
+                return_value=fresh_picker,
+            ) as relaunch,
+            patch(
+                "atlas_integration.codex.runtime.open_browser_picker",
+                return_value=True,
+            ) as opened,
+        ):
+            output = codex_user_prompt_submit(event, config)
+        relaunch.assert_called_once()
+        opened.assert_called_once_with(fresh_picker)
+        self.assertIn("taxonomy library opened", output["systemMessage"])
+        state = codex_load_state(config.trace_output, thread_id)
+        self.assertEqual(
+            state["selection"]["browser_picker"]["url"],
+            fresh_picker["url"],
+        )
+        self.assertEqual(state["selection"]["pending_task"], "hey codex")
+
+    def test_picker_page_context_carries_session_identity(self) -> None:
+        request = {
+            "session_id": "claude-session-xyz",
+            "event": {"cwd": str(self.project)},
+            "selection": {
+                "project": "project",
+                "project_root": str(self.project),
+                "pending_task": "hey",
+            },
+        }
+
+        context = picker_page_context(request, host_label="Claude Code")
+
+        self.assertEqual(context["session_id"], "claude-session-xyz")
+        self.assertEqual(context["session_prompt"], "hey")
+        self.assertEqual(context["session_cwd"], str(self.project))
+        self.assertEqual(context["host_label"], "Claude Code")
+        self.assertIsNone(picker_page_context(None, host_label="Claude Code"))
+
+    def test_picker_alive_reflects_worker_liveness(self) -> None:
+        server, _result, _done = webview.build_server(STORE_DIR)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        url = f"http://127.0.0.1:{server.server_address[1]}/"
+        try:
+            self.assertTrue(picker_alive({"url": url}))
+        finally:
+            server.shutdown()
+            thread.join()
+            server.server_close()
+        self.assertFalse(picker_alive({"url": url}))
+        self.assertFalse(picker_alive(None))
+        self.assertFalse(picker_alive({}))
+
+    def test_picker_page_names_the_requesting_session(self) -> None:
+        choice = {
+            "kind": "mast",
+            "taxonomy_id": mast.MAST_ID,
+            "label": "MAST",
+            "description": "Built-in taxonomy",
+            "domain": "General agent work",
+            "origin": "Built-in",
+        }
+        server, _result, done = webview.build_server(
+            STORE_DIR,
+            choice_options=[choice],
+            picker_context={
+                "host_label": "Claude Code",
+                "session_id": "f4bdc749-86d7-4cb4-8ddd-6c2df2a5a2a4",
+                "session_prompt": "inspect the flux capacitor readings",
+            },
+        )
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            url = f"http://127.0.0.1:{server.server_address[1]}/"
+            with urlopen(url, timeout=5) as response:
+                body = response.read().decode("utf-8")
+            self.assertIn("Session", body)
+            self.assertIn("f4bdc749", body)
+            self.assertNotIn("f4bdc749-86d7", body)
+            self.assertIn("First message", body)
+            self.assertIn("inspect the flux capacitor readings", body)
+            with urlopen(url + "choose?id=mast", timeout=5) as response:
+                success = response.read().decode("utf-8")
+            self.assertIn("for session f4bdc749", success)
+            self.assertTrue(done.wait(timeout=1))
+        finally:
+            server.shutdown()
+            thread.join()
+            server.server_close()
 
     def test_picker_completion_names_the_active_host(self) -> None:
         choice = {
