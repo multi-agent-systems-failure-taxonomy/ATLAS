@@ -1,1 +1,1 @@
-"""Third-party code vendored for atlas_skill."""
+"""Third-party code vendored for AdaMAST."""

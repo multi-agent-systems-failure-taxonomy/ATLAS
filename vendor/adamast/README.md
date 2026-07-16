@@ -5,9 +5,9 @@ Vendored snapshot of the upstream AdaMAST package
 induces a 3-axis failure taxonomy (A / B / C) from agent execution traces
 and classifies new traces against an existing taxonomy.
 
-atlas_skill calls this layer through `atlas_runtime/generation.py::_adamast_generate`
+AdaMAST calls this layer through `adamast_runtime/generation.py::_adamast_generate`
 (for `generate_taxonomy`) and via `vendor.adamast.api.generate_taxonomy`
-directly from `atlas_runtime/import_generation.py`. The vendored copy is
+directly from `adamast_runtime/import_generation.py`. The vendored copy is
 treated as read-only; see [`../README.md`](../README.md) for refresh notes.
 
 ## Programs
