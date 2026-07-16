@@ -31,6 +31,7 @@ from .program import ProgramWorkspace
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
+DEFAULT_READY_TIMEOUT = 15.0
 DASHBOARD_STATE = ".adamast-dashboard.json"
 RUNTIME_EVIDENCE = ".adamast-runtime-evidence.json"
 TASK_LABELS = ".adamast-task-labels.json"
@@ -451,13 +452,31 @@ def start_dashboard_thread(
     return server, thread
 
 
+def _ready_timeout() -> float:
+    """Readiness budget for the spawned dashboard, in seconds.
+
+    A cold interpreter on a busy host can need well over five seconds just to
+    import the package, so the default is generous; ``ADAMAST_DASHBOARD_TIMEOUT``
+    overrides it (floored at one second).
+    """
+    raw = os.environ.get("ADAMAST_DASHBOARD_TIMEOUT", "").strip()
+    if not raw:
+        return DEFAULT_READY_TIMEOUT
+    try:
+        return max(1.0, float(raw))
+    except ValueError:
+        return DEFAULT_READY_TIMEOUT
+
+
 def ensure_dashboard(
     workspace: ProgramWorkspace,
     store_dir: Path | str = store.DEFAULT_STORE_DIR,
     *,
-    timeout: float = 5.0,
+    timeout: float | None = None,
 ) -> str | None:
     """Start or reuse one managed dashboard process for this program."""
+    if timeout is None:
+        timeout = _ready_timeout()
     if os.environ.get("ADAMAST_DISABLE_DASHBOARD", "").lower() in {
         "1", "true", "yes",
     }:

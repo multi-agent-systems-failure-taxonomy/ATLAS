@@ -11,7 +11,9 @@ from urllib.error import HTTPError
 from urllib.request import urlopen
 
 from adamast_runtime.dashboard import (
+    DEFAULT_READY_TIMEOUT,
     RUNTIME_EVIDENCE,
+    _ready_timeout,
     build_server,
     current_taxonomy,
     ensure_dashboard,
@@ -437,6 +439,16 @@ class DashboardServerTests(unittest.TestCase):
 
 
 class ManagedDashboardTests(unittest.TestCase):
+    def test_ready_timeout_env_override(self):
+        with patch.dict(os.environ, {"ADAMAST_DASHBOARD_TIMEOUT": "42.5"}):
+            self.assertEqual(_ready_timeout(), 42.5)
+        with patch.dict(os.environ, {"ADAMAST_DASHBOARD_TIMEOUT": "0"}):
+            self.assertEqual(_ready_timeout(), 1.0)
+        with patch.dict(os.environ, {"ADAMAST_DASHBOARD_TIMEOUT": "bogus"}):
+            self.assertEqual(_ready_timeout(), DEFAULT_READY_TIMEOUT)
+        with patch.dict(os.environ, {"ADAMAST_DASHBOARD_TIMEOUT": ""}):
+            self.assertEqual(_ready_timeout(), DEFAULT_READY_TIMEOUT)
+
     def test_start_reuse_and_stop(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -445,7 +457,7 @@ class ManagedDashboardTests(unittest.TestCase):
                 os.environ,
                 {"ADAMAST_DISABLE_DASHBOARD": ""},
             ):
-                first = ensure_dashboard(workspace, BASE_STORE)
+                first = ensure_dashboard(workspace, BASE_STORE, timeout=30.0)
                 self.assertTrue(first)
                 second = ensure_dashboard(workspace, BASE_STORE)
                 self.assertEqual(second, first)
