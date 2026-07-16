@@ -22,3 +22,10 @@ second Stop prompt and do not expose a long private reflection.
 
 When additional runtime context announces a native taxonomy learning job,
 spawn the supplied Codex subagent task once and continue normal work in parallel.
+
+Routine hook polls are intentionally silent. When you observe a failed tool
+operation, privately map it to the active taxonomy and show one concise progress
+checkpoint before the next tool call; do not depend on PostToolUse context.
+When ATLAS runtime context announces a learning lifecycle change, show that
+change once. Never expose the long private reflection or repeat a lifecycle
+notice after it has been shown.

@@ -29,6 +29,7 @@ from atlas_integration.codex.install import (
 )
 from atlas_integration.codex.runtime import (
     _next_action_requires_repair,
+    post_tool_use,
     session_start,
     stop,
     subagent_stop,
@@ -163,6 +164,40 @@ class CodexIntegrationTests(unittest.TestCase):
             output["systemMessage"],
             "ATLAS reflection accepted.\n\nATLAS taxonomy generation triggered",
         )
+        self.assertIn(
+            "show the user this state change once",
+            output["hookSpecificOutput"]["additionalContext"],
+        )
+        self.assertIn(
+            "ATLAS taxonomy generation triggered",
+            output["hookSpecificOutput"]["additionalContext"],
+        )
+
+    def test_post_tool_use_is_a_silent_poll(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            config = self.base_config(root)
+            event = {
+                "session_id": "silent-tool-poll",
+                "cwd": str(root),
+            }
+            session_start({**event, "hook_event_name": "SessionStart"}, config)
+
+            output = post_tool_use(
+                {
+                    **event,
+                    "hook_event_name": "PostToolUse",
+                    "tool_response": {
+                        "success": True,
+                        "output": "source mentions FAILED and AssertionError",
+                    },
+                },
+                config,
+            )
+
+            self.assertIsNone(output)
+            state = load_state(config.trace_output, event["session_id"])
+            self.assertEqual(state["failure"]["call_index"], 1)
 
     def test_learning_dispatch_preserves_existing_hook_context(self):
         output = _merge_learning_context(
@@ -292,6 +327,8 @@ class CodexIntegrationTests(unittest.TestCase):
             self.assertEqual(code, 0)
             output = json.loads(stdout.getvalue())
             context = output["hookSpecificOutput"]["additionalContext"]
+            self.assertIn("show the user this state change once", context)
+            self.assertIn("taxonomy generation triggered", context)
             self.assertIn("ATLAS native taxonomy learning is ready", context)
             self.assertIn("SUBAGENT TASK BEGIN", context)
             job_path = next(
@@ -331,7 +368,7 @@ class CodexIntegrationTests(unittest.TestCase):
                 patch(
                     "atlas_integration.codex.dispatcher.drain_learning_notices",
                     return_value=[],
-                ),
+                ) as drain,
                 patch("atlas_integration.codex.dispatcher.claim_learning_job") as claim,
             ):
                 code = dispatcher_main(["--config", str(config_path)])
@@ -339,7 +376,80 @@ class CodexIntegrationTests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertEqual(stdout.getvalue(), "")
             poll.assert_called_once()
+            drain.assert_not_called()
             claim.assert_not_called()
+
+    def test_dispatcher_keeps_learning_notices_queued_at_stop(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            config = replace(
+                self.base_config(root),
+                learning_backend="codex_subagent",
+            )
+            config_path = root / "atlas-skill.json"
+            config_path.write_text(json.dumps(config.to_dict()), encoding="utf-8")
+            event = {
+                "hook_event_name": "Stop",
+                "session_id": "notice-after-stop",
+                "cwd": str(root),
+            }
+            stdout = io.StringIO()
+
+            with (
+                patch("sys.stdin", io.StringIO(json.dumps(event))),
+                redirect_stdout(stdout),
+                patch.dict(
+                    "atlas_integration.codex.dispatcher.HANDLERS",
+                    {"Stop": lambda _event, _config: None},
+                ),
+                patch("atlas_integration.codex.dispatcher.poll_learning_jobs"),
+                patch("atlas_integration.codex.dispatcher.reconcile_learning_jobs"),
+                patch(
+                    "atlas_integration.codex.dispatcher.drain_learning_notices",
+                    return_value=["ATLAS taxonomy generation triggered"],
+                ) as drain,
+            ):
+                code = dispatcher_main(["--config", str(config_path)])
+
+            self.assertEqual(code, 0)
+            self.assertEqual(stdout.getvalue(), "")
+            drain.assert_not_called()
+
+    def test_dispatcher_keeps_learning_notices_queued_at_post_tool_use(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            config = replace(
+                self.base_config(root),
+                learning_backend="codex_subagent",
+            )
+            config_path = root / "atlas-skill.json"
+            config_path.write_text(json.dumps(config.to_dict()), encoding="utf-8")
+            event = {
+                "hook_event_name": "PostToolUse",
+                "session_id": "notice-after-tool",
+                "cwd": str(root),
+            }
+            stdout = io.StringIO()
+
+            with (
+                patch("sys.stdin", io.StringIO(json.dumps(event))),
+                redirect_stdout(stdout),
+                patch.dict(
+                    "atlas_integration.codex.dispatcher.HANDLERS",
+                    {"PostToolUse": lambda _event, _config: None},
+                ),
+                patch("atlas_integration.codex.dispatcher.poll_learning_jobs"),
+                patch("atlas_integration.codex.dispatcher.reconcile_learning_jobs"),
+                patch(
+                    "atlas_integration.codex.dispatcher.drain_learning_notices",
+                    return_value=["ATLAS taxonomy generation triggered"],
+                ) as drain,
+            ):
+                code = dispatcher_main(["--config", str(config_path)])
+
+            self.assertEqual(code, 0)
+            self.assertEqual(stdout.getvalue(), "")
+            drain.assert_not_called()
 
     def test_auto_project_scope_derives_program_from_event_cwd(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -443,6 +553,20 @@ class CodexIntegrationTests(unittest.TestCase):
             self.assertIn("Stop", hooks)
             text = json.dumps(hooks)
             self.assertIn("atlas_integration.codex.dispatcher", text)
+            status_messages = {
+                event: entries[0]["hooks"][0]["statusMessage"]
+                for event, entries in hooks.items()
+            }
+            self.assertEqual(
+                status_messages,
+                {
+                    "SessionStart": "Restoring ATLAS taxonomy",
+                    "UserPromptSubmit": "Checking ATLAS state",
+                    "Stop": "Saving ATLAS trace",
+                    "SubagentStop": "Reconciling ATLAS learning",
+                    "PostToolUse": "Polling ATLAS",
+                },
+            )
 
     def test_user_level_install_is_zero_config_and_native_by_default(self):
         with tempfile.TemporaryDirectory() as temp:

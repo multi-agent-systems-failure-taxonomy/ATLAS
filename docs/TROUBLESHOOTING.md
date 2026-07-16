@@ -49,6 +49,23 @@ gating actually happened, check `[atlas]` stderr lines, the per-gate records
 in `<trace_output>/decisions.log`, and `atlas-status` (a finished session
 with no final-gate evidence means the gate was skipped).
 
+## Codex shows only the final ATLAS checkpoint
+
+Routine hook polls are intentionally silent as assistant messages. Codex may
+show a short transient status such as `Polling ATLAS` or `Saving ATLAS trace`
+while the hook runs. The managed ATLAS skill requires one compact checkpoint
+after an actual failed tool operation and before the agent's next tool call.
+Taxonomy generation/refinement trigger, activation, retention, or failure
+notices appear once on the next model-context lifecycle event.
+
+`Stop` and `SubagentStop` happen after the current model response, so ATLAS does
+not consume learning notices there. It holds them for `SessionStart` or
+`UserPromptSubmit`, the events where Codex documents `additionalContext`.
+Null `PostToolUse` outputs in `codex-decisions.log` are normal successful polls.
+If a real tool failure is followed immediately by another tool call without a
+compact checkpoint, the installed managed skill is stale. Upgrade, reinstall,
+and review `/hooks` if Codex asks you to trust the definition again.
+
 ## `atlas_model` cannot be called
 
 Install the provider extra you need and make sure credentials are in the environment.

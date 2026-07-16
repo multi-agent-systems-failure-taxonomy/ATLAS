@@ -145,7 +145,13 @@ Default Codex events:
 2. `UserPromptSubmit`: open the taxonomy library for a new conversation and handle episode boundaries.
 3. `Stop`: capture the compact final checkpoint and commit the episode once.
 4. `SubagentStop`: capture a checkpoint when present without blocking.
-5. `PostToolUse`: add advisory nudges after selected failed tool outputs.
+5. `PostToolUse`: poll durable ATLAS state after supported successful tools.
+
+Routine polls remain silent apart from Codex's transient hook status. The
+managed skill tells the agent to show one compact checkpoint after an actual
+tool failure. Generation/refinement state changes appear once through the next
+`SessionStart` or `UserPromptSubmit`; ordinary successful hooks do not add
+assistant messages to the conversation.
 
 Optional skill guidance:
 

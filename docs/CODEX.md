@@ -41,7 +41,30 @@ The default Codex setup uses:
 2. `UserPromptSubmit`: open a new conversation's taxonomy library and handle episode boundaries.
 3. `Stop`: capture the compact final checkpoint and commit the episode in one callback.
 4. `SubagentStop`: capture a compact subagent checkpoint when present without blocking.
-5. `PostToolUse`: add advisory nudges after selected failed tool outputs.
+5. `PostToolUse`: poll durable ATLAS state after supported successful tools.
+
+## Hook visibility
+
+Routine hook calls are sensors, not chat messages. Codex may show the transient
+status message attached to each hook while it runs, but successful
+`PostToolUse` polls, ordinary state reconciliation, repeated standing context,
+and duplicate Stop callbacks do not add assistant messages. The always-loaded
+ATLAS skill tells the agent to produce one compact checkpoint after an actual
+tool failure and before its next tool call.
+
+Taxonomy generation/refinement triggers, activation, retention, and failure
+produce one concise lifecycle update. The
+[Codex Hooks documentation](https://learn.chatgpt.com/docs/hooks) documents
+`additionalContext` for `SessionStart` and `UserPromptSubmit`, not
+`PostToolUse`, so ATLAS only consumes queued lifecycle notices at those two
+model-context events.
+
+Learning notices are not consumed by `Stop` or `SubagentStop`, because those
+events occur after the model has produced the response and cannot reliably
+render new conversation text. The notice remains durable until the next
+`SessionStart` or `UserPromptSubmit` event can deliver it to the active model.
+The hook also emits a `systemMessage` for Codex surfaces that show hook messages
+directly.
 
 ## Conversation selector
 
@@ -147,10 +170,11 @@ ATLAS checks the quotes against the immutable snapshot and stores the validation
 record inline for audit. A refinement that chooses `no_change` returns no codes;
 the coordinator retains the current taxonomy verbatim.
 
-The trigger notice appears in the hook event that queues the worker. Codex
-hooks cannot inject into an idle task asynchronously, so the finished notice
-appears exactly once on the conversation's next lifecycle event. A failed or
-stale result leaves MAST or the current taxonomy active and preserves traces.
+Codex hooks cannot inject into an idle task asynchronously. Trigger and finish
+notices therefore remain queued through terminal `Stop` and `SubagentStop`
+events, then appear exactly once on the next `SessionStart` or
+`UserPromptSubmit` event. A failed or stale result leaves MAST or the current
+taxonomy active and preserves traces.
 
 `codex.worker_timeout_seconds` controls the native claim lease. The legacy
 `codex.worker_model` and `codex.codex_cli_path` fields remain readable for

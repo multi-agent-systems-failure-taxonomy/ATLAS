@@ -32,6 +32,13 @@ from .config import CodexConfig, parse_codex_hooks
 SKILL_NAME = "atlas-failure-modes"
 SKILL_MARKER_FILE = ".atlas-codex-skill.json"
 DISPATCHER_MODULE = "atlas_integration.codex.dispatcher"
+HOOK_STATUS_MESSAGES = {
+    "SessionStart": "Restoring ATLAS taxonomy",
+    "UserPromptSubmit": "Checking ATLAS state",
+    "Stop": "Saving ATLAS trace",
+    "SubagentStop": "Reconciling ATLAS learning",
+    "PostToolUse": "Polling ATLAS",
+}
 
 
 @dataclass(frozen=True)
@@ -90,7 +97,12 @@ def install(
         entries = hooks.setdefault(spec.event, [])
         matchers = spec.matchers or (None,)
         for matcher in matchers:
-            _append_registration(entries, command=command, matcher=matcher)
+            _append_registration(
+                entries,
+                event=spec.event,
+                command=command,
+                matcher=matcher,
+            )
         installed_events.append(spec.event)
     _write_json_atomic(hooks_path, hooks_doc)
     return {
@@ -224,7 +236,13 @@ def _is_managed_hook_entry(entry: Any, *, module: str) -> bool:
     return False
 
 
-def _append_registration(entries: list, *, command: str, matcher: str | None) -> None:
+def _append_registration(
+    entries: list,
+    *,
+    event: str,
+    command: str,
+    matcher: str | None,
+) -> None:
     registration = {
         **({"matcher": matcher} if matcher else {}),
         "hooks": [
@@ -232,7 +250,7 @@ def _append_registration(entries: list, *, command: str, matcher: str | None) ->
                 "type": "command",
                 "command": command,
                 "timeout": 30,
-                "statusMessage": "Running ATLAS gate",
+                "statusMessage": HOOK_STATUS_MESSAGES.get(event, "Running ATLAS gate"),
             }
         ],
     }

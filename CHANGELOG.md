@@ -4,6 +4,26 @@ All notable user-facing changes are documented here.
 
 ## Unreleased
 
+## 1.1.0b7 - 2026-07-15
+
+### Changed
+
+- Codex hook registrations now use distinct transient status messages for
+  taxonomy restore, state checks, trace saving, learning reconciliation, and
+  polling.
+- The managed Codex skill now requires one compact checkpoint after an actual
+  failed tool call, using evidence already visible to the agent.
+- Codex learning lifecycle notices remain queued through terminal `Stop` and
+  `SubagentStop` events and are consumed only when `SessionStart` or
+  `UserPromptSubmit` can render them through the active model.
+
+### Fixed
+
+- Codex `PostToolUse` no longer emits an unsupported `additionalContext`
+  payload or guesses failures from successful source and log text.
+- Learning lifecycle notices are no longer consumed by a `PostToolUse` event
+  that cannot deliver them to the active Codex model.
+
 ## 1.1.0b6 - 2026-07-15
 
 ### Fixed

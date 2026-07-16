@@ -33,6 +33,12 @@ Use ATLAS as a lightweight runtime discipline while doing the user's task.
   taxonomy job in the main agent, invoke `codex exec`, request an API key, or
   recursively launch another taxonomy agent. The subagent must return the
   supplied receipt envelope exactly; ATLAS validates and activates it.
+- After any failed tool call, privately map the evidence to the active taxonomy
+  and, before the next tool call, emit one concise user-facing progress
+  checkpoint. Use `none apply` when the failure was intentional or harmless;
+  do not invent a failure code.
+- Keep routine hook polls silent. Show each learning lifecycle notice once when
+  runtime context requests it, and keep the longer reflection private.
 - End each substantive Codex final answer with the compact checkpoint required
   by the active runtime context: `Checkpoint`, `Relevant codes`, `Evidence`,
   and `Next action`. Keep the longer Observe/Correlate/Map/Decide reflection
