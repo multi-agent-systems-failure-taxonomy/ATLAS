@@ -102,6 +102,24 @@ def _render_workspace(
     context = picker_context or {}
     project = html.escape(str(context.get("project") or "Local library"))
     project_root = html.escape(str(context.get("project_root") or store_dir))
+    session_id = str(context.get("session_id") or "")
+    session_cell = ""
+    if session_id:
+        session_cell = (
+            "<div><span>Session</span><strong>{session}</strong></div>".format(
+                session=html.escape(session_id[:8])
+            )
+        )
+        prompt_text = " ".join(str(context.get("session_prompt") or "").split())
+        if len(prompt_text) > 120:
+            prompt_text = prompt_text[:119].rstrip() + "…"
+        if prompt_text:
+            session_cell += (
+                '<div class="scope-path"><span>First message</span>'
+                "<strong>“{prompt}”</strong></div>".format(
+                    prompt=html.escape(prompt_text)
+                )
+            )
     rows = []
     for option in options:
         value = _choice_value(option)
@@ -148,6 +166,7 @@ def _render_workspace(
         '<p>Inspect the scope and failure modes before activating a taxonomy.</p></div>'
         '<span class="status"><span class="status-dot"></span>Selection required</span></div>'
         '<div class="scope-row"><div><span>Project</span><strong>{project}</strong></div>'
+        '{session_cell}'
         '<div class="scope-path"><span>Scope</span><strong>{project_root}</strong></div>'
         '<div><span>Available</span><strong>{count} choices</strong></div></div>'
         '</header>'
@@ -162,7 +181,7 @@ def _render_workspace(
         '<nav class="library-list">{rows}</nav></aside>'
         '<section class="detail-pane">{detail}</section>'
         '</div></main>'
-    ).format(project=project, project_root=project_root, count=len(options), rows="".join(rows), detail=detail)
+    ).format(project=project, session_cell=session_cell, project_root=project_root, count=len(options), rows="".join(rows), detail=detail)
 
 
 def _render_option_detail(option: dict[str, Any], store_dir) -> str:
@@ -409,10 +428,16 @@ def _success_page(
         if picker_context is not None
         else "You may close this tab and return to the terminal."
     )
+    session_id = str((picker_context or {}).get("session_id") or "")
+    session_line = (
+        f'<p class="stable-id">for session {html.escape(session_id[:8])}</p>'
+        if session_id
+        else ""
+    )
     body = (
         '<main class="result-page"><span class="result-state success">Activated</span>'
         f"<h1>{label}</h1><p>{html.escape(next_step)}</p>"
-        f'<p class="stable-id">{html.escape(choice)}</p></main>'
+        f'<p class="stable-id">{html.escape(choice)}</p>{session_line}</main>'
     )
     return _PAGE.format(title="ATLAS selection activated", body=body)
 

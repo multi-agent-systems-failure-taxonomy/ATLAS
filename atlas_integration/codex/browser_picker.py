@@ -9,6 +9,7 @@ from typing import Any
 
 from atlas_integration.interactive.browser_picker import (
     open_browser_picker,
+    picker_alive,
     picker_options,
     read_browser_choice,
 )
@@ -31,6 +32,7 @@ WORKER_MODULE = "atlas_integration.codex.browser_picker"
 __all__ = [
     "apply_browser_choice",
     "open_browser_picker",
+    "picker_alive",
     "picker_options",
     "read_browser_choice",
     "serve_picker",
