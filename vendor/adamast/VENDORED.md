@@ -8,7 +8,7 @@ This directory began as the `atlas` Python package from:
 - License: Apache License 2.0; see `LICENSE` in this directory.
 
 It is now a maintained in-tree fork, intentionally distinct from the
-`atlas_skill` runtime. The source commit above is provenance, not a claim that
+AdaMAST runtime. The source commit above is provenance, not a claim that
 the current directory is byte-for-byte or behaviorally unchanged.
 
 ## Local changes
