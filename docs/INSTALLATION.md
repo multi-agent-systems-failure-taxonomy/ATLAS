@@ -13,7 +13,13 @@ subagent capability and need no standalone host CLI or second login. Explicit
 provider-backed project configurations still require the selected provider's
 normal credentials.
 
-## Install from GitHub
+## Install from PyPI
+
+```bash
+python -m pip install adamast
+```
+
+## Install from GitHub (source)
 
 ```bash
 python -m pip install "git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
@@ -57,13 +63,13 @@ See [Interactive setup](INTERACTIVE_SETUP.md) for behavior and uninstall steps.
 Anthropic SDK:
 
 ```bash
-python -m pip install "adamast[anthropic] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
+python -m pip install "adamast[anthropic]"
 ```
 
 AWS Bedrock Converse through boto3:
 
 ```bash
-python -m pip install "adamast[bedrock] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
+python -m pip install "adamast[bedrock]"
 ```
 
 For Bedrock, set credentials in the environment:

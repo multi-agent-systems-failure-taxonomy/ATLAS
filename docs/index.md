@@ -88,7 +88,7 @@ from adamast_runtime import start_session
 Install the package first:
 
 ```bash
-python -m pip install --upgrade "git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
+python -m pip install --upgrade adamast
 ```
 
 </section>

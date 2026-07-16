@@ -11,7 +11,7 @@ If you want the full reference, start from the [documentation home](index.md).
 From GitHub:
 
 ```bash
-python -m pip install "git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
+python -m pip install adamast
 ```
 
 From a local checkout:
@@ -24,13 +24,13 @@ python -m pip install .
 Optional Anthropic SDK support:
 
 ```bash
-python -m pip install "adamast[anthropic] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
+python -m pip install "adamast[anthropic]"
 ```
 
 Optional AWS Bedrock bearer-token support:
 
 ```bash
-python -m pip install "adamast[bedrock] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
+python -m pip install "adamast[bedrock]"
 ```
 
 For Bedrock, set `AWS_BEARER_TOKEN_BEDROCK` and `AWS_REGION` /

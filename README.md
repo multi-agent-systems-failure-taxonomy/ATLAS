@@ -21,7 +21,7 @@ harness keeps owning the task.
 Requirements: Python 3.10 or newer.
 
 ```bash
-python -m pip install --upgrade "git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
+python -m pip install --upgrade adamast
 ```
 
 Install AdaMAST once for the host you use:

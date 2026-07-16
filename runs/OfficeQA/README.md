@@ -46,7 +46,7 @@ refinement), so both arms are a clean A/B.
    Read/Grep/Glob/Bash, system prompt from the paper's Appendix E.5, answers
    in `<FINAL_ANSWER>` tags.
 3. **AdaMAST arm**: install the AdaMAST skill
-   (`pip install "git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"`),
+   (`pip install adamast`),
    register the included taxonomy
    (`adamast-register-taxonomy --file officeqa_taxonomy.json --id <id>`), and
    install the Claude Code hooks with that taxonomy inherited
