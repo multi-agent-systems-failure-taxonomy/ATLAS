@@ -117,7 +117,7 @@ def main(argv: list[str] | None = None) -> int:
                 output,
                 drain_learning_notices(workspace, _conversation_id(event)),
             )
-            if event_name in {"SessionStart", "UserPromptSubmit", "SubagentStop"}:
+            if event_name in {"SessionStart", "UserPromptSubmit"}:
                 dispatch = claim_learning_job(
                     workspace,
                     conversation_id=_conversation_id(event),

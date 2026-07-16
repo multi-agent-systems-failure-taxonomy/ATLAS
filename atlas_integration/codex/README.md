@@ -98,7 +98,9 @@ desktop task can dispatch a queued job even when that Codex build does not emit
 `UserPromptSubmit`. Unselected internal sessions do not poll or claim learning
 jobs. The subagent reads an immutable outcome-blind snapshot and returns a
 staged receipt through `SubagentStop`; hook reconciliation alone owns
-validation and activation.
+validation and activation. `SubagentStop` never claims the next phase: a
+replacement's independent support review stays queued until the next supported
+model-context boundary.
 
 The installer writes:
 
