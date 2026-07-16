@@ -229,11 +229,14 @@ class RegisterTaxonomyFileTests(unittest.TestCase):
                 })
 
             r = register_taxonomy_file(
-                src, store_dir=td / "store",
+                src, store_dir=td / "store", trace_root=td / "trace-root",
                 traces=traces, adamast_model="stub-model",
                 judge_call=judge_stub, refiner_call=refiner_stub,
             )
             self.assertEqual(r.trace_count, 1)
+            committed = list((td / "trace-root" / r.taxonomy_id).glob("trace-*.json"))
+            self.assertEqual(len(committed), 1,
+                             "supporting traces must land under the given trace_root")
             self.assertTrue(r.refinement["applied"])
             self.assertEqual(refiner_calls["n"], 1,
                              "refiner runs once when there are utilization signals")
