@@ -53,6 +53,8 @@ HANDLERS = {
     "PostToolUse": post_tool_use,
 }
 
+AGENT_VISIBLE_EVENTS = {"SessionStart", "UserPromptSubmit"}
+
 
 def main(argv: list[str] | None = None) -> int:
     force_utf8_stdio()
@@ -113,10 +115,11 @@ def main(argv: list[str] | None = None) -> int:
                 store_dir=config.store_dir,
                 trace_root=config.trace_root,
             )
-            output = _merge_notices(
-                output,
-                drain_learning_notices(workspace, _conversation_id(event)),
-            )
+            if event_name in AGENT_VISIBLE_EVENTS:
+                output = _merge_notices(
+                    output,
+                    drain_learning_notices(workspace, _conversation_id(event)),
+                )
             if event_name in {"SessionStart", "UserPromptSubmit"}:
                 dispatch = claim_learning_job(
                     workspace,
@@ -192,6 +195,7 @@ def _conversation_learning_active(config: CodexConfig, event: dict) -> bool:
 
 
 def _merge_notices(output: dict | None, notices: list[str]) -> dict | None:
+    notices = [notice.strip() for notice in notices if notice.strip()]
     if not notices:
         return output
     merged = dict(output or {})
@@ -200,8 +204,21 @@ def _merge_notices(output: dict | None, notices: list[str]) -> dict | None:
     existing = merged.get("systemMessage")
     if isinstance(existing, str) and existing.strip():
         messages.append(existing.strip())
-    messages.extend(notice.strip() for notice in notices if notice.strip())
+    messages.extend(notices)
     merged["systemMessage"] = "\n\n".join(messages)
+    specific = dict(merged.get("hookSpecificOutput") or {})
+    contexts = []
+    existing_context = specific.get("additionalContext")
+    if isinstance(existing_context, str) and existing_context.strip():
+        contexts.append(existing_context.strip())
+    notice_text = "\n\n".join(notices)
+    contexts.append(
+        "ATLAS learning lifecycle update. Before the next tool call, show the "
+        "user this state change once in a concise progress update. Do not "
+        "repeat it on later turns:\n\n" + notice_text
+    )
+    specific["additionalContext"] = "\n\n".join(contexts)
+    merged["hookSpecificOutput"] = specific
     return merged
 
 

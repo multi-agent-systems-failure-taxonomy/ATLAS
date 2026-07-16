@@ -120,7 +120,18 @@ trust against the hook definition hash, so changed hooks need review again.
 | `UserPromptSubmit` | Open the taxonomy library for a new user conversation and handle episode boundaries. |
 | `Stop` | Single-pass compact final checkpoint and episode commit. |
 | `SubagentStop` | Observational, non-blocking compact checkpoint capture. |
-| `PostToolUse` | Advisory failure nudge after selected failed tool outputs. |
+| `PostToolUse` | Silent polling and durable-state reconciliation after supported successful tools. |
+
+Routine polling is intentionally silent as assistant text. Codex can show the
+hook's transient `Polling ATLAS` status while it runs. Tool failure review lives
+in the always-loaded managed skill: when the agent receives an actual failed
+tool result, it maps the evidence privately and shows one compact checkpoint
+before the next tool call.
+
+Generation and refinement lifecycle notices are also user-visible once. They
+remain in the durable manifest through terminal `Stop` and `SubagentStop`
+events, then are consumed only by `SessionStart` or `UserPromptSubmit`, where
+Codex documents model-context delivery. `PostToolUse` does not consume them.
 
 Defaults can be customized:
 

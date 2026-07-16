@@ -44,18 +44,3 @@ def reflection_prompt(
         full=full,
         final_instructions=gate_tail,
     )
-
-
-def failure_nudge(
-    state: dict[str, Any],
-    *,
-    checkpoint_id: str,
-    failure_summary: str,
-) -> str:
-    return reflection_prompt(
-        state,
-        checkpoint_id=checkpoint_id,
-        gate_label="reactive failure nudge (advisory; non-blocking)",
-        recent_activity=failure_summary,
-        full=False,
-    )

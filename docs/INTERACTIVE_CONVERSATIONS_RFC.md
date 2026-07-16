@@ -286,6 +286,12 @@ use visible hook output for the operator and `additionalContext` for the agent.
 Receipts are consumed exactly once per conversation, but remain in the project
 audit log.
 
+For Codex, a lifecycle notice is consumed only on a hook that can affect model
+context: `SessionStart` or `UserPromptSubmit`. `PostToolUse` remains a silent
+poll because Codex does not document `additionalContext` delivery for that
+event. Terminal `Stop` and `SubagentStop` events may queue or reconcile the
+notice but must leave it durable for the next model-context event.
+
 Learning never blocks ordinary task progress by default. The final quality gate
 may still block for a real repair. A user may opt into blocking learning for
 controlled evaluations.

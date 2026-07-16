@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -62,17 +61,8 @@ from atlas_integration.interactive.selector import (
 )
 
 from .config import CodexConfig
-from .prompts import STANDING_PROMPT, failure_nudge, reflection_prompt
+from .prompts import STANDING_PROMPT, reflection_prompt
 from .state import load_state, save_state
-
-FAILURE_PATTERNS = (
-    re.compile(r"\bTraceback \(most recent call last\)", re.I),
-    re.compile(r"\bAssertionError\b", re.I),
-    re.compile(r"(?im)^\s*(?:FAILED\b|FAILURES?\s*$)"),
-    re.compile(r"\b(?:error|exception)\s*:", re.I),
-    re.compile(r"\b(?:exit|return)\s+code\s*[:=]?\s*[1-9]\d*", re.I),
-    re.compile(r"\bModuleNotFoundError\b|\bImportError\b|\bSyntaxError\b", re.I),
-)
 
 
 def session_start(event: dict[str, Any], config: CodexConfig) -> dict | None:
@@ -280,8 +270,6 @@ def _start_episode(
         episode_cursor=cursor,
         failure={
             "call_index": 0,
-            "last_hash": "",
-            "last_fired_at": 0.0,
         },
     )
     state["conversation_id"] = session_id
@@ -683,6 +671,12 @@ def subagent_stop(event: dict[str, Any], config: CodexConfig) -> dict | None:
 
 
 def post_tool_use(event: dict[str, Any], config: CodexConfig) -> dict | None:
+    """Record a successful-tool poll without claiming model-context delivery.
+
+    Codex documents PostToolUse as a turn-scoped hook with visible hook status,
+    but not as an additionalContext delivery point. Failure reflection lives in
+    the always-loaded ATLAS skill, where the agent can react to its tool result.
+    """
     state = _state(event, config)
     if _selection_inactive(state):
         return None
@@ -691,34 +685,8 @@ def post_tool_use(event: dict[str, Any], config: CodexConfig) -> dict | None:
         return None
     failure = state.setdefault("failure", {})
     failure["call_index"] = int(failure.get("call_index", 0)) + 1
-    text = _tool_text(event)
-    if not any(pattern.search(text) for pattern in FAILURE_PATTERNS):
-        save_state(config.trace_output, state["session_id"], state)
-        return None
-    digest = hashlib.sha256(text[:8000].encode("utf-8", "replace")).hexdigest()[:16]
-    now = time.time()
-    if failure.get("last_hash") == digest or now - float(
-        failure.get("last_fired_at", 0)
-    ) < 30:
-        save_state(config.trace_output, state["session_id"], state)
-        return None
-    failure.update({"last_hash": digest, "last_fired_at": now})
-    checkpoint_id = _checkpoint_id("failure")
-    state.setdefault("pending", {})[f"nudge:{checkpoint_id}"] = {
-        "checkpoint_id": checkpoint_id,
-        "offset": transcript_size(event.get("transcript_path")),
-        "full": False,
-        "recorded": False,
-        "advisory": True,
-    }
     save_state(config.trace_output, state["session_id"], state)
-    return _add_context(
-        failure_nudge(
-            state,
-            checkpoint_id=checkpoint_id,
-            failure_summary=text[-4000:],
-        )
-    )
+    return None
 
 
 def blocking_checkpoint(
@@ -1240,14 +1208,6 @@ def _recent_agent_text(event: dict[str, Any], *, after: int = 0) -> str:
     if not chunks:
         chunks.append(_stringify(event))
     return "\n".join(chunk for chunk in chunks if chunk.strip())
-
-
-def _tool_text(event: dict[str, Any]) -> str:
-    for key in ("tool_response", "output", "result", "stderr", "stdout", "error"):
-        value = event.get(key)
-        if value:
-            return _stringify(value)
-    return _stringify(event)
 
 
 def _stringify(value: Any) -> str:
