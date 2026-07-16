@@ -40,6 +40,8 @@ queued -> claimed -> awaiting_reconcile -> support_queued
 6. For a replacement, a separately claimed support-review subagent decides
    whether every code is semantically supported by the cited traces. A
    `no_change` refinement skips this phase because it changes no taxonomy data.
+   Codex does not claim this second phase from `SubagentStop`; it waits for the
+   next supported context boundary so the launch directive cannot be hidden.
 7. A supported candidate is registered and activated atomically at the idle
    boundary. Failure leaves MAST or the current taxonomy active.
 

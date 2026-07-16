@@ -145,7 +145,8 @@ can remain safely dormant between tasks; no standalone Codex CLI is required.
 If `job.json` reports `support_queued`, candidate generation already succeeded.
 ATLAS is waiting for the independent evidence-support subagent, not generating
 the same candidate again. The manifest mirrors this intermediate state and the
-originating conversation receives a one-time notice.
+originating conversation receives a one-time notice. `SubagentStop` deliberately
+does not claim this phase; the next prompt, resume, or context compaction does.
 
 For Claude Code, inspect the next `SessionStart` or `UserPromptSubmit` hook
 context for `ATLAS native taxonomy learning is ready`. The active Claude agent

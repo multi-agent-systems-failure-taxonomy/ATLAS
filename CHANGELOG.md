@@ -4,6 +4,15 @@ All notable user-facing changes are documented here.
 
 ## Unreleased
 
+## 1.1.0b6 - 2026-07-15
+
+### Fixed
+
+- Codex `SubagentStop` hooks reconcile completed candidate or support-review
+  receipts but no longer claim the next native-learning phase. Claims now wait
+  for `SessionStart` or `UserPromptSubmit`, which can deliver the launch
+  directive to the active model instead of stranding an invisible support job.
+
 ## 1.1.0b5 - 2026-07-15
 
 ### Changed

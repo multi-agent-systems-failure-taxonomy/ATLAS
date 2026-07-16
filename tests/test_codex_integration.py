@@ -302,6 +302,45 @@ class CodexIntegrationTests(unittest.TestCase):
                 "claimed",
             )
 
+    def test_dispatcher_never_claims_next_phase_on_subagent_stop(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            config = replace(
+                self.base_config(root),
+                learning_backend="codex_subagent",
+            )
+            config_path = root / "atlas-skill.json"
+            config_path.write_text(json.dumps(config.to_dict()), encoding="utf-8")
+            event = {
+                "hook_event_name": "SubagentStop",
+                "session_id": "parent-session",
+                "cwd": str(root),
+                "last_assistant_message": "Subagent work finished.",
+            }
+            stdout = io.StringIO()
+
+            with (
+                patch("sys.stdin", io.StringIO(json.dumps(event))),
+                redirect_stdout(stdout),
+                patch.dict(
+                    "atlas_integration.codex.dispatcher.HANDLERS",
+                    {"SubagentStop": lambda _event, _config: None},
+                ),
+                patch("atlas_integration.codex.dispatcher.poll_learning_jobs") as poll,
+                patch("atlas_integration.codex.dispatcher.reconcile_learning_jobs"),
+                patch(
+                    "atlas_integration.codex.dispatcher.drain_learning_notices",
+                    return_value=[],
+                ),
+                patch("atlas_integration.codex.dispatcher.claim_learning_job") as claim,
+            ):
+                code = dispatcher_main(["--config", str(config_path)])
+
+            self.assertEqual(code, 0)
+            self.assertEqual(stdout.getvalue(), "")
+            poll.assert_called_once()
+            claim.assert_not_called()
+
     def test_auto_project_scope_derives_program_from_event_cwd(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
