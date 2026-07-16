@@ -3,7 +3,7 @@
 ## Runtime requirements
 
 - Python 3.10 through 3.14.
-- A writable ATLAS home directory, normally `~/.atlas-skill`.
+- A writable AdaMAST home directory, normally `~/.adamast`.
 - Windows and Linux are exercised by CI. Other Python-supported platforms may
   work but are not release-gated yet.
 
@@ -13,13 +13,13 @@
 - Project and user hook files are supported.
 - Native taxonomy learning uses a subagent in the active Codex task. It does
   not require a standalone `codex` executable or separate login.
-- Run `atlas-doctor --codex` after installation to verify the hooks and native
+- Run `adamast-doctor --codex` after installation to verify the hooks and native
   learning configuration.
 
 ## Claude Code
 
 - The installed Claude Code build must expose the hook event and blocking
-  contracts checked by `atlas-doctor --claude-code`.
+  contracts checked by `adamast-doctor --claude-code`.
 - Native taxonomy learning uses one Agent subtask in the active Claude Code
   session. It does not require a runnable `claude -p` surface or second login.
 - The browser selector requires localhost access; use
@@ -34,7 +34,7 @@ task session; each host can still consume its normal included or billed usage.
 Provider-backed project installs and direct runtime integrations continue to
 support OpenAI-compatible, Anthropic, Gemini, and AWS Bedrock credentials.
 Credential values are read from the environment and are never written to the
-ATLAS config.
+AdaMAST config.
 
 ## Current limitations
 

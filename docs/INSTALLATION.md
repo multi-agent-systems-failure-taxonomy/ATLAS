@@ -1,11 +1,11 @@
 # Installation
 
-ATLAS supports a dependency-light base install plus optional model-provider extras.
+AdaMAST supports a dependency-light base install plus optional model-provider extras.
 
 ## Requirements
 
 - Python 3.10 or newer
-- A project directory where ATLAS can write local hook config, if you use a harness integration
+- A project directory where AdaMAST can write local hook config, if you use a harness integration
 - A writable trace directory
 
 Codex- and Claude-native taxonomy learning use the active conversation's
@@ -22,7 +22,7 @@ python -m pip install "git+https://github.com/multi-agent-systems-failure-taxono
 ## Install from a local checkout
 
 ```bash
-cd /path/to/ATLAS
+cd /path/to/AdaMAST
 python -m pip install .
 ```
 
@@ -34,17 +34,17 @@ python -m pip install -e ".[test]"
 
 ## Zero-config interactive install
 
-Install ATLAS once for every project in a host:
+Install AdaMAST once for every project in a host:
 
 ```bash
-atlas-codex-install --user-level
-atlas-doctor --codex
+adamast-codex-install --user-level
+adamast-doctor --codex
 
-atlas-claude-install --user-level
-atlas-doctor --claude-code
+adamast-claude-install --user-level
+adamast-doctor --claude-code
 ```
 
-These defaults use `~/.atlas-skill/interactive`, automatic Git-project
+These defaults use `~/.adamast/interactive`, automatic Git-project
 scoping, and the browser selector. Codex and Claude Code use a native subagent
 in the active task for taxonomy learning and do not require a standalone host
 CLI login or separate provider API key. Run both installers to share
@@ -57,13 +57,13 @@ See [Interactive setup](INTERACTIVE_SETUP.md) for behavior and uninstall steps.
 Anthropic SDK:
 
 ```bash
-python -m pip install "atlas-skill[anthropic] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
+python -m pip install "adamast[anthropic] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
 ```
 
 AWS Bedrock Converse through boto3:
 
 ```bash
-python -m pip install "atlas-skill[bedrock] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
+python -m pip install "adamast[bedrock] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
 ```
 
 For Bedrock, set credentials in the environment:
@@ -73,19 +73,19 @@ export AWS_BEARER_TOKEN_BEDROCK="..."
 export AWS_REGION="us-east-1"
 ```
 
-ATLAS reads provider credentials from the environment. Do not put tokens in `atlas.json`.
+AdaMAST reads provider credentials from the environment. Do not put tokens in `adamast.json`.
 
 ## Minimal provider-backed project config
 
-Create `atlas.json` in the project using ATLAS:
+Create `adamast.json` in the project using AdaMAST:
 
 ```json
 {
   "version": 1,
-  "trace_output": "./atlas-program",
-  "trace_root": "~/.atlas-skill/traces",
-  "store_dir": "~/.atlas-skill/taxonomies",
-  "atlas_model": "gpt-5",
+  "trace_output": "./adamast-program",
+  "trace_root": "~/.adamast/traces",
+  "store_dir": "~/.adamast/taxonomies",
+  "adamast_model": "gpt-5",
   "inherit": null,
   "generation_threshold": 5,
   "generation_stops": false,
@@ -121,19 +121,19 @@ Create `atlas.json` in the project using ATLAS:
 
 Relative paths are resolved relative to the config file.
 
-Use `atlas_model` for ATLAS generation, checking, and refinement calls. If your task-solving program also has a model flag, keep it separate.
+Use `adamast_model` for AdaMAST generation, checking, and refinement calls. If your task-solving program also has a model flag, keep it separate.
 
 ## Verify the install
 
 ```bash
-atlas-doctor --config atlas.json
+adamast-doctor --config adamast.json
 ```
 
 For harness-specific checks:
 
 ```bash
-atlas-doctor --config atlas.json --claude-code
-atlas-doctor --config atlas.json --codex
+adamast-doctor --config adamast.json --claude-code
+adamast-doctor --config adamast.json --codex
 ```
 
-Errors mean the requested setup is not ready. Warnings usually mean ATLAS can run, but an optional integration or dependency is incomplete.
+Errors mean the requested setup is not ready. Warnings usually mean AdaMAST can run, but an optional integration or dependency is incomplete.

@@ -1,4 +1,4 @@
-"""Shared controller for ATLAS's simple LLM judge types.
+"""Shared controller for AdaMAST's simple LLM judge types.
 
 The behavior-defining judge instructions live in ``judge_types/assets/*/*.md``.
 This module owns only orchestration, prompt rendering, output validation,
@@ -14,8 +14,8 @@ from importlib import resources
 from string import Template
 from typing import Any, Callable, Mapping, Sequence
 
-from atlas_runtime.learning_calls import judge_json
-from atlas_runtime.taxonomy_data import Taxonomy
+from adamast_runtime.learning_calls import judge_json
+from adamast_runtime.taxonomy_data import Taxonomy
 
 JudgeCallable = Callable[[str, str], str | None]
 

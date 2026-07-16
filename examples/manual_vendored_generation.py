@@ -6,16 +6,16 @@ import argparse
 import json
 from pathlib import Path
 
-from atlas_runtime.generation import candidate_from_atlas
-from atlas_runtime.learning_calls import outcome_blind_trace
-from vendor.atlas import generate_taxonomy
+from adamast_runtime.generation import candidate_from_adamast
+from adamast_runtime.learning_calls import outcome_blind_trace
+from vendor.adamast import generate_taxonomy
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("trace_json")
     parser.add_argument("--model", required=True)
-    parser.add_argument("--output-dir", default="manual_atlas_output")
+    parser.add_argument("--output-dir", default="manual_adamast_output")
     args = parser.parse_args()
 
     record = json.loads(Path(args.trace_json).read_text(encoding="utf-8"))
@@ -26,7 +26,7 @@ def main() -> int:
         save_intermediate=True,
         verbose=True,
     )
-    print(json.dumps(candidate_from_atlas(raw), indent=2, ensure_ascii=False))
+    print(json.dumps(candidate_from_adamast(raw), indent=2, ensure_ascii=False))
     return 0
 
 

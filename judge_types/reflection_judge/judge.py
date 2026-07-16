@@ -1,7 +1,7 @@
-"""``AtlasReflectionJudge`` — orchestrates the multi-stage reflection judge.
+"""``AdaMASTReflectionJudge`` — orchestrates the multi-stage reflection judge.
 
 ``judge_model`` is required at construction time so model choice is explicit.
-The default LLM transport routes through atlas_skill's
+The default LLM transport routes through adamast's
 ``learning_calls.support_model_call`` (env-driven Anthropic + OpenAI + Gemini)
 via the bridge in ``._llm``. Inject ``llm_call=...`` to override for tests.
 
@@ -27,7 +27,7 @@ import json
 import time
 from typing import Any, Callable, Mapping, Optional
 
-from atlas_runtime.taxonomy_data import CostMeter, Taxonomy
+from adamast_runtime.taxonomy_data import CostMeter, Taxonomy
 
 from ._llm import make_llm_call
 from .prompts import (
@@ -46,7 +46,7 @@ from .selection import derive_selection_summary
 LLMCall = Callable[..., dict]
 
 
-class AtlasReflectionJudge:
+class AdaMASTReflectionJudge:
     """Multi-stage trace-analysis judge that emits a rich diagnostic graph
     + a compressed selection summary.
 
@@ -61,7 +61,7 @@ class AtlasReflectionJudge:
         this threshold are surfaced in ``selection_summary.weak_taxonomy_matches``
         as a "definition drift" signal for the refinement gate.
     llm_call : LLM caller injected for testability. When None, builds a
-        default bound to ``judge_model`` through atlas_skill's transports.
+        default bound to ``judge_model`` through adamast's transports.
         Must accept ``(prompt, system, *, max_tokens, meter, warnings)`` and
         return a parsed-JSON dict.
     judge_prompt_version : recorded in ``judge_metadata`` for reproducibility.

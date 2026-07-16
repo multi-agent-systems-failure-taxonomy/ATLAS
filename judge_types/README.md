@@ -1,6 +1,6 @@
 # judge_types/
 
-Seven taxonomy-aware judges atlas_skill exposes. Each judge consumes a
+Seven taxonomy-aware judges adamast exposes. Each judge consumes a
 taxonomy and produces a different structured signal.
 
 | # | Judge | Status | Implementation | Purpose |
@@ -29,7 +29,7 @@ and testable:
 
 - A required `judge_model` constructor argument and an optional `llm_call`
   injection point for tests (matches the `(prompt, model) -> raw_text`
-  signature used by `atlas_runtime.learning_calls.support_model_call`).
+  signature used by `adamast_runtime.learning_calls.support_model_call`).
 - A `run(...)` method returning a frozen dataclass result with a
   `judge_metadata` dict (judge name, model, taxonomy version, timestamp,
   warnings collected during the call).
@@ -37,7 +37,7 @@ and testable:
   output rather than crashing on minor schema misses.
 
 All Python-run simple judges route their LLM call through
-`atlas_runtime/learning_calls.py::judge_json`, which already handles JSON
+`adamast_runtime/learning_calls.py::judge_json`, which already handles JSON
 repair-retry and routes to Anthropic (incl. Bedrock) / OpenAI / Gemini based
 on the model id.
 
@@ -67,7 +67,7 @@ not an LLM call.
   output into root/attributable/unrecovered/etc. buckets.
 
 The Reflection Judge is also the validation gate used by
-`atlas_runtime/reflection_refinement.py` at the end of generation.
+`adamast_runtime/reflection_refinement.py` at the end of generation.
 
 ## How each judge fits in a generation+refinement run
 

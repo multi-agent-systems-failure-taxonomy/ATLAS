@@ -1,8 +1,8 @@
-# Releasing ATLAS
+# Releasing AdaMAST
 
-GitHub releases are the current public distribution channel. PyPI does not yet
-contain `atlas-skill`; do not advertise `pip install atlas-skill` until trusted
-publishing is configured and a release has succeeded there.
+Releases publish to GitHub and, once the one-time Trusted Publishing setup
+below is done, to PyPI as `adamast`. Do not advertise `pip install adamast`
+in the docs until the first PyPI release has succeeded and installs cleanly.
 
 ## Prepare
 
@@ -11,7 +11,7 @@ publishing is configured and a release has succeeded there.
 2. Run the verification bundle:
 
    ```bash
-   python -m compileall -q atlas_runtime atlas_integration finding judge_types vendor
+   python -m compileall -q adamast_runtime adamast_integration finding judge_types vendor
    python -m pytest -q
    python -m mkdocs build --strict
    python -m build
@@ -27,23 +27,28 @@ publishing is configured and a release has succeeded there.
 Create and push a tag that exactly matches the package version:
 
 ```bash
-git tag -a v1.1.0b1 -m "ATLAS 1.1.0b1"
-git push origin v1.1.0b1
+git tag -a v0.1.0 -m "AdaMAST 0.1.0"
+git push origin v0.1.0
 ```
 
 The `release` workflow reruns tests and the strict documentation build, builds
-the wheel and source distribution, validates both with Twine, and attaches them
-to a generated GitHub release. Alpha, beta, and release-candidate tags are
-marked as prereleases.
+the wheel and source distribution, validates both with Twine, attaches them to
+a generated GitHub release, and then publishes to PyPI through the
+`pypi-publish` job (Trusted Publishing, no stored token). Alpha, beta, and
+release-candidate tags are marked as prereleases.
 
-## Enable PyPI later
+## PyPI Trusted Publishing (one-time setup)
 
-Use PyPI Trusted Publishing rather than a long-lived token:
+The `pypi-publish` job authenticates with an OIDC id-token; PyPI must be told
+to trust this repository first:
 
-1. Create the `atlas-skill` PyPI project or a pending publisher for this GitHub
-   repository and the release workflow.
-2. Add a protected `pypi` environment in GitHub.
-3. Add a release job with `id-token: write` and
-   `pypa/gh-action-pypi-publish` pinned to a reviewed release.
-4. Publish a prerelease first and verify installation in a clean environment.
-5. Only then change public docs to `python -m pip install atlas-skill`.
+1. On pypi.org → Account → Publishing, add a **pending publisher** for the
+   project name `adamast` with owner `multi-agent-systems-failure-taxonomy`,
+   repository `ATLAS`, workflow `release.yml`, and environment `pypi`.
+2. Optionally protect the `pypi` environment in the GitHub repository
+   settings (it is created automatically on the first run otherwise).
+3. Push a version tag; the first successful publish claims the `adamast`
+   name. Verify `python -m pip install adamast` in a clean environment.
+4. Only then change public docs to `python -m pip install adamast`.
+5. If the repository is later migrated (e.g. to the `AdaMAST` repo), update
+   the trusted publisher's repository field on pypi.org to match.

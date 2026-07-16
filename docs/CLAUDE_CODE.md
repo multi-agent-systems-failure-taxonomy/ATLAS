@@ -1,6 +1,6 @@
 # Claude Code integration
 
-The Claude Code integration installs hooks that call the ATLAS runtime at
+The Claude Code integration installs hooks that call the AdaMAST runtime at
 session start, user-prompt submission, checkpoints, and final submission. It
 supports both project-local operation and a user-level interactive mode shared
 with Codex.
@@ -8,12 +8,12 @@ with Codex.
 ## Install for every Claude Code conversation
 
 ```powershell
-atlas-claude-install --user-level
-atlas-doctor --claude-code
+adamast-claude-install --user-level
+adamast-doctor --claude-code
 ```
 
-This merges ATLAS into `~/.claude/settings.json` and writes
-`~/.claude/atlas-skill.json`; unrelated settings and plugins are preserved.
+This merges AdaMAST into `~/.claude/settings.json` and writes
+`~/.claude/adamast.json`; unrelated settings and plugins are preserved.
 Claude and Codex resolve the same project/task-group program when their base
 `trace_output`, project root, and task group match.
 
@@ -35,21 +35,21 @@ After activation, Claude context names the active learned taxonomy by display
 name and immutable ID. The original selector choice, including MAST, remains
 recorded only as the lineage seed; checkpoints use the active taxonomy's codes.
 
-Remove only the user-level ATLAS registration with:
+Remove only the user-level AdaMAST registration with:
 
 ```powershell
-atlas-claude-uninstall --user-level
+adamast-claude-uninstall --user-level
 ```
 
 ## Install hooks
 
 ```bash
-atlas-claude-install --project-dir . --config atlas.json
+adamast-claude-install --project-dir . --config adamast.json
 ```
 
 Then start Claude Code in that project.
 
-ATLAS will:
+AdaMAST will:
 
 1. open the local taxonomy library for MAST, stored taxonomies, or `No taxonomy`;
 2. hold the first substantive prompt until that choice is resolved;
@@ -68,7 +68,7 @@ The user-level installer defaults to the browser selector. Use the inline
 numbered fallback when needed:
 
 ```bash
-atlas-claude-install --user-level --selector-surface inline
+adamast-claude-install --user-level --selector-surface inline
 ```
 
 When a project already has a shared learned taxonomy, choosing MAST creates a
@@ -90,13 +90,13 @@ Examples:
 
 ```bash
 # Disable the built-in subagent checkpoint.
-atlas-claude-install --project-dir . --config atlas.json --disable-hook SubagentStop
+adamast-claude-install --project-dir . --config adamast.json --disable-hook SubagentStop
 
 # Only run post-tool advisory nudges after selected tools.
-atlas-claude-install --project-dir . --config atlas.json --post-tool-use-matchers Bash,Edit,Write
+adamast-claude-install --project-dir . --config adamast.json --post-tool-use-matchers Bash,Edit,Write
 ```
 
-You can also configure built-in hooks in `atlas.json`:
+You can also configure built-in hooks in `adamast.json`:
 
 ```json
 {
@@ -115,10 +115,10 @@ You can also configure built-in hooks in `atlas.json`:
 
 ## Add custom hooks
 
-Custom hooks are useful when you want ATLAS to fire on a specific event or tool rather than every possible boundary.
+Custom hooks are useful when you want AdaMAST to fire on a specific event or tool rather than every possible boundary.
 
 ```bash
-atlas-claude-add-hook \
+adamast-claude-add-hook \
   --project-dir . \
   --name pre-bash \
   --event PreToolUse \
@@ -131,16 +131,16 @@ atlas-claude-add-hook \
 List hooks:
 
 ```bash
-atlas-claude-list-hooks --project-dir .
+adamast-claude-list-hooks --project-dir .
 ```
 
 Remove one hook:
 
 ```bash
-atlas-claude-remove-hook --project-dir . --name pre-bash
+adamast-claude-remove-hook --project-dir . --name pre-bash
 ```
 
-Use `blocking` when the agent must satisfy the reflection contract before continuing. Use `advisory` when ATLAS should nudge but not block.
+Use `blocking` when the agent must satisfy the reflection contract before continuing. Use `advisory` when AdaMAST should nudge but not block.
 
 `--command-pattern` narrows a broad tool matcher, for example `Bash`, to one
 recurring command. `--checkpoint-key fixed` is useful for recurring gates that
@@ -148,25 +148,25 @@ should open one checkpoint and close it on the next matching event.
 
 ## Gates fail open
 
-If an ATLAS hook itself crashes or is killed at Claude Code's per-hook
+If an AdaMAST hook itself crashes or is killed at Claude Code's per-hook
 timeout, the agent continues normally and that gate silently does not fire.
-This is deliberate: an ATLAS bug must never leave your session unable to
+This is deliberate: an AdaMAST bug must never leave your session unable to
 finish. The trade-off is that a skipped gate is quiet — when gating matters
 (A/B runs, benchmarks), verify it happened rather than assuming:
 
-- `[atlas]` lines on stderr report retry-guard releases and internal errors;
+- `[adamast]` lines on stderr report retry-guard releases and internal errors;
 - `<trace_output>/decisions.log` records every gate decision and release;
-- `atlas-status --config atlas.json` shows reflections recorded per session —
+- `adamast-status --config adamast.json` shows reflections recorded per session —
   a finished session with no final-gate evidence means the gate was skipped.
 
 ## Uninstall hooks
 
 ```bash
-atlas-claude-uninstall --project-dir .
+adamast-claude-uninstall --project-dir .
 ```
 
-This removes ATLAS hook config from the project. It does not delete learned taxonomies or trace folders.
+This removes AdaMAST hook config from the project. It does not delete learned taxonomies or trace folders.
 
 ## More implementation detail
 
-See [atlas_integration/claude_code/README.md](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/atlas_integration/claude_code/README.md) for the adapter file map.
+See [adamast_integration/claude_code/README.md](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/adamast_integration/claude_code/README.md) for the adapter file map.

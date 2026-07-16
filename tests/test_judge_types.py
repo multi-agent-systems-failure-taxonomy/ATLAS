@@ -13,7 +13,7 @@ from judge_types import (
     selection_summary_judge,
 )
 from judge_types.reflection_judge import (
-    AtlasReflectionJudge,
+    AdaMASTReflectionJudge,
     derive_selection_summary,
     validate_output,
 )
@@ -118,19 +118,19 @@ class ReflectionJudgeShellTests(unittest.TestCase):
     """
 
     def test_requires_judge_model(self) -> None:
-        from atlas_runtime.taxonomy_data import Taxonomy
+        from adamast_runtime.taxonomy_data import Taxonomy
         tax = Taxonomy.from_flat({"repo": "x", "domain": "y", "codes": []})
         with self.assertRaises(ValueError):
-            AtlasReflectionJudge(tax, judge_model="")
+            AdaMASTReflectionJudge(tax, judge_model="")
 
     def test_rejects_unknown_mode(self) -> None:
-        from atlas_runtime.taxonomy_data import Taxonomy
+        from adamast_runtime.taxonomy_data import Taxonomy
         tax = Taxonomy.from_flat({"repo": "x", "domain": "y", "codes": []})
         with self.assertRaises(ValueError):
-            AtlasReflectionJudge(tax, judge_model="m", mode="bogus")
+            AdaMASTReflectionJudge(tax, judge_model="m", mode="bogus")
 
     def test_analyze_with_stub_llm_returns_envelope(self) -> None:
-        from atlas_runtime.taxonomy_data import Taxonomy
+        from adamast_runtime.taxonomy_data import Taxonomy
         tax = Taxonomy.from_flat({"repo": "x", "domain": "y", "codes": []})
 
         def stub_llm(user, system, *, max_tokens=8192, meter=None, warnings=None):
@@ -142,7 +142,7 @@ class ReflectionJudgeShellTests(unittest.TestCase):
                 "relations": [],
             }
 
-        judge = AtlasReflectionJudge(tax, judge_model="stub", llm_call=stub_llm)
+        judge = AdaMASTReflectionJudge(tax, judge_model="stub", llm_call=stub_llm)
         out = judge.analyze({
             "candidate_id": "c", "task_id": "t", "run_id": "r",
             "task_prompt": "do thing", "candidate_output": "result",
@@ -203,10 +203,10 @@ class PartialValidateTests(unittest.TestCase):
 
     @staticmethod
     def _judge():
-        from atlas_runtime.taxonomy_data import Taxonomy
+        from adamast_runtime.taxonomy_data import Taxonomy
 
         tax = Taxonomy.from_flat({"repo": "x", "domain": "y", "codes": []})
-        return AtlasReflectionJudge(tax, judge_model="stub", llm_call=lambda *a, **k: {})
+        return AdaMASTReflectionJudge(tax, judge_model="stub", llm_call=lambda *a, **k: {})
 
     @staticmethod
     def _analysis_failure_point(**overrides):

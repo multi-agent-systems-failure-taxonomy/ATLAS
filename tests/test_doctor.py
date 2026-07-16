@@ -8,9 +8,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from atlas_integration.codex.config import CodexConfig
-from atlas_integration.claude_code.config import ClaudeCodeConfig
-from atlas_runtime.doctor import ERROR, WARN, has_errors, run_checks
+from adamast_integration.codex.config import CodexConfig
+from adamast_integration.claude_code.config import ClaudeCodeConfig
+from adamast_runtime.doctor import ERROR, WARN, has_errors, run_checks
 
 
 class DoctorCheckTests(unittest.TestCase):
@@ -21,14 +21,14 @@ class DoctorCheckTests(unittest.TestCase):
                 store_dir=root / "taxonomies",
                 trace_root=root / "traces",
                 trace_output=root / "program",
-                atlas_model="gpt-5",
+                adamast_model="gpt-5",
             )
         by_name = {check.name: check for check in checks}
         self.assertEqual(by_name["python"].status, "ok")
         self.assertEqual(by_name["taxonomy store"].status, "ok")
         self.assertEqual(by_name["trace root"].status, "ok")
         self.assertEqual(by_name["trace output"].status, "ok")
-        self.assertEqual(by_name["atlas model"].status, "ok")
+        self.assertEqual(by_name["adamast model"].status, "ok")
         self.assertFalse(has_errors(checks))
 
     def test_missing_model_is_warning_not_error(self):
@@ -38,7 +38,7 @@ class DoctorCheckTests(unittest.TestCase):
                 trace_root=Path(td) / "traces",
             )
         self.assertEqual(
-            [check.status for check in checks if check.name == "atlas model"],
+            [check.status for check in checks if check.name == "adamast model"],
             [WARN],
         )
         self.assertFalse(has_errors(checks))
@@ -48,10 +48,10 @@ class DoctorCheckTests(unittest.TestCase):
             checks = run_checks(
                 store_dir=Path(td) / "taxonomies",
                 trace_root=Path(td) / "traces",
-                atlas_model="totally-not-a-real-model",
+                adamast_model="totally-not-a-real-model",
             )
         self.assertEqual(
-            [check.status for check in checks if check.name == "atlas model"],
+            [check.status for check in checks if check.name == "adamast model"],
             [ERROR],
         )
         self.assertTrue(has_errors(checks))
@@ -63,7 +63,7 @@ class DoctorCheckTests(unittest.TestCase):
                 [
                     sys.executable,
                     "-m",
-                    "atlas_runtime.doctor",
+                    "adamast_runtime.doctor",
                     "--store-dir",
                     str(root / "taxonomies"),
                     "--trace-root",
@@ -76,7 +76,7 @@ class DoctorCheckTests(unittest.TestCase):
             )
         self.assertEqual(proc.returncode, 0, proc.stderr)
         payload = json.loads(proc.stdout)
-        self.assertTrue(any(item["name"] == "atlas model" for item in payload))
+        self.assertTrue(any(item["name"] == "adamast model" for item in payload))
 
     def test_invalid_dashboard_port_exits_nonzero(self):
         with tempfile.TemporaryDirectory() as td:
@@ -85,7 +85,7 @@ class DoctorCheckTests(unittest.TestCase):
                 [
                     sys.executable,
                     "-m",
-                    "atlas_runtime.doctor",
+                    "adamast_runtime.doctor",
                     "--store-dir",
                     str(root / "taxonomies"),
                     "--trace-root",
@@ -113,9 +113,9 @@ class DoctorCheckTests(unittest.TestCase):
     def test_codex_checks_warn_when_cli_missing_but_do_not_error(self):
         with (
             tempfile.TemporaryDirectory() as td,
-            patch("atlas_runtime.doctor.shutil.which", return_value=None),
-            patch("atlas_runtime.doctor.Path.home", return_value=Path(td)),
-            patch("atlas_runtime.doctor.Path.cwd", return_value=Path(td)),
+            patch("adamast_runtime.doctor.shutil.which", return_value=None),
+            patch("adamast_runtime.doctor.Path.home", return_value=Path(td)),
+            patch("adamast_runtime.doctor.Path.cwd", return_value=Path(td)),
         ):
             checks = run_checks(
                 store_dir=Path(td) / "taxonomies",
@@ -136,10 +136,10 @@ class DoctorCheckTests(unittest.TestCase):
         )
         with (
             tempfile.TemporaryDirectory() as td,
-            patch("atlas_runtime.doctor.shutil.which", return_value="codex"),
-            patch("atlas_runtime.doctor.subprocess.run", return_value=completed),
-            patch("atlas_runtime.doctor.Path.home", return_value=Path(td)),
-            patch("atlas_runtime.doctor.Path.cwd", return_value=Path(td)),
+            patch("adamast_runtime.doctor.shutil.which", return_value="codex"),
+            patch("adamast_runtime.doctor.subprocess.run", return_value=completed),
+            patch("adamast_runtime.doctor.Path.home", return_value=Path(td)),
+            patch("adamast_runtime.doctor.Path.cwd", return_value=Path(td)),
         ):
             checks = run_checks(
                 store_dir=Path(td) / "taxonomies",
@@ -157,20 +157,20 @@ class DoctorCheckTests(unittest.TestCase):
             config_dir = root / ".codex"
             config_dir.mkdir()
             config = CodexConfig(
-                trace_output=root / ".atlas-skill" / "interactive",
-                atlas_model="interactive-session",
+                trace_output=root / ".adamast" / "interactive",
+                adamast_model="interactive-session",
                 project_scope="auto",
                 session_selector="prompt",
                 learning_backend="codex_subagent",
             )
-            (config_dir / "atlas-skill.json").write_text(
+            (config_dir / "adamast.json").write_text(
                 json.dumps(config.to_dict()),
                 encoding="utf-8",
             )
             with (
-                patch("atlas_runtime.doctor.Path.cwd", return_value=root / "project"),
-                patch("atlas_runtime.doctor.Path.home", return_value=root),
-                patch("atlas_runtime.doctor.shutil.which", return_value=None),
+                patch("adamast_runtime.doctor.Path.cwd", return_value=root / "project"),
+                patch("adamast_runtime.doctor.Path.home", return_value=root),
+                patch("adamast_runtime.doctor.shutil.which", return_value=None),
             ):
                 checks = run_checks(
                     store_dir=root / "taxonomies",
@@ -190,26 +190,26 @@ class DoctorCheckTests(unittest.TestCase):
             config_dir = root / ".claude"
             config_dir.mkdir()
             config = ClaudeCodeConfig(
-                trace_output=root / ".atlas-skill" / "interactive",
-                atlas_model="interactive-session",
+                trace_output=root / ".adamast" / "interactive",
+                adamast_model="interactive-session",
                 project_scope="auto",
                 session_selector="prompt",
                 selector_surface="browser",
                 learning_backend="claude_subagent",
             )
-            (config_dir / "atlas-skill.json").write_text(
+            (config_dir / "adamast.json").write_text(
                 json.dumps(config.to_dict()),
                 encoding="utf-8",
             )
             with (
-                patch("atlas_runtime.doctor.Path.cwd", return_value=root / "project"),
-                patch("atlas_runtime.doctor.Path.home", return_value=root),
+                patch("adamast_runtime.doctor.Path.cwd", return_value=root / "project"),
+                patch("adamast_runtime.doctor.Path.home", return_value=root),
                 patch(
-                    "atlas_integration.claude_code.install.verify_installed_hooks",
+                    "adamast_integration.claude_code.install.verify_installed_hooks",
                     return_value="2.1.185",
                 ),
                 patch(
-                    "atlas_runtime.doctor._native_auth_check",
+                    "adamast_runtime.doctor._native_auth_check",
                     side_effect=AssertionError("standalone auth must not be probed"),
                 ),
             ):

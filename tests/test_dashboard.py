@@ -10,15 +10,15 @@ from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import urlopen
 
-from atlas_runtime.dashboard import (
+from adamast_runtime.dashboard import (
     RUNTIME_EVIDENCE,
     build_server,
     current_taxonomy,
     ensure_dashboard,
     stop_dashboard,
 )
-from atlas_runtime.lineage import TaxonomyLineage
-from atlas_runtime.program import ProgramWorkspace
+from adamast_runtime.lineage import TaxonomyLineage
+from adamast_runtime.program import ProgramWorkspace
 
 ROOT = Path(__file__).resolve().parent.parent
 BASE_STORE = ROOT / "tests" / "fixtures" / "taxonomies"
@@ -126,7 +126,7 @@ class DashboardDataTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             workspace = ProgramWorkspace(root / "program")
-            (workspace.root / ".atlas-task-labels.json").write_text(
+            (workspace.root / ".adamast-task-labels.json").write_text(
                 json.dumps(
                     {"sess-xyz": {"label": "UID0001", "correct": True}}
                 ),
@@ -168,7 +168,7 @@ class DashboardDataTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             workspace = ProgramWorkspace(root / "program")
-            (workspace.root / ".atlas-task-labels.json").write_text(
+            (workspace.root / ".adamast-task-labels.json").write_text(
                 json.dumps({"task-clean": "Dataset item 7"}),
                 encoding="utf-8",
             )
@@ -219,7 +219,7 @@ class DashboardDataTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             workspace = ProgramWorkspace(root / "program")
-            (workspace.root / ".atlas-task-labels.json").write_text(
+            (workspace.root / ".adamast-task-labels.json").write_text(
                 json.dumps(
                     {
                         "sess-0118": {"label": "UID0118", "correct": False},
@@ -360,7 +360,7 @@ class DashboardServerTests(unittest.TestCase):
         status, content_type, body = self._get("/")
         self.assertEqual(status, 200)
         self.assertIn("text/html", content_type)
-        self.assertIn("ATLAS / runtime failure modes", body)
+        self.assertIn("AdaMAST / runtime failure modes", body)
         self.assertIn("Recent runtime events", body)
         self.assertIn("active failure modes", body)
         self.assertIn("task UIDs affected", body)
@@ -443,7 +443,7 @@ class ManagedDashboardTests(unittest.TestCase):
             workspace = ProgramWorkspace(root / "program", repo="owner/project")
             with patch.dict(
                 os.environ,
-                {"ATLAS_DISABLE_DASHBOARD": ""},
+                {"ADAMAST_DISABLE_DASHBOARD": ""},
             ):
                 first = ensure_dashboard(workspace, BASE_STORE)
                 self.assertTrue(first)

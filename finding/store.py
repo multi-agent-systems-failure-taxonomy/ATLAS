@@ -21,11 +21,11 @@ import os
 import re
 from pathlib import Path
 
-DEFAULT_ATLAS_HOME = Path(
-    os.environ.get("ATLAS_HOME", Path.home() / ".atlas-skill")
+DEFAULT_ADAMAST_HOME = Path(
+    os.environ.get("ADAMAST_HOME", Path.home() / ".adamast")
 ).expanduser()
 DEFAULT_STORE_DIR = Path(
-    os.environ.get("ATLAS_STORE_DIR", DEFAULT_ATLAS_HOME / "taxonomies")
+    os.environ.get("ADAMAST_STORE_DIR", DEFAULT_ADAMAST_HOME / "taxonomies")
 ).expanduser()
 
 # The three header fields surfaced by list_all (and the web-view table).

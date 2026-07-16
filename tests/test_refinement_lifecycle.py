@@ -6,20 +6,20 @@ import time
 import unittest
 from pathlib import Path
 
-from atlas_runtime.lifecycle import end_session, record_trace, start_session
-from atlas_runtime.lineage import TaxonomyLineage
-from atlas_runtime.program import ProgramWorkspace
-from atlas_runtime.refinement import (
+from adamast_runtime.lifecycle import end_session, record_trace, start_session
+from adamast_runtime.lineage import TaxonomyLineage
+from adamast_runtime.program import ProgramWorkspace
+from adamast_runtime.refinement import (
     overlap_lint,
     structural_diff,
     trigger_refinement,
 )
-from atlas_runtime.traces import GenerationTrace
-from atlas_runtime.worker_state import REFINEMENT_WORKER_STATE, write_worker_state
+from adamast_runtime.traces import GenerationTrace
+from adamast_runtime.worker_state import REFINEMENT_WORKER_STATE, write_worker_state
 
 ROOT = Path(__file__).resolve().parent.parent
 BASE_STORE = ROOT / "tests" / "fixtures" / "taxonomies"
-TRACE_FIXTURE = Path(__file__).parent / "fixtures" / "atlas_generation_trace.json"
+TRACE_FIXTURE = Path(__file__).parent / "fixtures" / "adamast_generation_trace.json"
 BASE_ID = "tax-django-orm-001"
 
 
@@ -125,7 +125,7 @@ class RefinementLifecycleTests(unittest.TestCase):
             **{key: value for key, value in kwargs.items()
                if key in {
                    "k_init", "k", "refinement_stops",
-                   "advanced_refinement", "atlas_model",
+                   "advanced_refinement", "adamast_model",
                }},
         )
         record_trace(session, trace(number))
@@ -440,7 +440,7 @@ class RefinementLifecycleTests(unittest.TestCase):
                 output, store_dir, trace_root, 1,
                 k_init=1, k=20, refinement_stops=True,
                 advanced_refinement=True,
-                atlas_model="claude-sonnet-4-6",
+                adamast_model="claude-sonnet-4-6",
                 refiner=refine_candidate,
                 refinement_judge=judge,
                 refinement_repairer=repair,
@@ -476,7 +476,7 @@ class RefinementLifecycleTests(unittest.TestCase):
                 output, store_dir, trace_root, 1,
                 k_init=1, k=20, refinement_stops=True,
                 advanced_refinement=True,
-                atlas_model="claude-sonnet-4-6",
+                adamast_model="claude-sonnet-4-6",
                 refiner=refine_candidate,
                 refinement_judge=judge,
                 refinement_repairer=repair,
@@ -513,7 +513,7 @@ class RefinementLifecycleTests(unittest.TestCase):
                 output, store_dir, trace_root, 1,
                 k_init=1, k=20, refinement_stops=True,
                 advanced_refinement=True,
-                atlas_model="claude-sonnet-4-6",
+                adamast_model="claude-sonnet-4-6",
                 refiner=refine_candidate,
                 refinement_judge=lambda *_args: [{"issue": "repair this"}],
                 refinement_repairer=broken_repair,

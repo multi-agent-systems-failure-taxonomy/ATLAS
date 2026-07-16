@@ -14,13 +14,13 @@ STORE_DIR = Path(__file__).resolve().parent / "fixtures" / "taxonomies"
 
 
 class DefaultPathTests(unittest.TestCase):
-    def test_atlas_home_controls_writable_store_and_trace_defaults(self):
+    def test_adamast_home_controls_writable_store_and_trace_defaults(self):
         with tempfile.TemporaryDirectory() as td:
-            root = Path(td) / "atlas-home"
+            root = Path(td) / "adamast-home"
             env = os.environ.copy()
-            env["ATLAS_HOME"] = str(root)
-            env.pop("ATLAS_STORE_DIR", None)
-            env.pop("ATLAS_TRACE_ROOT", None)
+            env["ADAMAST_HOME"] = str(root)
+            env.pop("ADAMAST_STORE_DIR", None)
+            env.pop("ADAMAST_TRACE_ROOT", None)
             env["PYTHONPATH"] = str(Path(__file__).resolve().parent.parent)
             output = subprocess.check_output(
                 [
@@ -28,7 +28,7 @@ class DefaultPathTests(unittest.TestCase):
                     "-c",
                     (
                         "import json; from finding.store import DEFAULT_STORE_DIR; "
-                        "from atlas_runtime.traces import DEFAULT_TRACE_ROOT; "
+                        "from adamast_runtime.traces import DEFAULT_TRACE_ROOT; "
                         "print(json.dumps([str(DEFAULT_STORE_DIR), "
                         "str(DEFAULT_TRACE_ROOT)]))"
                     ),

@@ -12,10 +12,10 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from atlas_integration.single_llm import SingleLLMConfig, run_single_llm
-from atlas_integration.single_llm.cli import provider_call
-from atlas_runtime.evidence import EVIDENCE_FILE
-from atlas_runtime.program import ProgramWorkspace
+from adamast_integration.single_llm import SingleLLMConfig, run_single_llm
+from adamast_integration.single_llm.cli import provider_call
+from adamast_runtime.evidence import EVIDENCE_FILE
+from adamast_runtime.program import ProgramWorkspace
 
 ROOT = Path(__file__).resolve().parent.parent
 STORE_DIR = ROOT / "tests" / "fixtures" / "taxonomies"
@@ -32,13 +32,13 @@ def clean_reflection(messages, *, status=None, attempts=0) -> str:
     tail = ""
     if status:
         tail = f"""
-Final ATLAS status: {status}
+Final AdaMAST status: {status}
 Codes checked: MAST-12
 Evidence: The scoped work was verified.
 Repair attempts used: {attempts}
 Final decision: {"submit" if status == "READY_TO_SUBMIT" else "repair"}
 """
-    return f"""ATLAS reflection:
+    return f"""AdaMAST reflection:
 - Checkpoint ID: {cid}
 - Observe: The scoped execution is concrete and verified.
 - Map:
@@ -51,9 +51,9 @@ Final decision: {"submit" if status == "READY_TO_SUBMIT" else "repair"}
 class SingleLLMIntegrationTests(unittest.TestCase):
     def test_learning_cadence_flows_from_config(self):
         # Regression: SingleLLMConfig silently ignored the documented
-        # generation_threshold / k_init / k fields, so atlas.json learning
+        # generation_threshold / k_init / k fields, so adamast.json learning
         # cadence never reached the session.
-        import atlas_integration.single_llm.runtime as rt
+        import adamast_integration.single_llm.runtime as rt
 
         captured = {}
         real_start_session = rt.start_session
@@ -77,7 +77,7 @@ class SingleLLMIntegrationTests(unittest.TestCase):
                 call,
                 SingleLLMConfig(
                     trace_output=root / "program",
-                    atlas_model="gpt-5",
+                    adamast_model="gpt-5",
                     store_dir=STORE_DIR,
                     trace_root=root / "traces",
                     dashboard=False,
@@ -112,7 +112,7 @@ class SingleLLMIntegrationTests(unittest.TestCase):
                 if task_calls == 1:
                     return (
                         "I completed the data extraction.\n"
-                        "ATLAS checkpoint request: extraction complete"
+                        "AdaMAST checkpoint request: extraction complete"
                     )
                 return "The final answer is 42."
 
@@ -121,7 +121,7 @@ class SingleLLMIntegrationTests(unittest.TestCase):
                 call,
                 SingleLLMConfig(
                     trace_output=root / "program",
-                    atlas_model="gpt-5",
+                    adamast_model="gpt-5",
                     store_dir=STORE_DIR,
                     trace_root=root / "traces",
                     dashboard=False,
@@ -154,7 +154,7 @@ class SingleLLMIntegrationTests(unittest.TestCase):
                     final_gates += 1
                     cid = checkpoint_id(messages)
                     if final_gates == 1:
-                        return f"""ATLAS reflection:
+                        return f"""AdaMAST reflection:
 - Checkpoint ID: {cid}
 - Observe: The answer lacks verification.
 - Map:
@@ -162,7 +162,7 @@ class SingleLLMIntegrationTests(unittest.TestCase):
 - Correlate: This is a real verification failure.
 - Decide: change: verify the calculation
 
-Final ATLAS status: REPAIR_REQUIRED
+Final AdaMAST status: REPAIR_REQUIRED
 Codes checked: MAST-12
 Evidence: No verification was shown.
 Repair attempts used: 0
@@ -185,7 +185,7 @@ Final decision: repair
                 call,
                 SingleLLMConfig(
                     trace_output=root / "program",
-                    atlas_model="gpt-5",
+                    adamast_model="gpt-5",
                     store_dir=STORE_DIR,
                     trace_root=root / "traces",
                     dashboard=False,
@@ -203,11 +203,11 @@ Final decision: repair
             def call(messages):
                 nonlocal format_repairs
                 prompt = messages[-1]["content"]
-                if "ATLAS format repair" in prompt:
+                if "AdaMAST format repair" in prompt:
                     format_repairs += 1
                     cid = checkpoint_id(messages)
                     # Well-formed re-emission that flips the verdict.
-                    return f"""ATLAS reflection:
+                    return f"""AdaMAST reflection:
 - Checkpoint ID: {cid}
 - Observe: A second look claims a gap.
 - Map:
@@ -215,7 +215,7 @@ Final decision: repair
 - Correlate: Re-prompt pressure produced a new story.
 - Decide: change: rewrite the answer
 
-Final ATLAS status: REPAIR_REQUIRED
+Final AdaMAST status: REPAIR_REQUIRED
 Codes checked: MAST-12
 Evidence: second-guessed verification
 Repair attempts used: 0
@@ -224,14 +224,14 @@ Final decision: repair
                 if "final submission gate" in prompt:
                     cid = checkpoint_id(messages)
                     # Missing Correlate -> form failure; verdict is READY.
-                    return f"""ATLAS reflection:
+                    return f"""AdaMAST reflection:
 - Checkpoint ID: {cid}
 - Observe: The answer was verified end to end.
 - Map:
   - none apply | considered: MAST-12 | evidence: "verification passed"
 - Decide: no change needed, because verification passed
 
-Final ATLAS status: READY_TO_SUBMIT
+Final AdaMAST status: READY_TO_SUBMIT
 Codes checked: none
 Evidence: verification passed
 Repair attempts used: 0
@@ -244,7 +244,7 @@ Final decision: submit
                 call,
                 SingleLLMConfig(
                     trace_output=root / "program",
-                    atlas_model="gpt-5",
+                    adamast_model="gpt-5",
                     store_dir=STORE_DIR,
                     trace_root=root / "traces",
                     dashboard=False,
@@ -272,7 +272,7 @@ Final decision: submit
                 call,
                 SingleLLMConfig(
                     trace_output=root / "program",
-                    atlas_model="gpt-5",
+                    adamast_model="gpt-5",
                     store_dir=STORE_DIR,
                     trace_root=root / "traces",
                     dashboard=False,
@@ -298,7 +298,7 @@ Final decision: submit
                 if "final submission gate" in prompt:
                     final_gates += 1
                     cid = checkpoint_id(messages)
-                    return f"""ATLAS reflection:
+                    return f"""AdaMAST reflection:
 - Checkpoint ID: {cid}
 - Observe: The answer still lacks verification.
 - Map:
@@ -306,7 +306,7 @@ Final decision: submit
 - Correlate: The model is guessing.
 - Decide: change: verify before release
 
-Final ATLAS status: REPAIR_REQUIRED
+Final AdaMAST status: REPAIR_REQUIRED
 Codes checked: MAST-12
 Evidence: Verification was not shown.
 Repair attempts used: 0
@@ -319,7 +319,7 @@ Final decision: repair
                 call,
                 SingleLLMConfig(
                     trace_output=root / "program",
-                    atlas_model="gpt-5",
+                    adamast_model="gpt-5",
                     store_dir=STORE_DIR,
                     trace_root=root / "traces",
                     dashboard=False,
@@ -348,7 +348,7 @@ Final decision: repair
                 call,
                 SingleLLMConfig(
                     trace_output=root / "program",
-                    atlas_model="gpt-5",
+                    adamast_model="gpt-5",
                     store_dir=STORE_DIR,
                     trace_root=root / "traces",
                     dashboard=False,

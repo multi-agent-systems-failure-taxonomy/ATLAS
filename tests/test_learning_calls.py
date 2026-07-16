@@ -10,8 +10,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from atlas_runtime.generation import run_generation_job
-from atlas_runtime.learning_calls import (
+from adamast_runtime.generation import run_generation_job
+from adamast_runtime.learning_calls import (
     ANTHROPIC_OPENAI_MAX_TOKENS,
     GEMINI_MAX_OUTPUT_TOKENS,
     build_refinement_prompt,
@@ -21,8 +21,8 @@ from atlas_runtime.learning_calls import (
     refinement_model_call,
     support_model_call,
 )
-from atlas_runtime.program import ProgramWorkspace
-from atlas_runtime.traces import GenerationTrace
+from adamast_runtime.program import ProgramWorkspace
+from adamast_runtime.traces import GenerationTrace
 from finding import store
 
 
@@ -162,13 +162,13 @@ class LearningCallTests(unittest.TestCase):
             "START " + "a" * 15000
             + " PostToolUseFailure concrete tool failure "
             + "b" * 15000
-            + " ATLAS reflection: instruction template "
+            + " AdaMAST reflection: instruction template "
             + "b" * 5000
-            + " ATLAS reflection: mapped C.2 with evidence "
+            + " AdaMAST reflection: mapped C.2 with evidence "
             + "c" * 15000
-            + " Final ATLAS status: instruction template "
+            + " Final AdaMAST status: instruction template "
             + "c" * 5000
-            + " Final ATLAS status: READY_TO_SUBMIT "
+            + " Final AdaMAST status: READY_TO_SUBMIT "
             + "d" * 15000
             + " TRACE FINISH"
         )
@@ -176,9 +176,9 @@ class LearningCallTests(unittest.TestCase):
         self.assertLessEqual(len(excerpt), 12000)
         self.assertIn("START", excerpt)
         self.assertIn("PostToolUseFailure concrete tool failure", excerpt)
-        self.assertIn("ATLAS reflection: mapped C.2 with evidence", excerpt)
-        self.assertIn("Final ATLAS status: READY_TO_SUBMIT", excerpt)
-        self.assertNotIn("ATLAS reflection: instruction template", excerpt)
+        self.assertIn("AdaMAST reflection: mapped C.2 with evidence", excerpt)
+        self.assertIn("Final AdaMAST status: READY_TO_SUBMIT", excerpt)
+        self.assertNotIn("AdaMAST reflection: instruction template", excerpt)
         self.assertIn("TRACE FINISH", excerpt)
 
     def test_support_trace_preserves_short_trace(self):
@@ -187,7 +187,7 @@ class LearningCallTests(unittest.TestCase):
             "short trace",
         )
 
-    def test_no_external_atlas_or_old_tree_imports(self):
+    def test_no_external_adamast_or_old_tree_imports(self):
         root = Path(__file__).resolve().parent.parent
         offenders = []
         old_paths = []
@@ -197,7 +197,7 @@ class LearningCallTests(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             if (
                 "olympiad" + "-agents" in text
-                or "atlas-skill" + "-branch" in text
+                or "adamast" + "-branch" in text
             ):
                 old_paths.append(str(path.relative_to(root)))
             tree = ast.parse(text, filename=str(path))
@@ -226,7 +226,7 @@ class LearningCallTests(unittest.TestCase):
             "bucket_dir",
         )
         offenders = []
-        for directory in ("atlas_runtime", "finding", "vendor"):
+        for directory in ("adamast_runtime", "finding", "vendor"):
             for path in (root / directory).rglob("*.py"):
                 text = path.read_text(encoding="utf-8")
                 for term in forbidden:
@@ -423,7 +423,7 @@ class LearningCallTests(unittest.TestCase):
         )
 
     def test_vendored_client_uses_boto3_for_bedrock_bearer_token(self):
-        from vendor.atlas.llm import LLMClient
+        from vendor.adamast.llm import LLMClient
 
         captured = {}
 
@@ -484,7 +484,7 @@ class LearningCallTests(unittest.TestCase):
         self.assertEqual(captured["system"][0]["text"], "system prompt")
 
     def test_vendored_client_preserves_claude_id_through_proxy(self):
-        from vendor.atlas.llm import LLMClient
+        from vendor.adamast.llm import LLMClient
 
         create = unittest.mock.Mock(
             return_value=SimpleNamespace(
@@ -566,7 +566,7 @@ class LearningCallTests(unittest.TestCase):
                             "an inclusive boundary."
                         ),
                         metadata={
-                            "_format": "atlas-unified",
+                            "_format": "adamast-unified",
                             "outcome": "SECRET_OUTCOME",
                             "final_gate_status": "SECRET_GATE",
                         },
@@ -577,17 +577,17 @@ class LearningCallTests(unittest.TestCase):
             output_dir = root / "vendored-output"
             output_dir.mkdir()
             with patch(
-                "vendor.atlas.pipeline.pipeline.LLMClient",
+                "vendor.adamast.pipeline.pipeline.LLMClient",
                 return_value=SimpleNamespace(chat=fake),
             ), patch(
-                "vendor.atlas.pipeline.pipeline.resolve_output_dir",
+                "vendor.adamast.pipeline.pipeline.resolve_output_dir",
                 return_value=output_dir,
             ):
                 result = run_generation_job(
                     workspace,
                     store_dir=root / "taxonomies",
                     trace_root=root / "traces",
-                    atlas_model="test-model",
+                    adamast_model="test-model",
                     skip_judge=True,
                 )
 
@@ -616,7 +616,7 @@ class GenerationOutputDirTests(unittest.TestCase):
                     problem_id="outdir-1",
                     task="repair the code",
                     raw_trajectory="Agent_Solver repaired an inclusive boundary.",
-                    metadata={"_format": "atlas-unified"},
+                    metadata={"_format": "adamast-unified"},
                 )
             ]
         )
@@ -641,12 +641,12 @@ class GenerationOutputDirTests(unittest.TestCase):
                     "category_definitions": {"A": "System"},
                 }
 
-            with patch("vendor.atlas.generate_taxonomy", fake_generate):
+            with patch("vendor.adamast.generate_taxonomy", fake_generate):
                 result = run_generation_job(
                     workspace,
                     store_dir=root / "taxonomies",
                     trace_root=root / "traces",
-                    atlas_model="test-model",
+                    adamast_model="test-model",
                     skip_judge=True,
                 )
 
@@ -668,14 +668,14 @@ class GenerationOutputDirTests(unittest.TestCase):
             os.chdir(clean_cwd)
             try:
                 with patch(
-                    "vendor.atlas.pipeline.pipeline.LLMClient",
+                    "vendor.adamast.pipeline.pipeline.LLMClient",
                     return_value=SimpleNamespace(chat=fake),
                 ):
                     result = run_generation_job(
                         workspace,
                         store_dir=root / "taxonomies",
                         trace_root=root / "traces",
-                        atlas_model="test-model",
+                        adamast_model="test-model",
                         skip_judge=True,
                     )
             finally:
@@ -687,7 +687,7 @@ class GenerationOutputDirTests(unittest.TestCase):
             self.assertTrue((generation_dir / "taxonomy.json").is_file())
             self.assertTrue(list(generation_dir.glob("taxonomy_*.json")))
             # And nothing leaked into the worker's CWD.
-            self.assertFalse((Path(clean_cwd) / "atlas_output").exists())
+            self.assertFalse((Path(clean_cwd) / "adamast_output").exists())
 
 
 if __name__ == "__main__":

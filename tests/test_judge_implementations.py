@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import unittest
 
-from atlas_runtime.taxonomy_data import Taxonomy
+from adamast_runtime.taxonomy_data import Taxonomy
 from judge_types import (
     CalibrationJudge,
     CoverageJudge,

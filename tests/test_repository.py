@@ -5,8 +5,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from atlas_runtime.program import ProgramConflict, ProgramWorkspace
-from atlas_runtime.repository import _discover_from_path, discover_repo
+from adamast_runtime.program import ProgramConflict, ProgramWorkspace
+from adamast_runtime.repository import _discover_from_path, discover_repo
 
 
 class RepositoryMetadataTests(unittest.TestCase):
@@ -18,7 +18,7 @@ class RepositoryMetadataTests(unittest.TestCase):
 
     def test_remote_is_normalized_to_owner_project(self):
         with patch(
-            "atlas_runtime.repository._git",
+            "adamast_runtime.repository._git",
             side_effect=["git@github.com:owner/project.git", ""],
         ):
             self.assertEqual(discover_repo(repo_path=Path.cwd()), "owner/project")
@@ -27,7 +27,7 @@ class RepositoryMetadataTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "plain-project"
             path.mkdir()
-            with patch("atlas_runtime.repository._git", return_value=""):
+            with patch("adamast_runtime.repository._git", return_value=""):
                 self.assertEqual(discover_repo(repo_path=path), "plain-project")
 
     def test_program_persists_repo_and_rejects_explicit_conflict(self):

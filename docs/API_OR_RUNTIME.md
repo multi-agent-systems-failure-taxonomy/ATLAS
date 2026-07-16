@@ -1,12 +1,12 @@
 # Runtime API and custom harnesses
 
-ATLAS is designed so harnesses can integrate without reimplementing taxonomy finding, trace persistence, or learning thresholds.
+AdaMAST is designed so harnesses can integrate without reimplementing taxonomy finding, trace persistence, or learning thresholds.
 
 ## Runtime contract
 
 A harness should:
 
-1. start an ATLAS session when a task starts;
+1. start an AdaMAST session when a task starts;
 2. pass a mandatory trace output or config containing `trace_output`;
 3. let Finding resolve the active taxonomy;
 4. invoke checkpoint or advisory gates at meaningful boundaries;
@@ -26,13 +26,13 @@ The runtime maps `none` to built-in MAST. Finding itself does not load MAST as a
 
 | Command | Use |
 |---|---|
-| `atlas-find` | Taxonomy selection and interactive picker. |
-| `atlas-dashboard` | Dashboard process and local Web API. |
-| `atlas-traces` | Trace status and inspection. |
-| `atlas-register-taxonomy` | Store a completed taxonomy record. |
-| `atlas-import-traces` | Build a taxonomy from existing trace files. |
-| `atlas-doctor` | Validate paths, config, and optional dependencies. |
-| `atlas-status` | Inspect one program's active taxonomy, pending traces, learning state, usage totals, last errors, and recent decisions. |
+| `adamast-find` | Taxonomy selection and interactive picker. |
+| `adamast-dashboard` | Dashboard process and local Web API. |
+| `adamast-traces` | Trace status and inspection. |
+| `adamast-register-taxonomy` | Store a completed taxonomy record. |
+| `adamast-import-traces` | Build a taxonomy from existing trace files. |
+| `adamast-doctor` | Validate paths, config, and optional dependencies. |
+| `adamast-status` | Inspect one program's active taxonomy, pending traces, learning state, usage totals, last errors, and recent decisions. |
 
 ## What should stay harness-specific
 
@@ -40,10 +40,10 @@ Each harness owns:
 
 - how it represents events;
 - how it extracts tool/subagent output;
-- which boundaries are meaningful enough to call ATLAS;
+- which boundaries are meaningful enough to call AdaMAST;
 - how it displays blocking messages to the agent.
 
-ATLAS owns:
+AdaMAST owns:
 
 - taxonomy selection;
 - final-gate protocol validation;

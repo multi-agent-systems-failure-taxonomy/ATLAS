@@ -2,13 +2,13 @@
 
 import unittest
 
-from atlas_runtime import protocol
+from adamast_runtime import protocol
 
 
 class ProtocolTests(unittest.TestCase):
     def test_runtime_protocol_has_gate_and_retry_but_no_checkpoints(self):
         text = protocol.render_protocol(max_retries=3)
-        self.assertIn("Final ATLAS status:", text)
+        self.assertIn("Final AdaMAST status:", text)
         self.assertIn("at most 3 repair attempts", text)
         self.assertNotIn("checkpoint", text.lower())
         self.assertNotIn("Task domain:", text)
@@ -20,7 +20,7 @@ class ProtocolTests(unittest.TestCase):
 
     def test_ready_allows(self):
         decision = protocol.evaluate_pre_submission(
-            "Final ATLAS status: READY_TO_SUBMIT\n"
+            "Final AdaMAST status: READY_TO_SUBMIT\n"
             "Repair attempts used: 0\n"
         )
         self.assertTrue(decision.allow)
@@ -28,7 +28,7 @@ class ProtocolTests(unittest.TestCase):
 
     def test_markdown_ready_status_allows(self):
         decision = protocol.evaluate_pre_submission(
-            "# Final ATLAS Status\n\n"
+            "# Final AdaMAST Status\n\n"
             "**Repair attempts used:** 2\n\n"
             "**Status:** Ready for release\n\n"
             "## Proposed Final Answer\n\n"
@@ -41,7 +41,7 @@ class ProtocolTests(unittest.TestCase):
 
     def test_final_decision_submit_allows(self):
         decision = protocol.evaluate_pre_submission(
-            "ATLAS reflection:\n"
+            "AdaMAST reflection:\n"
             "- Decide: no change needed, because verification is complete.\n\n"
             "Final decision: submit\n"
             "Repair attempts used: 1\n"
@@ -51,7 +51,7 @@ class ProtocolTests(unittest.TestCase):
 
     def test_status_prose_is_rejected_even_when_it_contains_positive_words(self):
         decision = protocol.evaluate_pre_submission(
-            "**Final ATLAS status:** Task complete. Computation verified. "
+            "**Final AdaMAST status:** Task complete. Computation verified. "
             "Final answer: **4**\n"
             "**Repair attempts used:** 2\n"
         )
@@ -61,7 +61,7 @@ class ProtocolTests(unittest.TestCase):
 
     def test_final_status_pass_allows(self):
         decision = protocol.evaluate_pre_submission(
-            "Final ATLAS status: PASS\n\n"
+            "Final AdaMAST status: PASS\n\n"
             "Answer: 4\n"
         )
         self.assertTrue(decision.allow)
@@ -69,7 +69,7 @@ class ProtocolTests(unittest.TestCase):
 
     def test_gate_outcome_pass_allows(self):
         decision = protocol.evaluate_pre_submission(
-            "## Final ATLAS status:\n\n"
+            "## Final AdaMAST status:\n\n"
             "**Gate outcome:** PASS\n\n"
             "**Repair attempts used:** 2\n\n"
             "Answer: 4\n"
@@ -80,7 +80,7 @@ class ProtocolTests(unittest.TestCase):
 
     def test_decide_no_change_can_stand_in_for_status(self):
         decision = protocol.evaluate_pre_submission(
-            "ATLAS reflection:\n"
+            "AdaMAST reflection:\n"
             "- Checkpoint ID: abc\n"
             "- Observe: verified\n"
             "- Map:\n"
@@ -96,7 +96,7 @@ class ProtocolTests(unittest.TestCase):
 
     def test_unknown_positive_status_phrase_blocks(self):
         decision = protocol.evaluate_pre_submission(
-            "## Final ATLAS status:\n\n"
+            "## Final AdaMAST status:\n\n"
             "**Status:** GATE CLEARANCE PROPERLY AWAITED\n"
             "**Task compliance:** Current state is compliant with specification\n"
             "**Repair attempts used:** 2\n"
@@ -106,7 +106,7 @@ class ProtocolTests(unittest.TestCase):
 
     def test_bare_line_after_final_status_heading_allows(self):
         decision = protocol.evaluate_pre_submission(
-            "## Final ATLAS status\n\n"
+            "## Final AdaMAST status\n\n"
             "Ready for final answer.\n\n"
             "**Codes checked:** none\n"
             "**Repair attempts used:** 1\n"
@@ -117,7 +117,7 @@ class ProtocolTests(unittest.TestCase):
 
     def test_status_sentence_is_not_treated_as_enum(self):
         decision = protocol.evaluate_pre_submission(
-            "Final ATLAS status: No failure modes remain; ready to submit.\n"
+            "Final AdaMAST status: No failure modes remain; ready to submit.\n"
             "Repair attempts used: 0\n"
         )
         self.assertFalse(decision.allow)
@@ -125,7 +125,7 @@ class ProtocolTests(unittest.TestCase):
 
     def test_decide_change_blocks_as_repair(self):
         decision = protocol.evaluate_pre_submission(
-            "ATLAS reflection:\n"
+            "AdaMAST reflection:\n"
             "- Decide: change: run the missing verification.\n"
             "\nRepair attempts used: 1\n",
             max_retries=3,
@@ -136,7 +136,7 @@ class ProtocolTests(unittest.TestCase):
 
     def test_repair_required_blocks_while_budget_remains(self):
         decision = protocol.evaluate_pre_submission(
-            "Final ATLAS status: REPAIR_REQUIRED\n"
+            "Final AdaMAST status: REPAIR_REQUIRED\n"
             "Repair attempts used: 1\n",
             max_retries=3,
             repair_attempts_used=1,
@@ -146,7 +146,7 @@ class ProtocolTests(unittest.TestCase):
 
     def test_repair_required_allows_honest_report_at_cap(self):
         decision = protocol.evaluate_pre_submission(
-            "Final ATLAS status: REPAIR_REQUIRED\n"
+            "Final AdaMAST status: REPAIR_REQUIRED\n"
             "Repair attempts used: 3\n",
             max_retries=3,
             repair_attempts_used=3,
@@ -156,7 +156,7 @@ class ProtocolTests(unittest.TestCase):
 
     def test_generated_retry_count_cannot_exhaust_runtime_budget(self):
         decision = protocol.evaluate_pre_submission(
-            "Final ATLAS status: REPAIR_REQUIRED\n"
+            "Final AdaMAST status: REPAIR_REQUIRED\n"
             "Repair attempts used: 999\n",
             max_retries=3,
         )
@@ -166,14 +166,14 @@ class ProtocolTests(unittest.TestCase):
     def test_negated_status_prose_never_approves(self):
         for status in ("not yet ready", "not fully verified", "unready"):
             decision = protocol.evaluate_pre_submission(
-                f"Final ATLAS status: {status}\nRepair attempts used: 0\n"
+                f"Final AdaMAST status: {status}\nRepair attempts used: 0\n"
             )
             self.assertFalse(decision.allow, msg=status)
             self.assertIsNone(decision.status, msg=status)
 
     def test_markdown_repair_status_blocks(self):
         decision = protocol.evaluate_pre_submission(
-            "## Final ATLAS Status\n\n"
+            "## Final AdaMAST Status\n\n"
             "- **Status:** needs repair\n"
             "- **Repair attempts used:** 1\n",
             max_retries=3,
@@ -185,7 +185,7 @@ class ProtocolTests(unittest.TestCase):
 
     def test_pin_gate_decision_suppresses_a_flip(self):
         emitted = protocol.evaluate_pre_submission(
-            "Final ATLAS status: REPAIR_REQUIRED\nRepair attempts used: 0",
+            "Final AdaMAST status: REPAIR_REQUIRED\nRepair attempts used: 0",
             max_retries=3,
         )
         pinned, flipped = protocol.pin_gate_decision(
@@ -198,7 +198,7 @@ class ProtocolTests(unittest.TestCase):
 
     def test_pin_gate_decision_pins_repair_over_ready(self):
         emitted = protocol.evaluate_pre_submission(
-            "Final ATLAS status: READY_TO_SUBMIT\nRepair attempts used: 0",
+            "Final AdaMAST status: READY_TO_SUBMIT\nRepair attempts used: 0",
             max_retries=3,
         )
         pinned, flipped = protocol.pin_gate_decision(
@@ -210,7 +210,7 @@ class ProtocolTests(unittest.TestCase):
 
     def test_pin_gate_decision_noop_cases(self):
         emitted = protocol.evaluate_pre_submission(
-            "Final ATLAS status: READY_TO_SUBMIT\nRepair attempts used: 0",
+            "Final AdaMAST status: READY_TO_SUBMIT\nRepair attempts used: 0",
             max_retries=3,
         )
         same, flipped = protocol.pin_gate_decision(
@@ -243,7 +243,7 @@ class ProtocolTests(unittest.TestCase):
                 msg=f"{status!r} should block, not approve",
             )
             decision = protocol.evaluate_pre_submission(
-                f"Final ATLAS status: {status}\nRepair attempts used: 0\n"
+                f"Final AdaMAST status: {status}\nRepair attempts used: 0\n"
             )
             self.assertFalse(decision.allow, msg=f"gate approved {status!r}")
 

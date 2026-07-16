@@ -1,16 +1,16 @@
-"""Focused tests for tolerant-but-safe ATLAS reflection parsing."""
+"""Focused tests for tolerant-but-safe AdaMAST reflection parsing."""
 
 from __future__ import annotations
 
 import unittest
 
-from atlas_runtime.reflection import harvest_reflection, parse_reflection
+from adamast_runtime.reflection import harvest_reflection, parse_reflection
 
 
 class ReflectionParserTests(unittest.TestCase):
     def test_accepts_markdown_heading_checkpoint_and_section_synonyms(self):
         result = parse_reflection(
-            """# ATLAS reflection
+            """# AdaMAST reflection
 
 ## Checkpoint ID: cp-1
 
@@ -36,7 +36,7 @@ change to run the relevant test before submission
     def test_still_requires_matching_checkpoint_id(self):
         with self.assertRaisesRegex(ValueError, "Checkpoint ID"):
             parse_reflection(
-                """ATLAS reflection:
+                """AdaMAST reflection:
 - Observe: checked
 - Map:
   - MAST-12 | evidence: "missing verification"
@@ -49,7 +49,7 @@ change to run the relevant test before submission
 
     def test_accepts_evidence_is_form(self):
         result = parse_reflection(
-            """ATLAS reflection:
+            """AdaMAST reflection:
 - Checkpoint ID: cp-2
 - Observe: checked
 - Mapping:
@@ -67,7 +67,7 @@ change to run the relevant test before submission
 
     def test_accepts_clean_map_with_codes_checked_summary(self):
         result = parse_reflection(
-            """ATLAS reflection:
+            """AdaMAST reflection:
 - Checkpoint ID: cp-3
 - Observe: The task is complete and no failure evidence is present.
 - Map:
@@ -75,7 +75,7 @@ change to run the relevant test before submission
 - Correlate: No recurring failure pattern is visible.
 - Decide: submit: no change needed.
 
-Final ATLAS status: READY_TO_SUBMIT
+Final AdaMAST status: READY_TO_SUBMIT
 Codes checked: MAST-1, MAST-12
 Evidence: No failure evidence is present.
 Final decision: ready
@@ -91,7 +91,7 @@ Final decision: ready
 class HarvestReflectionTests(unittest.TestCase):
     def test_valid_content_with_wrong_checkpoint_id_is_corrected(self):
         harvest = harvest_reflection(
-            """ATLAS reflection:
+            """AdaMAST reflection:
 - Checkpoint ID: stale-id
 - Observe: checked
 - Map:
@@ -109,7 +109,7 @@ class HarvestReflectionTests(unittest.TestCase):
 
     def test_matching_id_is_not_marked_corrected(self):
         harvest = harvest_reflection(
-            """ATLAS reflection:
+            """AdaMAST reflection:
 - Checkpoint ID: cp-1
 - Observe: checked
 - Map:
@@ -125,13 +125,13 @@ class HarvestReflectionTests(unittest.TestCase):
 
     def test_partial_recovers_verdict_codes_and_missing_sections(self):
         harvest = harvest_reflection(
-            """ATLAS reflection:
+            """AdaMAST reflection:
 - Checkpoint ID: cp-1
 - Observe: checked everything
 - Map:
   - none apply | considered: MAST-12 | evidence: "suite green"
 - Decide: no change needed, because it is verified
-Final ATLAS status: READY_TO_SUBMIT
+Final AdaMAST status: READY_TO_SUBMIT
 """,
             checkpoint_id="cp-1",
             known_code_ids=("MAST-12",),
@@ -147,10 +147,10 @@ Final ATLAS status: READY_TO_SUBMIT
 
     def test_ambiguous_statuses_do_not_yield_a_pinnable_status(self):
         harvest = harvest_reflection(
-            """ATLAS reflection:
+            """AdaMAST reflection:
 - Checkpoint ID: cp-1
 - Observe: checked
-Final ATLAS status: READY_TO_SUBMIT
+Final AdaMAST status: READY_TO_SUBMIT
 Final decision: repair
 """,
             checkpoint_id="cp-1",
@@ -168,7 +168,7 @@ Final decision: repair
         )
         self.assertIsNone(harvest.result)
         self.assertFalse(harvest.partial.has_block)
-        self.assertIn("missing `ATLAS reflection` block", harvest.error)
+        self.assertIn("missing `AdaMAST reflection` block", harvest.error)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 # Traces and learning lifecycle
 
-ATLAS separates runtime interaction from taxonomy learning.
+AdaMAST separates runtime interaction from taxonomy learning.
 
 Runtime gates help the current task avoid repeated mistakes. Learning uses completed traces to generate or refine taxonomies for future tasks.
 
@@ -26,7 +26,7 @@ contract. Incomplete interactive episodes are recovered on resume or the next
 substantive prompt, and user-only abandoned turns do not become learning traces.
 
 Sub-task and subagent checkpoints contribute runtime evidence but do not create
-extra generation traces by default. Empty sessions and ATLAS control turns are
+extra generation traces by default. Empty sessions and AdaMAST control turns are
 not learning traces.
 
 See [Interactive setup](INTERACTIVE_SETUP.md) for the user workflow and
@@ -34,21 +34,21 @@ See [Interactive setup](INTERACTIVE_SETUP.md) for the user workflow and
 
 ## Trace output is mandatory
 
-Every run needs a trace output. This gives ATLAS a stable folder for the task or program even before a generated taxonomy exists.
+Every run needs a trace output. This gives AdaMAST a stable folder for the task or program even before a generated taxonomy exists.
 
 For example:
 
 ```json
 {
-  "trace_output": "./atlas-program"
+  "trace_output": "./adamast-program"
 }
 ```
 
 ## Default MAST warm-up
 
-When no taxonomy is inherited, ATLAS starts with built-in MAST.
+When no taxonomy is inherited, AdaMAST starts with built-in MAST.
 
-After `generation_threshold` traces accumulate, ATLAS can start taxonomy generation. The default threshold is `5`.
+After `generation_threshold` traces accumulate, AdaMAST can start taxonomy generation. The default threshold is `5`.
 
 ```json
 {
@@ -74,7 +74,7 @@ Generated taxonomies must pass the configured taxonomy check unless `skip_judge`
 
 If the generated taxonomy is rejected or generation fails, warm-up traces stay in the program folder. They are not moved into a taxonomy trace folder until a valid taxonomy is accepted.
 
-After rejection, ATLAS waits until enough new traces have accumulated relative to the rejected snapshot, then generation can run again over the accumulated traces.
+After rejection, AdaMAST waits until enough new traces have accumulated relative to the rejected snapshot, then generation can run again over the accumulated traces.
 
 ## Refinement counters
 
@@ -133,16 +133,16 @@ pinned for the run.
 
 ## Evidence export
 
-ATLAS always keeps runtime evidence in the program folder. If you also want a
+AdaMAST always keeps runtime evidence in the program folder. If you also want a
 durable snapshot for an external dashboard or archive, set `evidence_export`:
 
 ```json
 {
-  "evidence_export": "./atlas-evidence"
+  "evidence_export": "./adamast-evidence"
 }
 ```
 
-If the value ends in `.json`, ATLAS writes exactly that file. Otherwise ATLAS
+If the value ends in `.json`, AdaMAST writes exactly that file. Otherwise AdaMAST
 treats it as a directory and writes one `<program_id>.json` snapshot inside it
 at session end. Exporting never moves or deletes the original trace/evidence
 files.
@@ -150,14 +150,14 @@ files.
 ## Usage ledger
 
 Program manifests include a small usage ledger for learning calls. The ledger
-counts ATLAS generation, judge, and refinement calls and records the stage and
-model used. When the provider does not expose token or cost metadata, ATLAS
+counts AdaMAST generation, judge, and refinement calls and records the stage and
+model used. When the provider does not expose token or cost metadata, AdaMAST
 marks the event as `usage_available: false` instead of estimating.
 
-Use `atlas-status --config atlas.json` to see the current totals.
+Use `adamast-status --config adamast.json` to see the current totals.
 
 ## Trace retention
 
-ATLAS keeps accumulated traces by default. If you run many long tasks, trace folders can grow large.
+AdaMAST keeps accumulated traces by default. If you run many long tasks, trace folders can grow large.
 
 Current practical recommendation: keep trace roots outside the repository and periodically archive or prune old program folders that are no longer needed for learning.

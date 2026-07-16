@@ -14,8 +14,8 @@ import json
 import tempfile
 from pathlib import Path
 
-from atlas_runtime.dashboard import RUNTIME_EVIDENCE, run_dashboard
-from atlas_runtime.program import ProgramWorkspace
+from adamast_runtime.dashboard import RUNTIME_EVIDENCE, run_dashboard
+from adamast_runtime.program import ProgramWorkspace
 from finding import store
 
 DEMO_TAXONOMY_ID = "tax-skylab-orbital-demo-001"
@@ -110,14 +110,14 @@ DEMO_TAXONOMY = {
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
-        description="Open a disposable ATLAS dashboard with placeholder metrics."
+        description="Open a disposable AdaMAST dashboard with placeholder metrics."
     )
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args(argv)
 
-    with tempfile.TemporaryDirectory(prefix="atlas-dashboard-demo-") as td:
+    with tempfile.TemporaryDirectory(prefix="adamast-dashboard-demo-") as td:
         root = Path(td)
         store_dir = root / "taxonomies"
         program_dir = root / "program"
@@ -140,7 +140,7 @@ def main(argv=None) -> int:
 
 
 def _write_demo_runtime_evidence(program_dir: Path) -> None:
-    (program_dir / ".atlas-task-labels.json").write_text(
+    (program_dir / ".adamast-task-labels.json").write_text(
         json.dumps(
             {
                 "task-1042": {"label": "UID1042", "correct": False},

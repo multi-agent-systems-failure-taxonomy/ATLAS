@@ -1,6 +1,6 @@
 # Taxonomies
 
-ATLAS taxonomies are selected by one immutable key: `taxonomy_id`.
+AdaMAST taxonomies are selected by one immutable key: `taxonomy_id`.
 
 `display_name`, `repo`, `domain`, and `summary` are user-facing metadata. They
 do not route, group, or select taxonomies. Changing `display_name` changes what
@@ -39,13 +39,13 @@ MAST is not a store record and does not appear in the interactive picker.
 Non-interactive:
 
 ```bash
-atlas-single-run --config atlas.json --inherit my-taxonomy-v1 --model gpt-5 --task "..."
+adamast-single-run --config adamast.json --inherit my-taxonomy-v1 --model gpt-5 --task "..."
 ```
 
 Interactive picker:
 
 ```bash
-atlas-find --inherit-pick
+adamast-find --inherit-pick
 ```
 
 The searchable picker shows human-readable names, coverage summaries, source
@@ -57,7 +57,7 @@ Clicking a row opens the full taxonomy content. Choosing "use none / start from
 ## Register a taxonomy
 
 ```bash
-atlas-register-taxonomy --file taxonomy.json --id my-taxonomy-v1
+adamast-register-taxonomy --file taxonomy.json --id my-taxonomy-v1
 ```
 
 ## Import existing traces
@@ -65,12 +65,12 @@ atlas-register-taxonomy --file taxonomy.json --id my-taxonomy-v1
 Generate and store an inheritable taxonomy from traces you already have:
 
 ```bash
-atlas-import-traces \
-  --config atlas.json \
+adamast-import-traces \
+  --config adamast.json \
   --traces ./traces
 ```
 
-Imported taxonomies become normal flat store records after acceptance. If you need a specific ID, register a prepared taxonomy with `atlas-register-taxonomy --id ...`.
+Imported taxonomies become normal flat store records after acceptance. If you need a specific ID, register a prepared taxonomy with `adamast-register-taxonomy --id ...`.
 
 ## Lineage
 

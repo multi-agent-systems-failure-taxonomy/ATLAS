@@ -26,7 +26,7 @@ from . import resolver, store, webview
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="finding",
-        description="ATLAS Taxonomy Finding: resolve which taxonomy a run inherits.",
+        description="AdaMAST Taxonomy Finding: resolve which taxonomy a run inherits.",
     )
     parser.add_argument(
         "--inherit",

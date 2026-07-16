@@ -18,7 +18,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from atlas_integration.claude_code.config import (
+from adamast_integration.claude_code.config import (
     BUILT_IN_HOOK_EVENTS,
     CLAUDE_CODE_EVENTS,
     CUSTOM_HOOK_CHECKPOINT_KEYS,
@@ -27,20 +27,20 @@ from atlas_integration.claude_code.config import (
     CustomHookSpec,
     parse_built_in_hooks,
 )
-from atlas_integration.claude_code.custom import (
+from adamast_integration.claude_code.custom import (
     custom_advisory,
     custom_blocking_checkpoint,
 )
-from atlas_integration.claude_code.dispatcher import main as dispatcher_main
-from atlas_integration.claude_code.install import install
-from atlas_integration.claude_code.manage_hooks import (
+from adamast_integration.claude_code.dispatcher import main as dispatcher_main
+from adamast_integration.claude_code.install import install
+from adamast_integration.claude_code.manage_hooks import (
     add_hook,
     add_main,
     list_hooks,
     remove_hook,
     remove_main,
 )
-from atlas_integration.claude_code.state import load_state
+from adamast_integration.claude_code.state import load_state
 
 ROOT = Path(__file__).resolve().parent.parent
 STORE_DIR = ROOT / "tests" / "fixtures" / "taxonomies"
@@ -67,7 +67,7 @@ def checkpoint_id_from(prompt: str) -> str:
 
 def fired_reflection(cid: str, code: str = "MAST-12") -> str:
     return (
-        f"ATLAS reflection:\n"
+        f"AdaMAST reflection:\n"
         f"- Checkpoint ID: {cid}\n"
         f"- Observe: pre-tool inspection.\n"
         f"- Map:\n"
@@ -175,11 +175,11 @@ class ConfigRoundTripTests(unittest.TestCase):
             root = Path(td)
             cfg = ClaudeCodeConfig(
                 trace_output=root / "program",
-                atlas_model="gpt-5",
+                adamast_model="gpt-5",
                 store_dir=STORE_DIR,
                 custom_hooks=hooks,
             )
-            path = root / "atlas-skill.json"
+            path = root / "adamast.json"
             path.write_text(
                 json.dumps(cfg.to_dict()), encoding="utf-8",
             )
@@ -195,11 +195,11 @@ class ConfigRoundTripTests(unittest.TestCase):
             root = Path(td)
             cfg = ClaudeCodeConfig(
                 trace_output=root / "program",
-                atlas_model="gpt-5",
+                adamast_model="gpt-5",
                 store_dir=STORE_DIR,
                 built_in_hooks=hooks,
             )
-            path = root / "atlas-skill.json"
+            path = root / "adamast.json"
             path.write_text(json.dumps(cfg.to_dict()), encoding="utf-8")
             loaded = ClaudeCodeConfig.load(path)
             self.assertEqual(loaded.built_in_hooks, hooks)
@@ -207,11 +207,11 @@ class ConfigRoundTripTests(unittest.TestCase):
     def test_legacy_config_without_custom_hooks_still_loads(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            path = root / "atlas-skill.json"
+            path = root / "adamast.json"
             path.write_text(
                 json.dumps({
                     "trace_output": str(root / "program"),
-                    "atlas_model": "gpt-5",
+                    "adamast_model": "gpt-5",
                 }),
                 encoding="utf-8",
             )
@@ -222,7 +222,7 @@ class ConfigRoundTripTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "duplicate custom_hook"):
             ClaudeCodeConfig(
                 trace_output=Path("/tmp/x"),
-                atlas_model="m",
+                adamast_model="m",
                 custom_hooks=(
                     CustomHookSpec(name="a", event="PreToolUse"),
                     CustomHookSpec(name="a", event="UserPromptSubmit"),
@@ -236,7 +236,7 @@ class InstallerCustomHookTests(unittest.TestCase):
             root = Path(td)
             cfg = ClaudeCodeConfig(
                 trace_output=root / "program",
-                atlas_model="test-model",
+                adamast_model="test-model",
                 store_dir=STORE_DIR,
                 custom_hooks=(
                     CustomHookSpec(
@@ -262,7 +262,7 @@ class InstallerCustomHookTests(unittest.TestCase):
             root = Path(td)
             cfg = ClaudeCodeConfig(
                 trace_output=root / "program",
-                atlas_model="test-model",
+                adamast_model="test-model",
                 store_dir=STORE_DIR,
                 custom_hooks=(
                     CustomHookSpec(
@@ -284,7 +284,7 @@ class InstallerCustomHookTests(unittest.TestCase):
             root = Path(td)
             cfg = ClaudeCodeConfig(
                 trace_output=root / "program",
-                atlas_model="test-model",
+                adamast_model="test-model",
                 store_dir=STORE_DIR,
                 custom_hooks=(
                     CustomHookSpec(
@@ -308,13 +308,13 @@ class InstallerCustomHookTests(unittest.TestCase):
             )
 
     def test_uninstall_cleans_custom_hooks_too(self):
-        from atlas_integration.claude_code.uninstall import uninstall
+        from adamast_integration.claude_code.uninstall import uninstall
 
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             cfg = ClaudeCodeConfig(
                 trace_output=root / "program",
-                atlas_model="test-model",
+                adamast_model="test-model",
                 store_dir=STORE_DIR,
                 custom_hooks=(
                     CustomHookSpec(
@@ -344,13 +344,13 @@ class CustomBlockingCheckpointTests(unittest.TestCase):
         )
         self.config = ClaudeCodeConfig(
             trace_output=self.trace_output,
-            atlas_model="test-model",
+            adamast_model="test-model",
             store_dir=STORE_DIR,
             custom_hooks=(self.spec,),
             max_retries=2,
         )
-        with patch.dict(os.environ, {"ATLAS_DISABLE_DASHBOARD": "1"}):
-            from atlas_integration.claude_code.hooks import session_start
+        with patch.dict(os.environ, {"ADAMAST_DISABLE_DASHBOARD": "1"}):
+            from adamast_integration.claude_code.hooks import session_start
             session_start.handle(
                 {
                     "hook_event_name": "SessionStart",
@@ -385,7 +385,7 @@ class CustomBlockingCheckpointTests(unittest.TestCase):
         self.assertIn("Checkpoint ID:", prompt)
         self.assertIn("custom hook: pre-bash", prompt)
         # Custom hooks must NOT carry submission-gate language.
-        self.assertNotIn("Final ATLAS status:", prompt)
+        self.assertNotIn("Final AdaMAST status:", prompt)
         self.assertNotIn("READY_TO_SUBMIT", prompt)
 
     def test_valid_reflection_unblocks_and_records(self):
@@ -400,7 +400,7 @@ class CustomBlockingCheckpointTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("accepted", message)
         # Evidence file gained a custom: gate firing.
-        evidence_path = self.trace_output / ".atlas-runtime-evidence.json"
+        evidence_path = self.trace_output / ".adamast-runtime-evidence.json"
         data = json.loads(evidence_path.read_text(encoding="utf-8"))
         firings = data["taxonomies"]["mast"]["codes"]["MAST-12"]["events"]
         self.assertTrue(
@@ -416,7 +416,7 @@ class CustomBlockingCheckpointTests(unittest.TestCase):
         # max_retries=2 → first failure re-blocks, second hits the limit.
         append_assistant(
             self.transcript,
-            f"ATLAS reflection:\n- Checkpoint ID: {cid}\n- Observe: hollow",
+            f"AdaMAST reflection:\n- Checkpoint ID: {cid}\n- Observe: hollow",
         )
         self.assertEqual(
             custom_blocking_checkpoint(
@@ -459,7 +459,7 @@ class CustomBlockingCheckpointTests(unittest.TestCase):
         )
         config = ClaudeCodeConfig(
             trace_output=self.trace_output,
-            atlas_model="test-model",
+            adamast_model="test-model",
             store_dir=STORE_DIR,
             custom_hooks=(spec,),
             max_retries=2,
@@ -483,7 +483,7 @@ class CustomBlockingCheckpointTests(unittest.TestCase):
         )
         config = ClaudeCodeConfig(
             trace_output=self.trace_output,
-            atlas_model="test-model",
+            adamast_model="test-model",
             store_dir=STORE_DIR,
             custom_hooks=(spec,),
             max_retries=2,
@@ -519,12 +519,12 @@ class CustomAdvisoryTests(unittest.TestCase):
         )
         self.config = ClaudeCodeConfig(
             trace_output=self.trace_output,
-            atlas_model="test-model",
+            adamast_model="test-model",
             store_dir=STORE_DIR,
             custom_hooks=(self.spec,),
         )
-        with patch.dict(os.environ, {"ATLAS_DISABLE_DASHBOARD": "1"}):
-            from atlas_integration.claude_code.hooks import session_start
+        with patch.dict(os.environ, {"ADAMAST_DISABLE_DASHBOARD": "1"}):
+            from adamast_integration.claude_code.hooks import session_start
             session_start.handle(
                 {
                     "hook_event_name": "SessionStart",
@@ -575,7 +575,7 @@ class DispatcherRoutingTests(unittest.TestCase):
             transcript.write_text("", encoding="utf-8")
             cfg = ClaudeCodeConfig(
                 trace_output=root / "program",
-                atlas_model="test-model",
+                adamast_model="test-model",
                 store_dir=STORE_DIR,
                 custom_hooks=(
                     CustomHookSpec(
@@ -584,9 +584,9 @@ class DispatcherRoutingTests(unittest.TestCase):
                     ),
                 ),
             )
-            config_path = root / "atlas-skill.json"
+            config_path = root / "adamast.json"
             config_path.write_text(json.dumps(cfg.to_dict()), encoding="utf-8")
-            with patch.dict(os.environ, {"ATLAS_DISABLE_DASHBOARD": "1"}):
+            with patch.dict(os.environ, {"ADAMAST_DISABLE_DASHBOARD": "1"}):
                 code = self._run_dispatcher(
                     {
                         "hook_event_name": "PreToolUse",
@@ -608,10 +608,10 @@ class DispatcherRoutingTests(unittest.TestCase):
             root = Path(td)
             cfg = ClaudeCodeConfig(
                 trace_output=root / "program",
-                atlas_model="test-model",
+                adamast_model="test-model",
                 store_dir=STORE_DIR,
             )
-            config_path = root / "atlas-skill.json"
+            config_path = root / "adamast.json"
             config_path.write_text(json.dumps(cfg.to_dict()), encoding="utf-8")
             code = self._run_dispatcher(
                 {"hook_event_name": "PreToolUse", "session_id": "x"},
@@ -625,7 +625,7 @@ class ManageHooksCliTests(unittest.TestCase):
     def _bootstrap(self, root: Path):
         cfg = ClaudeCodeConfig(
             trace_output=root / "program",
-            atlas_model="test-model",
+            adamast_model="test-model",
             store_dir=STORE_DIR,
         )
         install(root, cfg, verify=False)

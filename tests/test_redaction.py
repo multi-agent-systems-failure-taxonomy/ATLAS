@@ -2,8 +2,8 @@
 
 import unittest
 
-from atlas_runtime.redaction import REDACTION, redact_text, redact_trace
-from atlas_runtime.traces import GenerationTrace
+from adamast_runtime.redaction import REDACTION, redact_text, redact_trace
+from adamast_runtime.traces import GenerationTrace
 
 
 class RedactionTests(unittest.TestCase):

@@ -1,6 +1,6 @@
 """LLM bridge for the Reflection Judge.
 
-Adapts atlas_skill's existing transport (``learning_calls.support_model_call``,
+Adapts adamast's existing transport (``learning_calls.support_model_call``,
 which already supports Anthropic / OpenAI / Gemini via env config) to the
 ``LLMCall`` signature the reflection judge expects::
 
@@ -12,7 +12,7 @@ in the simpler ``sonnet_json`` because the multi-stage pipeline early-returns
 on empty analysis output.
 
 The model identifier is provided to the bridge at construction time (no global
-default). Atlas_skill's transport infers the provider from the model string
+default). AdaMAST's transport infers the provider from the model string
 prefix (``claude`` / ``anthropic`` / ``gemini`` / else OpenAI-compat).
 """
 
@@ -22,8 +22,8 @@ import json as _json
 import re as _re
 from typing import Callable, Optional
 
-from atlas_runtime.learning_calls import support_model_call
-from atlas_runtime.taxonomy_data import CostMeter
+from adamast_runtime.learning_calls import support_model_call
+from adamast_runtime.taxonomy_data import CostMeter
 
 _JSON_RE = _re.compile(r"\{[\s\S]*\}")
 
@@ -52,7 +52,7 @@ def make_llm_call(model: str, *, transport: Optional[Callable[[str, str], Option
     def llm_call(prompt: str, system: str, *, max_tokens: int = 8192,
                  meter: Optional[CostMeter] = None,
                  warnings: Optional[list] = None) -> dict:
-        # atlas_skill's transports take a single combined prompt; system is
+        # adamast's transports take a single combined prompt; system is
         # concatenated with a separator so model providers that don't expose a
         # system slot still receive both pieces.
         combined = f"{system}\n\n{prompt}" if system else prompt
@@ -67,7 +67,7 @@ def make_llm_call(model: str, *, transport: Optional[Callable[[str, str], Option
                 warnings.append("LLM returned empty response")
             return {}
 
-        # CostMeter is currently informational only; atlas_skill's transports
+        # CostMeter is currently informational only; adamast's transports
         # don't surface per-call USD cost. Left unmeasured to avoid faking a
         # number. Hook a real cost source here if/when one is added.
         _ = meter

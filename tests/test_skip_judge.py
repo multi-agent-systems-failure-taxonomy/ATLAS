@@ -11,7 +11,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from atlas_runtime import generation, options
+from adamast_runtime import generation, options
 
 
 def _structural_taxonomy() -> dict:
@@ -34,13 +34,13 @@ def _structural_taxonomy() -> dict:
 class ParseRuntimeArgsTests(unittest.TestCase):
     def test_skip_judge_defaults_false(self) -> None:
         opts = options.parse_runtime_args(
-            ["--trace-output", "/tmp/x", "--atlas-model", "m"]
+            ["--trace-output", "/tmp/x", "--adamast-model", "m"]
         )
         self.assertFalse(opts.skip_judge)
 
     def test_skip_judge_flag_parsed(self) -> None:
         opts = options.parse_runtime_args(
-            ["--trace-output", "/tmp/x", "--atlas-model", "m", "--skip-judge"]
+            ["--trace-output", "/tmp/x", "--adamast-model", "m", "--skip-judge"]
         )
         self.assertTrue(opts.skip_judge)
 
@@ -64,8 +64,8 @@ class GenerationSkipJudgeTests(unittest.TestCase):
             ws_dir = Path(td) / "ws"
             store_dir = Path(td) / "store"
             trace_root = Path(td) / "traces"
-            from atlas_runtime.program import ProgramWorkspace
-            from atlas_runtime.traces import GenerationTrace
+            from adamast_runtime.program import ProgramWorkspace
+            from adamast_runtime.traces import GenerationTrace
             ws = ProgramWorkspace(ws_dir)
             for i in range(5):  # meet generation_threshold
                 ws.pending.append_many([
@@ -80,7 +80,7 @@ class GenerationSkipJudgeTests(unittest.TestCase):
                     store_dir=store_dir,
                     trace_root=trace_root,
                     generator=stub_generator,
-                    atlas_model="stub-model",
+                    adamast_model="stub-model",
                     skip_judge=True,
                     generation_threshold=5,
                     activation_poll_seconds=0.001,
@@ -96,7 +96,7 @@ class GenerationSkipJudgeTests(unittest.TestCase):
 
     def test_default_runs_refinement_and_records_judge_metadata(self) -> None:
         """skip_judge=False (default) routes through reflection refinement."""
-        from atlas_runtime.reflection_refinement import RefinementSummary
+        from adamast_runtime.reflection_refinement import RefinementSummary
 
         def stub_generator(_traces):
             return _structural_taxonomy()
@@ -119,8 +119,8 @@ class GenerationSkipJudgeTests(unittest.TestCase):
             ws_dir = Path(td) / "ws"
             store_dir = Path(td) / "store"
             trace_root = Path(td) / "traces"
-            from atlas_runtime.program import ProgramWorkspace
-            from atlas_runtime.traces import GenerationTrace
+            from adamast_runtime.program import ProgramWorkspace
+            from adamast_runtime.traces import GenerationTrace
             ws = ProgramWorkspace(ws_dir)
             for i in range(5):
                 ws.pending.append_many([
@@ -135,7 +135,7 @@ class GenerationSkipJudgeTests(unittest.TestCase):
                     store_dir=store_dir,
                     trace_root=trace_root,
                     generator=stub_generator,
-                    atlas_model="stub-model",
+                    adamast_model="stub-model",
                     skip_judge=False,
                     generation_threshold=5,
                     activation_poll_seconds=0.001,
@@ -148,14 +148,14 @@ class GenerationSkipJudgeTests(unittest.TestCase):
 
 class SessionSkipJudgeRoundTripTests(unittest.TestCase):
     def test_session_carries_skip_judge_into_lifecycle(self) -> None:
-        from atlas_runtime import lifecycle
+        from adamast_runtime import lifecycle
         with tempfile.TemporaryDirectory() as td:
             ws_dir = Path(td) / "ws"
             store_dir = Path(td) / "store"
             session = lifecycle.start_session(
                 trace_output=ws_dir,
                 store_dir=store_dir,
-                atlas_model="stub",
+                adamast_model="stub",
                 skip_judge=True,
                 dashboard=False,
             )

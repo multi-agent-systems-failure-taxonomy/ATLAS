@@ -1,18 +1,18 @@
 # Configuration reference
 
-This page is the canonical reference for `atlas.json`. Other pages show only
+This page is the canonical reference for `adamast.json`. Other pages show only
 the fields they need; every field, default, and precedence rule is defined
 here.
 
 ## How loading works
 
-- ATLAS reads one dependency-free JSON file, `atlas.json` by default, or the
+- AdaMAST reads one dependency-free JSON file, `adamast.json` by default, or the
   path given by `--config`.
 - Explicit CLI/API arguments win over config-file values.
 - Unknown fields are rejected so spelling mistakes fail loudly.
 - Relative paths are resolved relative to the config file; `~` is expanded.
 - `"version"` must be `1` (or omitted).
-- ATLAS never stores credential values. Set provider keys in your environment.
+- AdaMAST never stores credential values. Set provider keys in your environment.
 
 ## Minimal config
 
@@ -21,8 +21,8 @@ Most projects only need this:
 ```json
 {
   "version": 1,
-  "trace_output": "./atlas-program",
-  "atlas_model": "gpt-5"
+  "trace_output": "./adamast-program",
+  "adamast_model": "gpt-5"
 }
 ```
 
@@ -33,9 +33,9 @@ Everything else has a sensible default.
 | Field | Default | Purpose |
 |---|---|---|
 | `trace_output` | required | Program-specific folder for traces, evidence, and manifest state. This is the program identity: same folder = same program. |
-| `atlas_model` | required for learning | Model used by ATLAS generation, judging, and refinement. Keep it separate from your task-solving model. |
-| `trace_root` | `~/.atlas-skill/traces` | Root for per-taxonomy trace folders after acceptance. |
-| `store_dir` | `~/.atlas-skill/taxonomies` | Flat taxonomy store: one JSON file per `taxonomy_id`. |
+| `adamast_model` | required for learning | Model used by AdaMAST generation, judging, and refinement. Keep it separate from your task-solving model. |
+| `trace_root` | `~/.adamast/traces` | Root for per-taxonomy trace folders after acceptance. |
+| `store_dir` | `~/.adamast/taxonomies` | Flat taxonomy store: one JSON file per `taxonomy_id`. |
 | `inherit` | unset | `taxonomy_id` to start from. Unset (or the string `"none"`) starts from built-in MAST. |
 | `dashboard` | `true` | Let integrations launch the localhost dashboard automatically. |
 | `evidence_export` | unset | Optional external snapshot sink for session-end evidence. A `.json` value is written as that exact file; any other value is treated as a directory receiving one `<program_id>.json` per program. |
@@ -79,7 +79,7 @@ Transport is selected by model-id shape; these fields adjust it:
 
 | Field | Default | Purpose |
 |---|---|---|
-| `model` | unset | Task-solving model for `atlas-single-run` (same as its `--model` flag). Not used by learning calls. |
+| `model` | unset | Task-solving model for `adamast-single-run` (same as its `--model` flag). Not used by learning calls. |
 | `openai_base_url` | unset | OpenAI-compatible endpoint override; also honored via the `OPENAI_BASE_URL` environment variable. |
 | `openai_api_key_env` | unset | Name of the environment variable holding the key for that endpoint. Store the variable *name*, never the value. |
 
@@ -102,12 +102,12 @@ The legacy top-level `built_in_hooks`, `custom_hooks`, and `codex_hooks`
 fields are still accepted as compatibility aliases for the scoped forms.
 
 The defaults in the tables below describe explicit project installs.
-`atlas-codex-install --user-level` instead defaults to `project_scope: "auto"`,
+`adamast-codex-install --user-level` instead defaults to `project_scope: "auto"`,
 `session_selector: "prompt"`, `selector_surface: "browser"`, and
 `learning_backend: "codex_subagent"`.
-`atlas-claude-install --user-level` uses the parallel Claude values with
+`adamast-claude-install --user-level` uses the parallel Claude values with
 `learning_backend: "claude_subagent"`. Both user-level commands default to the
-shared root `~/.atlas-skill/interactive` and runtime identity
+shared root `~/.adamast/interactive` and runtime identity
 `interactive-session`.
 
 Codex user-level interactive hooks may also set:
@@ -117,7 +117,7 @@ Codex user-level interactive hooks may also set:
 | `codex.project_scope` | `"explicit"` | `"auto"` derives a separate program from each canonical project root. |
 | `codex.project_id` | unset | Optional stable identity override, useful for intentionally joined worktrees. |
 | `codex.task_group` | `"default"` | Project-local trace, taxonomy, and refinement group. |
-| `codex.session_selector` | `"off"` | Set to `"prompt"` to ask for MAST, a compatible stored taxonomy, or ATLAS-off at the start of a new Codex conversation. |
+| `codex.session_selector` | `"off"` | Set to `"prompt"` to ask for MAST, a compatible stored taxonomy, or AdaMAST-off at the start of a new Codex conversation. |
 | `codex.selector_surface` | `"browser"` | `"browser"` opens the session-bound local library from the first `UserPromptSubmit`; `"inline"` presents the same choices in chat. `SessionStart` never launches a new browser selector. |
 | `codex.learning_backend` | `"provider"` | Set to `"codex_subagent"` for durable learning through a native subagent in the active Codex task, without a separate API key or CLI login. |
 | `codex.worker_model` | unset | Legacy compatibility field; native spawned subagents use the active Codex task's model policy. |
@@ -131,7 +131,7 @@ Claude Code accepts parallel interactive fields:
 | `claude_code.project_scope` | `"explicit"` | `"auto"` derives a program from the canonical project root. |
 | `claude_code.project_id` | unset | Optional stable project identity override. |
 | `claude_code.task_group` | `"default"` | Project-local taxonomy and refinement group, shared with Codex when equal. |
-| `claude_code.session_selector` | `"off"` | `"prompt"` asks for MAST, a compatible taxonomy, or ATLAS-off. |
+| `claude_code.session_selector` | `"off"` | `"prompt"` asks for MAST, a compatible taxonomy, or AdaMAST-off. |
 | `claude_code.selector_surface` | `"inline"` | `"browser"` opens the session-bound local library; user-level installs default to `"browser"`. |
 | `claude_code.learning_backend` | `"provider"` | `"claude_subagent"` uses native generator and support-review Agent subtasks without a separate API key or CLI login. |
 | `claude_code.worker_model` | unset | Legacy compatibility field; the native Agent follows the active session's model policy. |
@@ -150,10 +150,10 @@ Claude Code accepts parallel interactive fields:
 ```json
 {
   "version": 1,
-  "trace_output": "./atlas-program",
-  "trace_root": "~/.atlas-skill/traces",
-  "store_dir": "~/.atlas-skill/taxonomies",
-  "atlas_model": "gpt-5",
+  "trace_output": "./adamast-program",
+  "trace_root": "~/.adamast/traces",
+  "store_dir": "~/.adamast/taxonomies",
+  "adamast_model": "gpt-5",
   "inherit": null,
   "generation_threshold": 5,
   "generation_stops": false,
@@ -182,5 +182,5 @@ Claude Code accepts parallel interactive fields:
 Validate any config with:
 
 ```bash
-atlas-doctor --config atlas.json
+adamast-doctor --config adamast.json
 ```

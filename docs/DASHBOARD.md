@@ -1,20 +1,20 @@
 # Dashboard
 
-ATLAS includes a read-only localhost dashboard for watching taxonomy codes fire during runs.
+AdaMAST includes a read-only localhost dashboard for watching taxonomy codes fire during runs.
 
-![ATLAS runtime dashboard showing the bundled demo taxonomy](assets/screenshots/dashboard-demo.png)
+![AdaMAST runtime dashboard showing the bundled demo taxonomy](assets/screenshots/dashboard-demo.png)
 
 *The bundled demo (`python -m examples.dashboard_demo`) with placeholder data.*
 
 ## Open manually
 
 ```bash
-atlas-dashboard \
-  --trace-output ./atlas-program \
-  --store-dir ~/.atlas-skill/taxonomies
+adamast-dashboard \
+  --trace-output ./adamast-program \
+  --store-dir ~/.adamast/taxonomies
 ```
 
-Integrations can also launch it automatically when `dashboard` is true in `atlas.json`.
+Integrations can also launch it automatically when `dashboard` is true in `adamast.json`.
 
 ## What it shows
 
@@ -59,5 +59,5 @@ The dashboard binds to localhost by default and is intended as a development/run
 For a terminal summary of the same program state, use:
 
 ```bash
-atlas-status --config atlas.json
+adamast-status --config adamast.json
 ```

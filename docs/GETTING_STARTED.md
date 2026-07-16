@@ -1,4 +1,4 @@
-# ATLAS 5-minute start
+# AdaMAST 5-minute start
 
 This page covers explicit project-local and pipeline integration. For the
 shortest user-level Codex or Claude Code path, use
@@ -17,42 +17,42 @@ python -m pip install "git+https://github.com/multi-agent-systems-failure-taxono
 From a local checkout:
 
 ```bash
-cd /path/to/ATLAS
+cd /path/to/AdaMAST
 python -m pip install .
 ```
 
 Optional Anthropic SDK support:
 
 ```bash
-python -m pip install "atlas-skill[anthropic] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
+python -m pip install "adamast[anthropic] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
 ```
 
 Optional AWS Bedrock bearer-token support:
 
 ```bash
-python -m pip install "atlas-skill[bedrock] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
+python -m pip install "adamast[bedrock] @ git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"
 ```
 
 For Bedrock, set `AWS_BEARER_TOKEN_BEDROCK` and `AWS_REGION` /
-`AWS_DEFAULT_REGION` in your shell. ATLAS uses boto3's Bedrock Converse API
+`AWS_DEFAULT_REGION` in your shell. AdaMAST uses boto3's Bedrock Converse API
 for this credential form.
 
-ATLAS never stores credential values. Set provider keys in your environment
+AdaMAST never stores credential values. Set provider keys in your environment
 instead.
 
 ## 2. Create one config file
 
-Create `atlas.json` in your project:
+Create `adamast.json` in your project:
 
 ```json
 {
   "version": 1,
-  "trace_output": "./atlas-program",
-  "atlas_model": "gpt-5"
+  "trace_output": "./adamast-program",
+  "adamast_model": "gpt-5"
 }
 ```
 
-Use `atlas_model` for ATLAS generation, judge, and refinement calls. If your
+Use `adamast_model` for AdaMAST generation, judge, and refinement calls. If your
 own program has a task-solving model, keep that separate.
 
 Relative paths are resolved relative to the config file. Every other field has
@@ -61,37 +61,37 @@ a sensible default; the full reference is [CONFIGURATION.md](CONFIGURATION.md).
 ## 3. Check the install
 
 ```bash
-atlas-doctor --config atlas.json
+adamast-doctor --config adamast.json
 ```
 
 For Claude Code projects:
 
 ```bash
-atlas-doctor --config atlas.json --claude-code
+adamast-doctor --config adamast.json --claude-code
 ```
 
 For Codex projects:
 
 ```bash
-atlas-doctor --config atlas.json --codex
+adamast-doctor --config adamast.json --codex
 ```
 
-Warnings usually mean "ATLAS can run, but a useful optional capability may be
+Warnings usually mean "AdaMAST can run, but a useful optional capability may be
 missing." Errors mean the requested setup is not ready.
 
-## 4A. Use ATLAS with Claude Code
+## 4A. Use AdaMAST with Claude Code
 
 For every Claude Code project with native in-session learning, the shorter path
-is `atlas-claude-install --user-level`. The command below is the explicit,
+is `adamast-claude-install --user-level`. The command below is the explicit,
 project-local provider-backed path.
 
 Install project-local hooks:
 
 ```bash
-atlas-claude-install --project-dir . --config atlas.json
+adamast-claude-install --project-dir . --config adamast.json
 ```
 
-Start Claude Code in that project. ATLAS will:
+Start Claude Code in that project. AdaMAST will:
 
 1. start with inherited taxonomy if configured, otherwise built-in MAST;
 2. deliver checkpoint instructions at configured hook boundaries;
@@ -103,49 +103,49 @@ Useful hook customization examples:
 
 ```bash
 # Do not fire the built-in subagent checkpoint.
-atlas-claude-install --project-dir . --config atlas.json --disable-hook SubagentStop
+adamast-claude-install --project-dir . --config adamast.json --disable-hook SubagentStop
 
 # Only nudge after selected successful tool calls.
-atlas-claude-install --project-dir . --config atlas.json --post-tool-use-matchers Bash,Edit,Write
+adamast-claude-install --project-dir . --config adamast.json --post-tool-use-matchers Bash,Edit,Write
 
 # Add a custom blocking gate before Bash calls.
-atlas-claude-add-hook --project-dir . --name pre-bash --event PreToolUse --matcher Bash --mode blocking
+adamast-claude-add-hook --project-dir . --name pre-bash --event PreToolUse --matcher Bash --mode blocking
 ```
 
 List installed custom hooks:
 
 ```bash
-atlas-claude-list-hooks --project-dir .
+adamast-claude-list-hooks --project-dir .
 ```
 
-Remove ATLAS hooks without deleting learned traces or taxonomies:
+Remove AdaMAST hooks without deleting learned traces or taxonomies:
 
 ```bash
-atlas-claude-uninstall --project-dir .
+adamast-claude-uninstall --project-dir .
 ```
 
-## 4B. Use ATLAS with Codex hooks
+## 4B. Use AdaMAST with Codex hooks
 
 For every Codex project with native in-task learning, the shorter path is
-`atlas-codex-install --user-level`. The command below is the explicit,
+`adamast-codex-install --user-level`. The command below is the explicit,
 project-local provider-backed path.
 
 Install project-local Codex hooks:
 
 ```bash
-atlas-codex-install --project-dir . --config atlas.json
+adamast-codex-install --project-dir . --config adamast.json
 ```
 
-This writes `.codex/hooks.json` and `.codex/atlas-skill.json`. Open `/hooks`
-inside Codex and trust the ATLAS hooks before relying on them.
+This writes `.codex/hooks.json` and `.codex/adamast.json`. Open `/hooks`
+inside Codex and trust the AdaMAST hooks before relying on them.
 
 Default Codex events:
 
-1. `SessionStart`: recover standing ATLAS context for a selected conversation.
+1. `SessionStart`: recover standing AdaMAST context for a selected conversation.
 2. `UserPromptSubmit`: open the taxonomy library for a new conversation and handle episode boundaries.
 3. `Stop`: capture the compact final checkpoint and commit the episode once.
 4. `SubagentStop`: capture a checkpoint when present without blocking.
-5. `PostToolUse`: poll durable ATLAS state after supported successful tools.
+5. `PostToolUse`: poll durable AdaMAST state after supported successful tools.
 
 Routine polls remain silent apart from Codex's transient hook status. The
 managed skill tells the agent to show one compact checkpoint after an actual
@@ -156,29 +156,29 @@ assistant messages to the conversation.
 Optional skill guidance:
 
 ```bash
-atlas-codex-install --project-dir . --config atlas.json --install-skill
+adamast-codex-install --project-dir . --config adamast.json --install-skill
 ```
 
 Remove it with:
 
 ```bash
-atlas-codex-uninstall --project-dir .
+adamast-codex-uninstall --project-dir .
 ```
 
-## 4C. Use ATLAS around one LLM call
+## 4C. Use AdaMAST around one LLM call
 
 This path is for scripts, notebooks, benchmarks, or any application where you
 own the model call.
 
 ```bash
-atlas-single-run \
-  --config atlas.json \
-  --task "Solve the task, then pass through ATLAS before final answer." \
+adamast-single-run \
+  --config adamast.json \
+  --task "Solve the task, then pass through AdaMAST before final answer." \
   --model gpt-5
 ```
 
-The `--model` flag is the task-solving model. `atlas_model` in `atlas.json` is
-still the ATLAS judge/generation/refinement model.
+The `--model` flag is the task-solving model. `adamast_model` in `adamast.json` is
+still the AdaMAST judge/generation/refinement model.
 
 ## 5. Watch the dashboard
 
@@ -186,9 +186,9 @@ If `dashboard` is true, integrations can launch the dashboard automatically.
 To open it manually:
 
 ```bash
-atlas-dashboard \
-  --trace-output ./atlas-program \
-  --store-dir ~/.atlas-skill/taxonomies
+adamast-dashboard \
+  --trace-output ./adamast-program \
+  --store-dir ~/.adamast/taxonomies
 ```
 
 The dashboard is read-only and binds to localhost by default.
@@ -198,13 +198,13 @@ The dashboard is read-only and binds to localhost by default.
 After a run, inspect trace state:
 
 ```bash
-atlas-traces status --config atlas.json
+adamast-traces status --config adamast.json
 ```
 
 List stored taxonomies:
 
 ```bash
-atlas-find --list
+adamast-find --list
 ```
 
 If `--inherit` is omitted, the run starts with built-in MAST. MAST is not stored
