@@ -12,15 +12,15 @@ from unittest.mock import patch
 from urllib.request import urlopen
 
 from finding import webview
-from atlas_integration.codex.browser_picker import (
+from adamast_integration.codex.browser_picker import (
     apply_browser_choice,
     serve_picker,
     start_browser_picker,
 )
-from atlas_integration.codex.state import load_state, save_state
-from atlas_integration.codex.session_routes import resolve_session_route
-from atlas_integration.interactive.selector import build_selection
-from atlas_runtime import ProgramWorkspace
+from adamast_integration.codex.state import load_state, save_state
+from adamast_integration.codex.session_routes import resolve_session_route
+from adamast_integration.interactive.selector import build_selection
+from adamast_runtime import ProgramWorkspace
 
 STORE_DIR = Path(__file__).resolve().parent / "fixtures" / "taxonomies"
 
@@ -147,7 +147,7 @@ class CodexBrowserReceiptTests(unittest.TestCase):
             "store_dir": str(STORE_DIR),
             "selection": selection,
             "event": {"cwd": str(root), "session_id": session_id},
-            "routing_root": str(root / "atlas-home"),
+            "routing_root": str(root / "adamast-home"),
             "default_trace_output": str(program),
             "task_group": "default",
             "project_scope": "explicit",
@@ -175,7 +175,7 @@ class CodexBrowserReceiptTests(unittest.TestCase):
 
     def test_mast_choice_preserves_bound_project_and_routes_fresh(self):
         root = Path(tempfile.mkdtemp())
-        routing_root = root / "atlas-home"
+        routing_root = root / "adamast-home"
         program = routing_root / "shared-program"
         result_path = root / "mast-result.json"
         session_id = "browser-fresh-mast"
@@ -245,7 +245,7 @@ class CodexBrowserReceiptTests(unittest.TestCase):
         exit_codes = []
 
         with patch(
-            "atlas_integration.codex.browser_picker.webbrowser.open",
+            "adamast_integration.codex.browser_picker.webbrowser.open",
             return_value=True,
         ):
             thread = threading.Thread(
@@ -305,7 +305,7 @@ class CodexBrowserReceiptTests(unittest.TestCase):
             store_dir=STORE_DIR,
             selection=selection,
             event={"cwd": str(root), "session_id": session_id},
-            routing_root=root / "atlas-home",
+            routing_root=root / "adamast-home",
             default_trace_output=program,
             timeout_seconds=60,
         )

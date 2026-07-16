@@ -13,21 +13,21 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
-from atlas_integration.codex.config import CodexConfig, parse_codex_hooks
-from atlas_integration.codex.browser_picker import apply_browser_choice
-from atlas_integration.codex.dispatcher import (
+from adamast_integration.codex.config import CodexConfig, parse_codex_hooks
+from adamast_integration.codex.browser_picker import apply_browser_choice
+from adamast_integration.codex.dispatcher import (
     _is_internal_codex_event,
     _merge_learning_context,
     _merge_notices,
     main as dispatcher_main,
 )
-from atlas_integration.codex.install import (
+from adamast_integration.codex.install import (
     SKILL_NAME,
     install,
     install_skill,
     main as install_main,
 )
-from atlas_integration.codex.runtime import (
+from adamast_integration.codex.runtime import (
     _next_action_requires_repair,
     post_tool_use,
     session_start,
@@ -35,15 +35,15 @@ from atlas_integration.codex.runtime import (
     subagent_stop,
     user_prompt_submit,
 )
-from atlas_integration.codex.state import load_state, save_state
-from atlas_integration.codex.transcript import (
+from adamast_integration.codex.state import load_state, save_state
+from adamast_integration.codex.transcript import (
     first_user_message,
     read_raw_transcript,
 )
-from atlas_integration.codex.uninstall import uninstall, uninstall_skill
-from atlas_runtime.evidence import EVIDENCE_FILE
-from atlas_runtime.program import ProgramWorkspace
-from atlas_runtime.traces import GenerationTrace
+from adamast_integration.codex.uninstall import uninstall, uninstall_skill
+from adamast_runtime.evidence import EVIDENCE_FILE
+from adamast_runtime.program import ProgramWorkspace
+from adamast_runtime.traces import GenerationTrace
 
 ROOT = Path(__file__).resolve().parent.parent
 STORE_DIR = ROOT / "tests" / "fixtures" / "taxonomies"
@@ -78,7 +78,7 @@ def checkpoint_id(prompt: str) -> str:
 
 def passing_report(prompt: str) -> str:
     cid = checkpoint_id(prompt)
-    return f"""ATLAS reflection:
+    return f"""AdaMAST reflection:
 - Checkpoint ID: {cid}
 - Observe: The requested turn was completed and checked.
 - Correlate: No evidence-supported failure remains.
@@ -86,7 +86,7 @@ def passing_report(prompt: str) -> str:
   - none apply | considered: MAST-12 | evidence: "checked"
 - Decide: no change needed, because verification passed.
 
-Final ATLAS status: READY_TO_SUBMIT
+Final AdaMAST status: READY_TO_SUBMIT
 Codes checked: none
 Evidence: targeted verification passed
 Repair attempts used: 0
@@ -120,7 +120,7 @@ class CodexIntegrationTests(unittest.TestCase):
     def base_config(self, root: Path) -> CodexConfig:
         return CodexConfig(
             trace_output=root / "program",
-            atlas_model="test-model",
+            adamast_model="test-model",
             store_dir=STORE_DIR,
             dashboard=False,
         )
@@ -156,20 +156,20 @@ class CodexIntegrationTests(unittest.TestCase):
 
     def test_learning_notice_merges_with_existing_gate_message(self):
         output = _merge_notices(
-            {"continue": True, "systemMessage": "ATLAS reflection accepted."},
-            ["ATLAS taxonomy generation triggered"],
+            {"continue": True, "systemMessage": "AdaMAST reflection accepted."},
+            ["AdaMAST taxonomy generation triggered"],
         )
         self.assertTrue(output["continue"])
         self.assertEqual(
             output["systemMessage"],
-            "ATLAS reflection accepted.\n\nATLAS taxonomy generation triggered",
+            "AdaMAST reflection accepted.\n\nAdaMAST taxonomy generation triggered",
         )
         self.assertIn(
             "show the user this state change once",
             output["hookSpecificOutput"]["additionalContext"],
         )
         self.assertIn(
-            "ATLAS taxonomy generation triggered",
+            "AdaMAST taxonomy generation triggered",
             output["hookSpecificOutput"]["additionalContext"],
         )
 
@@ -204,7 +204,7 @@ class CodexIntegrationTests(unittest.TestCase):
             {
                 "hookSpecificOutput": {
                     "hookEventName": "UserPromptSubmit",
-                    "additionalContext": "Existing ATLAS standing context.",
+                    "additionalContext": "Existing AdaMAST standing context.",
                 }
             },
             "Launch the native taxonomy subagent.",
@@ -214,7 +214,7 @@ class CodexIntegrationTests(unittest.TestCase):
         self.assertEqual(specific["hookEventName"], "UserPromptSubmit")
         self.assertEqual(
             specific["additionalContext"],
-            "Existing ATLAS standing context.\n\n"
+            "Existing AdaMAST standing context.\n\n"
             "Launch the native taxonomy subagent.",
         )
         self.assertTrue(output["continue"])
@@ -226,7 +226,7 @@ class CodexIntegrationTests(unittest.TestCase):
             memories = codex_home / "memories"
             memories.mkdir(parents=True)
             config = self.base_config(root)
-            config_path = root / "atlas-skill.json"
+            config_path = root / "adamast.json"
             config_path.write_text(
                 json.dumps(config.to_dict()),
                 encoding="utf-8",
@@ -263,7 +263,7 @@ class CodexIntegrationTests(unittest.TestCase):
                 selector_surface="browser",
                 learning_backend="codex_subagent",
             )
-            config_path = root / "atlas-skill.json"
+            config_path = root / "adamast.json"
             config_path.write_text(json.dumps(config.to_dict()), encoding="utf-8")
             event = {
                 "hook_event_name": "SessionStart",
@@ -276,8 +276,8 @@ class CodexIntegrationTests(unittest.TestCase):
             with (
                 patch("sys.stdin", io.StringIO(json.dumps(event))),
                 redirect_stdout(stdout),
-                patch("atlas_integration.codex.dispatcher.poll_learning_jobs") as poll,
-                patch("atlas_integration.codex.dispatcher.claim_learning_job") as claim,
+                patch("adamast_integration.codex.dispatcher.poll_learning_jobs") as poll,
+                patch("adamast_integration.codex.dispatcher.claim_learning_job") as claim,
             ):
                 code = dispatcher_main(["--config", str(config_path)])
 
@@ -298,7 +298,7 @@ class CodexIntegrationTests(unittest.TestCase):
                 learning_backend="codex_subagent",
                 generation_threshold=5,
             )
-            config_path = root / "atlas-skill.json"
+            config_path = root / "adamast.json"
             config_path.write_text(json.dumps(config.to_dict()), encoding="utf-8")
             workspace = ProgramWorkspace(config.trace_output, repo="demo")
             workspace.pending.append_many_with_names(
@@ -329,7 +329,7 @@ class CodexIntegrationTests(unittest.TestCase):
             context = output["hookSpecificOutput"]["additionalContext"]
             self.assertIn("show the user this state change once", context)
             self.assertIn("taxonomy generation triggered", context)
-            self.assertIn("ATLAS native taxonomy learning is ready", context)
+            self.assertIn("AdaMAST native taxonomy learning is ready", context)
             self.assertIn("SUBAGENT TASK BEGIN", context)
             job_path = next(
                 (config.trace_output / "learning_jobs").glob("*/job.json")
@@ -346,7 +346,7 @@ class CodexIntegrationTests(unittest.TestCase):
                 self.base_config(root),
                 learning_backend="codex_subagent",
             )
-            config_path = root / "atlas-skill.json"
+            config_path = root / "adamast.json"
             config_path.write_text(json.dumps(config.to_dict()), encoding="utf-8")
             event = {
                 "hook_event_name": "SubagentStop",
@@ -360,16 +360,16 @@ class CodexIntegrationTests(unittest.TestCase):
                 patch("sys.stdin", io.StringIO(json.dumps(event))),
                 redirect_stdout(stdout),
                 patch.dict(
-                    "atlas_integration.codex.dispatcher.HANDLERS",
+                    "adamast_integration.codex.dispatcher.HANDLERS",
                     {"SubagentStop": lambda _event, _config: None},
                 ),
-                patch("atlas_integration.codex.dispatcher.poll_learning_jobs") as poll,
-                patch("atlas_integration.codex.dispatcher.reconcile_learning_jobs"),
+                patch("adamast_integration.codex.dispatcher.poll_learning_jobs") as poll,
+                patch("adamast_integration.codex.dispatcher.reconcile_learning_jobs"),
                 patch(
-                    "atlas_integration.codex.dispatcher.drain_learning_notices",
+                    "adamast_integration.codex.dispatcher.drain_learning_notices",
                     return_value=[],
                 ) as drain,
-                patch("atlas_integration.codex.dispatcher.claim_learning_job") as claim,
+                patch("adamast_integration.codex.dispatcher.claim_learning_job") as claim,
             ):
                 code = dispatcher_main(["--config", str(config_path)])
 
@@ -386,7 +386,7 @@ class CodexIntegrationTests(unittest.TestCase):
                 self.base_config(root),
                 learning_backend="codex_subagent",
             )
-            config_path = root / "atlas-skill.json"
+            config_path = root / "adamast.json"
             config_path.write_text(json.dumps(config.to_dict()), encoding="utf-8")
             event = {
                 "hook_event_name": "Stop",
@@ -399,14 +399,14 @@ class CodexIntegrationTests(unittest.TestCase):
                 patch("sys.stdin", io.StringIO(json.dumps(event))),
                 redirect_stdout(stdout),
                 patch.dict(
-                    "atlas_integration.codex.dispatcher.HANDLERS",
+                    "adamast_integration.codex.dispatcher.HANDLERS",
                     {"Stop": lambda _event, _config: None},
                 ),
-                patch("atlas_integration.codex.dispatcher.poll_learning_jobs"),
-                patch("atlas_integration.codex.dispatcher.reconcile_learning_jobs"),
+                patch("adamast_integration.codex.dispatcher.poll_learning_jobs"),
+                patch("adamast_integration.codex.dispatcher.reconcile_learning_jobs"),
                 patch(
-                    "atlas_integration.codex.dispatcher.drain_learning_notices",
-                    return_value=["ATLAS taxonomy generation triggered"],
+                    "adamast_integration.codex.dispatcher.drain_learning_notices",
+                    return_value=["AdaMAST taxonomy generation triggered"],
                 ) as drain,
             ):
                 code = dispatcher_main(["--config", str(config_path)])
@@ -422,7 +422,7 @@ class CodexIntegrationTests(unittest.TestCase):
                 self.base_config(root),
                 learning_backend="codex_subagent",
             )
-            config_path = root / "atlas-skill.json"
+            config_path = root / "adamast.json"
             config_path.write_text(json.dumps(config.to_dict()), encoding="utf-8")
             event = {
                 "hook_event_name": "PostToolUse",
@@ -435,14 +435,14 @@ class CodexIntegrationTests(unittest.TestCase):
                 patch("sys.stdin", io.StringIO(json.dumps(event))),
                 redirect_stdout(stdout),
                 patch.dict(
-                    "atlas_integration.codex.dispatcher.HANDLERS",
+                    "adamast_integration.codex.dispatcher.HANDLERS",
                     {"PostToolUse": lambda _event, _config: None},
                 ),
-                patch("atlas_integration.codex.dispatcher.poll_learning_jobs"),
-                patch("atlas_integration.codex.dispatcher.reconcile_learning_jobs"),
+                patch("adamast_integration.codex.dispatcher.poll_learning_jobs"),
+                patch("adamast_integration.codex.dispatcher.reconcile_learning_jobs"),
                 patch(
-                    "atlas_integration.codex.dispatcher.drain_learning_notices",
-                    return_value=["ATLAS taxonomy generation triggered"],
+                    "adamast_integration.codex.dispatcher.drain_learning_notices",
+                    return_value=["AdaMAST taxonomy generation triggered"],
                 ) as drain,
             ):
                 code = dispatcher_main(["--config", str(config_path)])
@@ -454,14 +454,14 @@ class CodexIntegrationTests(unittest.TestCase):
     def test_auto_project_scope_derives_program_from_event_cwd(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            base = root / "atlas-home"
+            base = root / "adamast-home"
             first = root / "first-project"
             second = root / "second-project"
             first.mkdir()
             second.mkdir()
             config = CodexConfig(
                 trace_output=base,
-                atlas_model="test-model",
+                adamast_model="test-model",
                 store_dir=STORE_DIR,
                 dashboard=False,
                 project_scope="auto",
@@ -480,10 +480,10 @@ class CodexIntegrationTests(unittest.TestCase):
     def test_project_scope_round_trips_through_saved_config(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            path = root / "atlas.json"
+            path = root / "adamast.json"
             config = CodexConfig(
-                trace_output=root / "atlas-home",
-                atlas_model="test-model",
+                trace_output=root / "adamast-home",
+                adamast_model="test-model",
                 store_dir=STORE_DIR,
                 dashboard=False,
                 project_scope="auto",
@@ -499,7 +499,7 @@ class CodexIntegrationTests(unittest.TestCase):
     def test_session_selector_round_trips_through_saved_config(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            path = root / "atlas.json"
+            path = root / "adamast.json"
             config = replace(
                 self.base_config(root),
                 session_selector="prompt",
@@ -513,7 +513,7 @@ class CodexIntegrationTests(unittest.TestCase):
     def test_native_learning_backend_round_trips_without_api_configuration(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            path = root / "atlas.json"
+            path = root / "adamast.json"
             config = replace(
                 self.base_config(root),
                 learning_backend="codex_subagent",
@@ -552,7 +552,7 @@ class CodexIntegrationTests(unittest.TestCase):
             self.assertIn("UserPromptSubmit", hooks)
             self.assertIn("Stop", hooks)
             text = json.dumps(hooks)
-            self.assertIn("atlas_integration.codex.dispatcher", text)
+            self.assertIn("adamast_integration.codex.dispatcher", text)
             status_messages = {
                 event: entries[0]["hooks"][0]["statusMessage"]
                 for event, entries in hooks.items()
@@ -560,11 +560,11 @@ class CodexIntegrationTests(unittest.TestCase):
             self.assertEqual(
                 status_messages,
                 {
-                    "SessionStart": "Restoring ATLAS taxonomy",
-                    "UserPromptSubmit": "Checking ATLAS state",
-                    "Stop": "Saving ATLAS trace",
-                    "SubagentStop": "Reconciling ATLAS learning",
-                    "PostToolUse": "Polling ATLAS",
+                    "SessionStart": "Restoring AdaMAST taxonomy",
+                    "UserPromptSubmit": "Checking AdaMAST state",
+                    "Stop": "Saving AdaMAST trace",
+                    "SubagentStop": "Reconciling AdaMAST learning",
+                    "PostToolUse": "Polling AdaMAST",
                 },
             )
 
@@ -573,7 +573,7 @@ class CodexIntegrationTests(unittest.TestCase):
             root = Path(temp)
             with (
                 patch(
-                    "atlas_integration.codex.install.Path.home",
+                    "adamast_integration.codex.install.Path.home",
                     return_value=root,
                 ),
                 redirect_stdout(io.StringIO()) as output,
@@ -583,12 +583,12 @@ class CodexIntegrationTests(unittest.TestCase):
             self.assertEqual(code, 0)
             result = json.loads(output.getvalue())
             self.assertEqual(result["scope"], "user")
-            config = CodexConfig.load(root / ".codex" / "atlas-skill.json")
+            config = CodexConfig.load(root / ".codex" / "adamast.json")
             self.assertEqual(
                 config.trace_output.resolve(),
-                (root / ".atlas-skill" / "interactive").resolve(),
+                (root / ".adamast" / "interactive").resolve(),
             )
-            self.assertEqual(config.atlas_model, "interactive-session")
+            self.assertEqual(config.adamast_model, "interactive-session")
             self.assertEqual(config.project_scope, "auto")
             self.assertEqual(config.session_selector, "prompt")
             self.assertEqual(config.selector_surface, "browser")
@@ -601,7 +601,7 @@ class CodexIntegrationTests(unittest.TestCase):
     def test_install_main_preserves_configured_selector_surface(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            config_path = root / "atlas.json"
+            config_path = root / "adamast.json"
             configured = replace(
                 self.base_config(root),
                 session_selector="prompt",
@@ -622,13 +622,13 @@ class CodexIntegrationTests(unittest.TestCase):
                 )
 
             self.assertEqual(code, 0)
-            installed = CodexConfig.load(root / ".codex" / "atlas-skill.json")
+            installed = CodexConfig.load(root / ".codex" / "adamast.json")
             self.assertEqual(installed.selector_surface, "inline")
 
     def test_install_main_selector_surface_flag_overrides_config(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            config_path = root / "atlas.json"
+            config_path = root / "adamast.json"
             configured = replace(
                 self.base_config(root),
                 session_selector="prompt",
@@ -651,14 +651,14 @@ class CodexIntegrationTests(unittest.TestCase):
                 )
 
             self.assertEqual(code, 0)
-            installed = CodexConfig.load(root / ".codex" / "atlas-skill.json")
+            installed = CodexConfig.load(root / ".codex" / "adamast.json")
             self.assertEqual(installed.selector_surface, "inline")
 
     def test_user_level_install_rejects_project_target(self):
         with self.assertRaises(SystemExit):
             install_main(["--user-level", "--project-dir", "."])
 
-    def test_uninstall_removes_only_atlas_hooks(self):
+    def test_uninstall_removes_only_adamast_hooks(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             install(root, self.base_config(root), python=Path("python"))
@@ -679,7 +679,7 @@ class CodexIntegrationTests(unittest.TestCase):
             self.assertGreater(result["removed_hooks"], 0)
             cleaned = json.loads(hooks_path.read_text(encoding="utf-8"))
             self.assertIn("other.py", json.dumps(cleaned))
-            self.assertFalse((root / ".codex" / "atlas-skill.json").exists())
+            self.assertFalse((root / ".codex" / "adamast.json").exists())
 
     def test_uninstall_preserves_unrelated_config_reference(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -692,7 +692,7 @@ class CodexIntegrationTests(unittest.TestCase):
                     "hooks": [
                         {
                             "type": "command",
-                            "command": "python backups/atlas-skill.json",
+                            "command": "python backups/adamast.json",
                         }
                     ]
                 }
@@ -702,7 +702,7 @@ class CodexIntegrationTests(unittest.TestCase):
             uninstall(root)
 
             cleaned = json.loads(hooks_path.read_text(encoding="utf-8"))
-            self.assertIn("backups/atlas-skill.json", json.dumps(cleaned))
+            self.assertIn("backups/adamast.json", json.dumps(cleaned))
 
     def test_stop_hook_commits_compact_checkpoint_in_one_callback(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -718,7 +718,7 @@ class CodexIntegrationTests(unittest.TestCase):
             }
             start = session_start(event, config)
             self.assertIn(
-                "ATLAS runtime interaction is active",
+                "AdaMAST runtime interaction is active",
                 start["hookSpecificOutput"]["additionalContext"],
             )
             append_text(transcript, "Compute 2 + 2.", role="user")
@@ -977,7 +977,7 @@ class CodexIntegrationTests(unittest.TestCase):
                         "content": [
                             {
                                 "type": "input_text",
-                                "text": "<hook_prompt>ATLAS PRIVATE TAXONOMY</hook_prompt>",
+                                "text": "<hook_prompt>AdaMAST PRIVATE TAXONOMY</hook_prompt>",
                             }
                         ],
                     },
@@ -1017,7 +1017,7 @@ class CodexIntegrationTests(unittest.TestCase):
             self.assertIn("VISIBLE ANSWER", normalized)
             self.assertIn("pytest", normalized)
             self.assertNotIn("SECRET SYSTEM", normalized)
-            self.assertNotIn("ATLAS PRIVATE TAXONOMY", normalized)
+            self.assertNotIn("AdaMAST PRIVATE TAXONOMY", normalized)
             self.assertNotIn("PRIVATE REASONING", normalized)
             self.assertNotIn("PRIVATE SKILL TEXT", normalized)
 
@@ -1089,11 +1089,11 @@ class CodexIntegrationTests(unittest.TestCase):
 
             with (
                 patch(
-                    "atlas_integration.codex.runtime.enqueue_learning_job",
+                    "adamast_integration.codex.runtime.enqueue_learning_job",
                     return_value="codex-generation-five",
                 ) as enqueue,
                 patch(
-                    "atlas_runtime.generation._atlas_generate",
+                    "adamast_runtime.generation._adamast_generate",
                     side_effect=AssertionError("provider generation must not run"),
                 ) as provider,
             ):
@@ -1148,11 +1148,11 @@ class CodexIntegrationTests(unittest.TestCase):
             append_text(transcript, report)
             with (
                 patch(
-                    "atlas_integration.codex.runtime.enqueue_learning_job",
+                    "adamast_integration.codex.runtime.enqueue_learning_job",
                     return_value="codex-generation-test",
                 ) as enqueue,
                 patch(
-                    "atlas_runtime.generation._atlas_generate",
+                    "adamast_runtime.generation._adamast_generate",
                     side_effect=AssertionError("provider generation must not run"),
                 ) as provider,
             ):
@@ -1192,7 +1192,7 @@ class CodexIntegrationTests(unittest.TestCase):
                 {**event, "hook_event_name": "SessionStart"}, config
             )
             context = started["hookSpecificOutput"]["additionalContext"]
-            self.assertIn("Which taxonomy should ATLAS use", context)
+            self.assertIn("Which taxonomy should AdaMAST use", context)
             self.assertIn("1. MAST  [Recommended]", context)
             self.assertIn("2. No taxonomy", context)
 
@@ -1209,7 +1209,7 @@ class CodexIntegrationTests(unittest.TestCase):
                 "Do not perform or analyze",
                 held["hookSpecificOutput"]["additionalContext"],
             )
-            append_text(transcript, "ATLAS SELECTOR MARKER")
+            append_text(transcript, "AdaMAST SELECTOR MARKER")
             waiting = stop({**event, "hook_event_name": "Stop"}, config)
             self.assertTrue(waiting["continue"])
             self.assertIn("waiting for taxonomy", waiting["systemMessage"])
@@ -1249,7 +1249,7 @@ class CodexIntegrationTests(unittest.TestCase):
             self.assertEqual(len(traces), 1)
             self.assertEqual(traces[0].task, "ORIGINAL TASK MARKER")
             self.assertIn("ORIGINAL TASK ANSWER MARKER", traces[0].raw_trajectory)
-            self.assertNotIn("ATLAS SELECTOR MARKER", traces[0].raw_trajectory)
+            self.assertNotIn("AdaMAST SELECTOR MARKER", traces[0].raw_trajectory)
 
     def test_resume_recovers_missed_inline_choice_before_browser_launch(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -1271,7 +1271,7 @@ class CodexIntegrationTests(unittest.TestCase):
 
             browser_config = replace(config, selector_surface="browser")
             with patch(
-                "atlas_integration.codex.runtime.start_browser_picker"
+                "adamast_integration.codex.runtime.start_browser_picker"
             ) as launch:
                 resumed = session_start(
                     {**event, "hook_event_name": "SessionStart"},
@@ -1318,11 +1318,11 @@ class CodexIntegrationTests(unittest.TestCase):
             }
             with (
                 patch(
-                    "atlas_integration.codex.runtime.start_browser_picker",
+                    "adamast_integration.codex.runtime.start_browser_picker",
                     return_value=picker,
                 ) as launch,
                 patch(
-                    "atlas_integration.codex.runtime.open_browser_picker",
+                    "adamast_integration.codex.runtime.open_browser_picker",
                     return_value=True,
                 ) as opened,
             ):
@@ -1446,7 +1446,7 @@ class CodexIntegrationTests(unittest.TestCase):
                 },
                 config,
             )
-            self.assertIn("ATLAS disabled", selected["systemMessage"])
+            self.assertIn("AdaMAST disabled", selected["systemMessage"])
             self.assertIsNone(stop({**event, "hook_event_name": "Stop"}, config))
             state = load_state(config.trace_output, "selector-disabled")
             self.assertEqual(state["selection"]["status"], "disabled")
@@ -1474,7 +1474,7 @@ class CodexIntegrationTests(unittest.TestCase):
                 },
                 config,
             )
-            self.assertIn("ATLAS selected web-backend", json.dumps(chosen))
+            self.assertIn("AdaMAST selected web-backend", json.dumps(chosen))
             user_prompt_submit(
                 {
                     **first,
@@ -1511,7 +1511,7 @@ class CodexIntegrationTests(unittest.TestCase):
             transcript.write_text("", encoding="utf-8")
             raw_config = replace(
                 self.selector_config(root),
-                trace_output=root / "atlas-home",
+                trace_output=root / "adamast-home",
                 project_scope="auto",
             )
 
@@ -1621,7 +1621,7 @@ class CodexIntegrationTests(unittest.TestCase):
             self.assertIn(str(result.skill_md), summary["removed"])
             self.assertFalse(result.skill_md.exists())
 
-    def test_skill_reinstall_updates_an_atlas_managed_folder(self):
+    def test_skill_reinstall_updates_an_adamast_managed_folder(self):
         with tempfile.TemporaryDirectory() as temp:
             skills_dir = Path(temp) / "skills"
             first = install_skill(skills_dir=skills_dir)

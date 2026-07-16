@@ -7,22 +7,22 @@ import time
 import unittest
 from pathlib import Path
 
-from atlas_runtime.generation import (
-    candidate_from_atlas,
+from adamast_runtime.generation import (
+    candidate_from_adamast,
     run_generation_job,
     structurally_accept,
     trigger_generation,
 )
-from atlas_runtime.lifecycle import end_session, record_trace, start_session
-from atlas_runtime.program import ProgramWorkspace
-from atlas_runtime.traces import GenerationTrace, TraceStore
-from atlas_runtime.worker_state import GENERATION_WORKER_STATE, write_worker_state
+from adamast_runtime.lifecycle import end_session, record_trace, start_session
+from adamast_runtime.program import ProgramWorkspace
+from adamast_runtime.traces import GenerationTrace, TraceStore
+from adamast_runtime.worker_state import GENERATION_WORKER_STATE, write_worker_state
 from finding import resolver, store
 
 ROOT = Path(__file__).resolve().parent.parent
 BASE_STORE = ROOT / "tests" / "fixtures" / "taxonomies"
-TRACE_FIXTURE = Path(__file__).parent / "fixtures" / "atlas_generation_trace.json"
-ATLAS_OUTPUT = Path(__file__).parent / "fixtures" / "real_atlas_generation_output.json"
+TRACE_FIXTURE = Path(__file__).parent / "fixtures" / "adamast_generation_trace.json"
+ADAMAST_OUTPUT = Path(__file__).parent / "fixtures" / "real_adamast_generation_output.json"
 
 
 def trace(number: int) -> GenerationTrace:
@@ -32,7 +32,7 @@ def trace(number: int) -> GenerationTrace:
 
 
 def real_generation_output():
-    return json.loads(ATLAS_OUTPUT.read_text(encoding="utf-8"))
+    return json.loads(ADAMAST_OUTPUT.read_text(encoding="utf-8"))
 
 
 def copy_store(destination: Path) -> None:
@@ -73,7 +73,7 @@ class GenerationLifecycleTests(unittest.TestCase):
                 store_dir=store_dir,
                 trace_root=trace_root,
                 generation_stops=True,
-                atlas_model="claude-sonnet-4-6",
+                adamast_model="claude-sonnet-4-6",
                 skip_judge=True,
             )
             record_trace(fifth, trace(5))
@@ -148,7 +148,7 @@ class GenerationLifecycleTests(unittest.TestCase):
                 store_dir=store_dir,
                 trace_root=trace_root,
                 generation_stops=True,
-                atlas_model="claude-sonnet-4-6",
+                adamast_model="claude-sonnet-4-6",
                 skip_judge=True,
             )
             record_trace(fifth, trace(5))
@@ -180,7 +180,7 @@ class GenerationLifecycleTests(unittest.TestCase):
                 store_dir=store_dir,
                 trace_root=trace_root,
                 generation_stops=True,
-                atlas_model="claude-sonnet-4-6",
+                adamast_model="claude-sonnet-4-6",
                 skip_judge=True,
             )
             record_trace(fifth, trace(5))
@@ -261,7 +261,7 @@ class GenerationLifecycleTests(unittest.TestCase):
                 trace_output=output,
                 store_dir=store_dir,
                 trace_root=trace_root,
-                atlas_model="claude-sonnet-4-6",
+                adamast_model="claude-sonnet-4-6",
                 skip_judge=True,
             )
             record_trace(fifth, trace(5))
@@ -289,7 +289,7 @@ class GenerationLifecycleTests(unittest.TestCase):
                     store_dir=store_dir,
                     trace_root=trace_root,
                     generator=lambda _traces: real_generation_output(),
-                    atlas_model="claude-sonnet-4-6",
+                    adamast_model="claude-sonnet-4-6",
                     skip_judge=True,
                     activation_poll_seconds=0.01,
                     # Generous ceilings: a loaded CI runner can stall the
@@ -429,9 +429,9 @@ class GenerationLifecycleTests(unittest.TestCase):
             self.assertEqual(launched, [])
 
 
-class AtlasCandidateConversionTests(unittest.TestCase):
+class AdaMASTCandidateConversionTests(unittest.TestCase):
     def test_keeps_step_one_discovered_domain(self):
-        candidate = candidate_from_atlas(real_generation_output())
+        candidate = candidate_from_adamast(real_generation_output())
         self.assertEqual(
             candidate["domain"],
             "Software Engineering / Code Repair",
@@ -441,12 +441,12 @@ class AtlasCandidateConversionTests(unittest.TestCase):
     def test_missing_domain_metadata_remains_valid_display_empty_string(self):
         raw = real_generation_output()
         raw.pop("full_layer")
-        candidate = candidate_from_atlas(raw)
+        candidate = candidate_from_adamast(raw)
         self.assertEqual(candidate["domain"], "")
         self.assertTrue(structurally_accept(candidate))
 
     def test_codes_are_canonical_with_short_category(self):
-        candidate = candidate_from_atlas(real_generation_output())
+        candidate = candidate_from_adamast(real_generation_output())
         self.assertTrue(candidate["codes"])
         for code in candidate["codes"]:
             # category is the SHORT label, never the verbose definition sentence

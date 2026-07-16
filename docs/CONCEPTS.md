@@ -1,25 +1,25 @@
-# ATLAS concepts
+# AdaMAST concepts
 
 This page defines the vocabulary the rest of the documentation uses. Read it
 once before the integration guides; every other page assumes these terms.
 
-ATLAS is not another task solver. It is a runtime supervision layer that gives
+AdaMAST is not another task solver. It is a runtime supervision layer that gives
 an agent a structured way to ask, "what mistake am I about to repeat?" — and a
 learning loop that turns completed runs into a failure-mode taxonomy
 specialized to your tasks.
 
 ## The runtime loop
 
-![ATLAS runtime loop](atlas_runtime_loop.png)
+![AdaMAST runtime loop](adamast_runtime_loop.png)
 
-1. A task starts. ATLAS selects the active taxonomy: an inherited stored
+1. A task starts. AdaMAST selects the active taxonomy: an inherited stored
    taxonomy if one is configured, otherwise the built-in MAST fallback.
 2. At configured boundaries (checkpoints, tool failures, subagent stops), the
    agent is asked to reflect on its recent trajectory against the taxonomy.
 3. Before the final answer is released, a pre-submission gate requires a
    structured reflection; the agent gets a bounded number of repair attempts.
 4. At session end, one canonical trace of the task is recorded.
-5. When enough traces accumulate, ATLAS generates a task-specific taxonomy
+5. When enough traces accumulate, AdaMAST generates a task-specific taxonomy
    (from MAST warm-up) or refines the active stored taxonomy. Accepted
    results become stored taxonomies that future runs can inherit.
 
@@ -62,7 +62,7 @@ alone never authorizes a replacement.
 
 MAST is the Multi-Agent System failure Taxonomy from
 ["Why Do Multi-Agent LLM Systems Fail?" (Cemri et al., 2025)](https://arxiv.org/abs/2503.13657).
-ATLAS ships a 14-code adaptation as its zero-configuration starting point:
+AdaMAST ships a 14-code adaptation as its zero-configuration starting point:
 when no taxonomy is inherited, runs begin with these codes and MAST warm-up
 traces feed the first generation.
 
@@ -76,7 +76,7 @@ The full definitions live in [`finding/mast.json`](https://github.com/multi-agen
 MAST is a built-in constant, not a store record; it does not appear in the
 interactive picker.
 
-## What ATLAS is not
+## What AdaMAST is not
 
 - Not a task solver, planner, or wrapper around your agent's model calls —
   your harness owns model execution.

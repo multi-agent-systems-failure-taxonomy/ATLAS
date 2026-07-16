@@ -1,3 +1,0 @@
-display_name: ATLAS Failure Modes
-short_description: Diagnose agent work with ATLAS checkpoints and final gates.
-default_prompt: Use ATLAS to review the current task trajectory and complete the final submission gate before answering.

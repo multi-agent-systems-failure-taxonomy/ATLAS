@@ -10,12 +10,12 @@ import time
 import unittest
 from pathlib import Path
 
-from atlas_runtime.fsio import (
+from adamast_runtime.fsio import (
     read_text_retry,
     replace_retry,
     write_text_atomic_retry,
 )
-from atlas_runtime.program import ProgramWorkspace
+from adamast_runtime.program import ProgramWorkspace
 
 
 class FsioPrimitiveTests(unittest.TestCase):
@@ -109,8 +109,8 @@ class ManifestConcurrencyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             workspace = ProgramWorkspace(Path(td) / "program")
             with workspace.locked_manifest() as manifest:
-                manifest["atlas_model"] = "test-model"
-            self.assertEqual(workspace.load()["atlas_model"], "test-model")
+                manifest["adamast_model"] = "test-model"
+            self.assertEqual(workspace.load()["adamast_model"], "test-model")
 
 
 class HookStdioEncodingTests(unittest.TestCase):
@@ -118,7 +118,7 @@ class HookStdioEncodingTests(unittest.TestCase):
         # Piped hook stdio on Windows defaults to the ANSI code page, which
         # turns taxonomy em-dashes into mojibake in the host conversation.
         script = (
-            "from atlas_integration.shared import force_utf8_stdio\n"
+            "from adamast_integration.shared import force_utf8_stdio\n"
             "force_utf8_stdio()\n"
             "print('gate \\u2014 ready')\n"
         )

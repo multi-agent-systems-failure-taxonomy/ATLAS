@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import unittest
 
-from atlas_runtime.reflection_refinement import _apply_proposals
-from atlas_runtime.taxonomy_data import Taxonomy
+from adamast_runtime.reflection_refinement import _apply_proposals
+from adamast_runtime.taxonomy_data import Taxonomy
 
 
 def _tax() -> Taxonomy:

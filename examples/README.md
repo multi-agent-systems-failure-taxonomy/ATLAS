@@ -2,7 +2,7 @@
 
 Runnable demonstration scripts. Each example stands on its own — no
 project glue, no test harness, no implicit imports beyond the standard
-atlas_skill packages. Safe to copy out as a starting point for a new
+adamast packages. Safe to copy out as a starting point for a new
 integration.
 
 ## Programs

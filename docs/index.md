@@ -4,24 +4,24 @@ hide:
   - toc
 ---
 
-<div class="atlas-home" markdown="1">
+<div class="adamast-home" markdown="1">
 
-<section class="atlas-intro" markdown="1">
+<section class="adamast-intro" markdown="1">
 
-<p class="atlas-eyebrow">Adaptive failure taxonomies</p>
+<p class="adamast-eyebrow">Adaptive failure taxonomies</p>
 
-# ATLAS
+# AdaMAST
 
-ATLAS checks work, records failures, and learns a project vocabulary from
+AdaMAST checks work, records failures, and learns a project vocabulary from
 completed traces.
 
-<div class="atlas-actions">
-  <a class="atlas-action atlas-action--primary" href="INTERACTIVE_SETUP/">Install in Codex or Claude</a>
-  <a class="atlas-action" href="EXAMPLE_RUN/">See a complete run</a>
-  <a class="atlas-action" href="ARCHITECTURE/">View architecture</a>
+<div class="adamast-actions">
+  <a class="adamast-action adamast-action--primary" href="INTERACTIVE_SETUP/">Install in Codex or Claude</a>
+  <a class="adamast-action" href="EXAMPLE_RUN/">See a complete run</a>
+  <a class="adamast-action" href="ARCHITECTURE/">View architecture</a>
 </div>
 
-<div class="atlas-runtime-rail" aria-label="ATLAS reflection sequence">
+<div class="adamast-runtime-rail" aria-label="AdaMAST reflection sequence">
   <span><b>Observe</b> concrete activity</span>
   <span><b>Correlate</b> supported causes</span>
   <span><b>Map</b> failure codes</span>
@@ -30,53 +30,53 @@ completed traces.
 
 </section>
 
-<section class="atlas-install" markdown="1">
+<section class="adamast-install" markdown="1">
 
 ## Install where you work
 
-No `atlas.json`, external model API key, standalone host CLI, or second login
+No `adamast.json`, external model API key, standalone host CLI, or second login
 is required for the interactive path.
 
-<div class="atlas-host-grid">
+<div class="adamast-host-grid">
 
-<article class="atlas-host" markdown="1">
+<article class="adamast-host" markdown="1">
 
 ### Codex
 
 Install once for every Codex task:
 
 ```bash
-atlas-codex-install --user-level
-atlas-doctor --codex
+adamast-codex-install --user-level
+adamast-doctor --codex
 ```
 
 [Codex guide ->](CODEX.md)
 
 </article>
 
-<article class="atlas-host" markdown="1">
+<article class="adamast-host" markdown="1">
 
 ### Claude Code
 
 Install once for every Claude session:
 
 ```bash
-atlas-claude-install --user-level
-atlas-doctor --claude-code
+adamast-claude-install --user-level
+adamast-doctor --claude-code
 ```
 
 [Claude Code guide ->](CLAUDE_CODE.md)
 
 </article>
 
-<article class="atlas-host" markdown="1">
+<article class="adamast-host" markdown="1">
 
 ### Your harness
 
 Wrap a direct call or use the runtime API:
 
 ```python
-from atlas_runtime import start_session
+from adamast_runtime import start_session
 ```
 
 [Integration guide ->](INTEGRATION.md)
@@ -93,7 +93,7 @@ python -m pip install --upgrade "git+https://github.com/multi-agent-systems-fail
 
 </section>
 
-<section class="atlas-flow" markdown="1">
+<section class="adamast-flow" markdown="1">
 
 ## From MAST to your taxonomy
 
@@ -107,7 +107,7 @@ python -m pip install --upgrade "git+https://github.com/multi-agent-systems-fail
    support reviewer evaluates every replacement code before atomic activation.
    The current taxonomy stays active on failure.
 
-<div class="atlas-note">
+<div class="adamast-note">
 When a project already has a learned taxonomy, choosing MAST creates an
 isolated <code>fresh-*</code> task group for that conversation. The shared
 project taxonomy remains unchanged.
@@ -117,16 +117,16 @@ project taxonomy remains unchanged.
 
 </section>
 
-<section class="atlas-proof" markdown="1">
+<section class="adamast-proof" markdown="1">
 
-## Inspect what ATLAS recorded
+## Inspect what AdaMAST recorded
 
 The local dashboard shows fired codes, clean checkpoints, affected task IDs,
 and evidence without changing the taxonomy record.
 
-![ATLAS runtime dashboard showing taxonomy evidence](assets/screenshots/dashboard-demo.png)
+![AdaMAST runtime dashboard showing taxonomy evidence](assets/screenshots/dashboard-demo.png)
 
-<div class="atlas-proof-links">
+<div class="adamast-proof-links">
   <a href="EXAMPLE_RUN/">Walk through this example</a>
   <a href="DASHBOARD/">Run the dashboard locally</a>
   <a href="TAXONOMIES/">Inspect taxonomy records</a>
@@ -134,7 +134,7 @@ and evidence without changing the taxonomy record.
 
 </section>
 
-<section class="atlas-start" markdown="1">
+<section class="adamast-start" markdown="1">
 
 ## Continue from here
 
@@ -145,7 +145,7 @@ and evidence without changing the taxonomy record.
 | configure one repository | [Getting started](GETTING_STARTED.md) |
 | change thresholds or providers | [Configuration reference](CONFIGURATION.md) |
 | diagnose a queued worker or missing hook | [Troubleshooting](TROUBLESHOOTING.md) |
-| review the research and evaluation artifacts | [Paper](atlas_paper.pdf) and [example results](EXAMPLE_RUN.md) |
+| review the research and evaluation artifacts | [Paper](adamast_paper.pdf) and [example results](EXAMPLE_RUN.md) |
 
 </section>
 

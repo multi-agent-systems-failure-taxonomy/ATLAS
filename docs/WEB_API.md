@@ -1,6 +1,6 @@
 # Local web API
 
-ATLAS exposes a small localhost HTTP API for the runtime dashboard. It is meant
+AdaMAST exposes a small localhost HTTP API for the runtime dashboard. It is meant
 for local monitoring, notebooks, benchmark harnesses, and lightweight external
 dashboards.
 
@@ -9,15 +9,15 @@ The API is read-only except for the managed-dashboard shutdown endpoint.
 ## Start the server
 
 ```bash
-atlas-dashboard \
-  --trace-output ./atlas-program \
-  --store-dir ~/.atlas-skill/taxonomies
+adamast-dashboard \
+  --trace-output ./adamast-program \
+  --store-dir ~/.adamast/taxonomies
 ```
 
 By default the dashboard binds to `127.0.0.1:8765`.
 
 Integrations may start the dashboard automatically when `dashboard` is `true` in
-`atlas.json`.
+`adamast.json`.
 
 ## `GET /api/health`
 
@@ -114,9 +114,9 @@ Notes:
 
 ## `POST /api/shutdown`
 
-This endpoint exists only for dashboards started by ATLAS integrations through
-the managed-dashboard lifecycle. It requires the private `X-ATLAS-Token` header
-written into the program's `.atlas-dashboard.json` state file.
+This endpoint exists only for dashboards started by AdaMAST integrations through
+the managed-dashboard lifecycle. It requires the private `X-AdaMAST-Token` header
+written into the program's `.adamast-dashboard.json` state file.
 
 Do not call this endpoint from external dashboards unless you own the managed
 dashboard lifecycle.

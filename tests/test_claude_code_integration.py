@@ -14,8 +14,8 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
-from atlas_integration.claude_code.config import ClaudeCodeConfig, parse_built_in_hooks
-from atlas_integration.claude_code.hooks import (
+from adamast_integration.claude_code.config import ClaudeCodeConfig, parse_built_in_hooks
+from adamast_integration.claude_code.hooks import (
     post_tool_use,
     post_tool_use_failure,
     session_end,
@@ -24,19 +24,19 @@ from atlas_integration.claude_code.hooks import (
     subagent_stop,
     task_completed,
 )
-from atlas_integration.claude_code.install import (
+from adamast_integration.claude_code.install import (
     REQUIRED_EVENTS,
     install,
     installed_claude_executable,
     main as install_main,
     verify_installed_hooks,
 )
-from atlas_integration.claude_code.uninstall import uninstall
-from atlas_integration.claude_code.state import load_state
-from atlas_runtime.dashboard import current_taxonomy
-from atlas_runtime.evidence import EVIDENCE_FILE
-from atlas_runtime.program import ProgramWorkspace
-from atlas_runtime.traces import TRACE_FIELDS
+from adamast_integration.claude_code.uninstall import uninstall
+from adamast_integration.claude_code.state import load_state
+from adamast_runtime.dashboard import current_taxonomy
+from adamast_runtime.evidence import EVIDENCE_FILE
+from adamast_runtime.program import ProgramWorkspace
+from adamast_runtime.traces import TRACE_FIELDS
 
 ROOT = Path(__file__).resolve().parent.parent
 STORE_DIR = ROOT / "tests" / "fixtures" / "taxonomies"
@@ -80,7 +80,7 @@ def checkpoint_id(prompt: str) -> str:
 
 
 def fired_reflection(cid: str, code: str = "MAST-12") -> str:
-    return f"""ATLAS reflection:
+    return f"""AdaMAST reflection:
 - Checkpoint ID: {cid}
 - Observe: The trace shows a verification gap.
 - Map:
@@ -91,7 +91,7 @@ def fired_reflection(cid: str, code: str = "MAST-12") -> str:
 
 
 def none_reflection(cid: str) -> str:
-    return f"""ATLAS reflection:
+    return f"""AdaMAST reflection:
 - Checkpoint ID: {cid}
 - Observe: The trace is complete and verified.
 - Map:
@@ -110,7 +110,7 @@ class ClaudeCodeIntegrationTests(unittest.TestCase):
         self.transcript.write_text("", encoding="utf-8")
         self.config = ClaudeCodeConfig(
             trace_output=self.trace_output,
-            atlas_model="test-model",
+            adamast_model="test-model",
             store_dir=STORE_DIR,
             max_retries=3,
             failure_throttle_calls=2,
@@ -121,7 +121,7 @@ class ClaudeCodeIntegrationTests(unittest.TestCase):
             "transcript_path": str(self.transcript),
             "cwd": str(self.root),
         }
-        with patch.dict(os.environ, {"ATLAS_DISABLE_DASHBOARD": "1"}):
+        with patch.dict(os.environ, {"ADAMAST_DISABLE_DASHBOARD": "1"}):
             code, output = session_start.handle(
                 {**self.base, "hook_event_name": "SessionStart"},
                 self.config,
@@ -134,7 +134,7 @@ class ClaudeCodeIntegrationTests(unittest.TestCase):
 
     def test_taxonomy_is_held_at_start_and_surfaced_only_at_gate(self):
         context = self.start_output["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("ATLAS runtime interaction is active", context)
+        self.assertIn("AdaMAST runtime interaction is active", context)
         self.assertNotIn("MAST-12", context)
         state = load_state(self.trace_output, self.base["session_id"])
         self.assertEqual(state["taxonomy_id"], "mast")
@@ -169,11 +169,11 @@ class ClaudeCodeIntegrationTests(unittest.TestCase):
         cid = checkpoint_id(prompt)
         append_text(
             self.transcript,
-            f"ATLAS reflection:\n- Checkpoint ID: {cid}\n- Observe: looked",
+            f"AdaMAST reflection:\n- Checkpoint ID: {cid}\n- Observe: looked",
         )
         code, error = task_completed.handle(event, self.config)
         self.assertEqual(code, 2)
-        self.assertIn("ATLAS format repair", error)
+        self.assertIn("AdaMAST format repair", error)
         self.assertIn("empty or missing Map step", error)
         append_text(self.transcript, none_reflection(cid))
         code, _ = task_completed.handle(event, self.config)
@@ -221,7 +221,7 @@ class ClaudeCodeIntegrationTests(unittest.TestCase):
         cid = checkpoint_id(prompt)
         append_text(
             self.transcript,
-            f"""## ATLAS Reflection
+            f"""## AdaMAST Reflection
 - Checkpoint ID: {cid}
 **Observe:** The trace has a concrete weak point.
 **Root cause:** The agent skipped verification before declaring the work done.
@@ -296,7 +296,7 @@ Run the missing verification before proceeding.
         cid = checkpoint_id(prompt)
         append_text(
             agent_transcript,
-            f"ATLAS reflection:\n- Checkpoint ID: {cid}\n- Observe: hollow",
+            f"AdaMAST reflection:\n- Checkpoint ID: {cid}\n- Observe: hollow",
         )
         active = {**event, "stop_hook_active": True}
         self.assertEqual(subagent_stop.handle(active, self.config)[0], 2)
@@ -315,7 +315,7 @@ Run the missing verification before proceeding.
         cid = checkpoint_id(prompt)
         append_text(
             self.transcript,
-            f"ATLAS reflection:\n- Checkpoint ID: {cid}\n- Observe: hollow",
+            f"AdaMAST reflection:\n- Checkpoint ID: {cid}\n- Observe: hollow",
         )
         active = {**event, "stop_hook_active": True}
         code, _ = stop.handle(active, self.config)
@@ -336,7 +336,7 @@ Run the missing verification before proceeding.
         _, prompt = task_completed.handle(event, self.config)
         append_text(
             self.transcript,
-            "ATLAS reflection:\n"
+            "AdaMAST reflection:\n"
             f"- Checkpoint ID: {checkpoint_id(prompt)}\n"
             "- Observe: still hollow",
         )
@@ -358,13 +358,13 @@ Run the missing verification before proceeding.
         # Valid in substance (READY verdict, no change) but missing Correlate.
         append_text(
             self.transcript,
-            f"""ATLAS reflection:
+            f"""AdaMAST reflection:
 - Checkpoint ID: {cid}
 - Observe: The trace is complete and verified.
 - Map:
   - none apply | considered: MAST-12 | evidence: "the full suite passed"
 - Decide: no change needed, because verification is green
-Final ATLAS status: READY_TO_SUBMIT
+Final AdaMAST status: READY_TO_SUBMIT
 Codes checked: none
 Evidence: the full suite passed
 Repair attempts used: 0
@@ -374,7 +374,7 @@ Final decision: submit
         active = {**event, "stop_hook_active": True}
         code, message = stop.handle(active, self.config)
         self.assertEqual(code, 2)
-        self.assertIn("ATLAS format repair", message)
+        self.assertIn("AdaMAST format repair", message)
         self.assertIn("empty or missing Correlate step", message)
         self.assertNotIn("empty or missing Observe step", message)
         self.assertIn("Do not re-analyze", message)
@@ -383,7 +383,7 @@ Final decision: submit
         append_text(
             self.transcript,
             fired_reflection(cid)
-            + "\nFinal ATLAS status: REPAIR_REQUIRED\n"
+            + "\nFinal AdaMAST status: REPAIR_REQUIRED\n"
             + "Repair attempts used: 0\n",
         )
         code, _message = stop.handle(active, self.config)
@@ -409,12 +409,12 @@ Final decision: submit
         # longer exhaust the gate before a repair is offered.
         config = ClaudeCodeConfig(
             trace_output=self.trace_output,
-            atlas_model="test-model",
+            adamast_model="test-model",
             store_dir=STORE_DIR,
             max_retries=1,
         )
         base = {**self.base, "session_id": "session-repair-budget"}
-        with patch.dict(os.environ, {"ATLAS_DISABLE_DASHBOARD": "1"}):
+        with patch.dict(os.environ, {"ADAMAST_DISABLE_DASHBOARD": "1"}):
             session_start.handle(
                 {**base, "hook_event_name": "SessionStart"}, config
             )
@@ -429,16 +429,16 @@ Final decision: submit
         cid = checkpoint_id(prompt)
         append_text(
             self.transcript,
-            f"ATLAS reflection:\n- Checkpoint ID: {cid}\n- Observe: hollow",
+            f"AdaMAST reflection:\n- Checkpoint ID: {cid}\n- Observe: hollow",
         )
         active = {**event, "stop_hook_active": True}
         code, message = stop.handle(active, config)
         self.assertEqual(code, 2)
-        self.assertIn("ATLAS format repair", message)
+        self.assertIn("AdaMAST format repair", message)
         append_text(
             self.transcript,
             fired_reflection(cid)
-            + "\nFinal ATLAS status: REPAIR_REQUIRED\n"
+            + "\nFinal AdaMAST status: REPAIR_REQUIRED\n"
             + "Repair attempts used: 0\n",
         )
         code, message = stop.handle(active, config)
@@ -448,7 +448,7 @@ Final decision: submit
     def test_legacy_max_retries_maps_to_repair_rounds(self):
         config = ClaudeCodeConfig(
             trace_output=self.trace_output,
-            atlas_model="test-model",
+            adamast_model="test-model",
             store_dir=STORE_DIR,
             max_retries=5,
         )
@@ -464,7 +464,7 @@ Final decision: submit
             json.dumps(
                 {
                     "trace_output": str(self.trace_output),
-                    "atlas_model": "test-model",
+                    "adamast_model": "test-model",
                     "max_retries": 3,
                 }
             ),
@@ -495,12 +495,12 @@ Final decision: submit
     def test_trace_redaction_can_be_disabled(self):
         config = ClaudeCodeConfig(
             trace_output=self.trace_output,
-            atlas_model="test-model",
+            adamast_model="test-model",
             store_dir=STORE_DIR,
             redact_traces=False,
         )
         base = {**self.base, "session_id": "session-noredact"}
-        with patch.dict(os.environ, {"ATLAS_DISABLE_DASHBOARD": "1"}):
+        with patch.dict(os.environ, {"ADAMAST_DISABLE_DASHBOARD": "1"}):
             session_start.handle(
                 {**base, "hook_event_name": "SessionStart"}, config
             )
@@ -525,7 +525,7 @@ Final decision: submit
         }
         append_text(self.transcript, "Some session activity.")
         with patch(
-            "atlas_integration.claude_code.runtime.end_session",
+            "adamast_integration.claude_code.runtime.end_session",
             side_effect=RuntimeError("learning crashed"),
         ):
             with self.assertRaisesRegex(RuntimeError, "learning crashed"):
@@ -550,13 +550,13 @@ Final decision: submit
         # timeout, regardless of the configured *_stops flags.
         config = ClaudeCodeConfig(
             trace_output=self.trace_output,
-            atlas_model="test-model",
+            adamast_model="test-model",
             store_dir=STORE_DIR,
             generation_stops=True,
             refinement_stops=True,
         )
         base = {**self.base, "session_id": "session-background"}
-        with patch.dict(os.environ, {"ATLAS_DISABLE_DASHBOARD": "1"}):
+        with patch.dict(os.environ, {"ADAMAST_DISABLE_DASHBOARD": "1"}):
             session_start.handle(
                 {**base, "hook_event_name": "SessionStart"}, config
             )
@@ -565,7 +565,7 @@ Final decision: submit
         self.assertFalse(state["lifecycle"]["refinement_stops"])
 
         captured = {}
-        import atlas_integration.claude_code.runtime as rt
+        import adamast_integration.claude_code.runtime as rt
 
         real_end_session = rt.end_session
 
@@ -579,7 +579,7 @@ Final decision: submit
             "reason": "prompt_input_exit",
         }
         with patch(
-            "atlas_integration.claude_code.runtime.end_session",
+            "adamast_integration.claude_code.runtime.end_session",
             side_effect=spy,
         ):
             code, _message = session_end.handle(event, config)
@@ -598,7 +598,7 @@ Final decision: submit
         append_text(
             self.transcript,
             fired_reflection(checkpoint_id(prompt))
-            + "\nFinal ATLAS status: REPAIR_REQUIRED\n"
+            + "\nFinal AdaMAST status: REPAIR_REQUIRED\n"
             + "Repair attempts used: 0\n",
         )
         active = {**event, "stop_hook_active": True}
@@ -635,7 +635,7 @@ Final decision: submit
             append_text(
                 self.transcript,
                 fired_reflection(checkpoint_id(recheck_prompt))
-                + "\nFinal ATLAS status: REPAIR_REQUIRED\n"
+                + "\nFinal AdaMAST status: REPAIR_REQUIRED\n"
                 + f"Repair attempts used: {completed}\n",
             )
             code, message = stop.handle(active, self.config)
@@ -667,7 +667,7 @@ Final decision: submit
         append_text(
             self.transcript,
             none_reflection(checkpoint_id(prompt))
-            + "\nFinal ATLAS status: READY_TO_SUBMIT\n"
+            + "\nFinal AdaMAST status: READY_TO_SUBMIT\n"
             + "Repair attempts used: 1\n",
         )
         code, message = stop.handle(
@@ -688,7 +688,7 @@ Final decision: submit
         append_text(
             self.transcript,
             fired_reflection(checkpoint_id(prompt))
-            + "\nFinal ATLAS status: READY_TO_SUBMIT\n"
+            + "\nFinal AdaMAST status: READY_TO_SUBMIT\n"
             + "Codes checked: MAST-12\n"
             + "Evidence: verification is missing\n"
             + "Repair attempts used: 0\n"
@@ -727,7 +727,7 @@ Final decision: submit
         append_text(
             self.transcript,
             none_reflection(cid)
-            + "\nFinal ATLAS status: READY_TO_SUBMIT\n"
+            + "\nFinal AdaMAST status: READY_TO_SUBMIT\n"
             + "Codes checked: MAST-12\n"
             + "Evidence: full suite passed\n"
             + "Repair attempts used: 0\n"
@@ -748,13 +748,13 @@ Final decision: submit
             "hook_event_name": "Stop",
             "stop_hook_active": False,
             "last_assistant_message": (
-                "ATLAS checkpoint request: investigation is complete"
+                "AdaMAST checkpoint request: investigation is complete"
             ),
         }
         code, prompt = stop.handle(event, self.config)
         self.assertEqual(code, 2)
         self.assertIn("voluntary major-segment checkpoint", prompt)
-        self.assertNotIn("Final ATLAS status:", prompt)
+        self.assertNotIn("Final AdaMAST status:", prompt)
         append_text(self.transcript, none_reflection(checkpoint_id(prompt)))
         code, message = stop.handle(
             {**event, "stop_hook_active": True}, self.config
@@ -774,7 +774,7 @@ Final decision: submit
         append_text(
             self.transcript,
             fired_reflection(cid)
-            + "\nFinal ATLAS status: REPAIR_REQUIRED\n"
+            + "\nFinal AdaMAST status: REPAIR_REQUIRED\n"
             + "Repair attempts used: 0\n",
         )
         active = {**event, "stop_hook_active": True}
@@ -785,7 +785,7 @@ Final decision: submit
         append_text(
             self.transcript,
             none_reflection(checkpoint_id(recheck_prompt))
-            + "\nFinal ATLAS status: READY_TO_SUBMIT\n"
+            + "\nFinal AdaMAST status: READY_TO_SUBMIT\n"
             + "Repair attempts used: 1\n",
         )
         self.assertEqual(stop.handle(active, self.config)[0], 0)
@@ -886,7 +886,7 @@ Final decision: submit
         append_text(
             self.transcript,
             none_reflection(checkpoint_id(prompt))
-            + "\nFinal ATLAS status: READY_TO_SUBMIT\n"
+            + "\nFinal AdaMAST status: READY_TO_SUBMIT\n"
             + "Repair attempts used: 0\n",
         )
         self.assertEqual(
@@ -909,7 +909,7 @@ Final decision: submit
         append_text(
             self.transcript,
             none_reflection(checkpoint_id(prompt))
-            + "\nFinal ATLAS status: READY_TO_SUBMIT\n"
+            + "\nFinal AdaMAST status: READY_TO_SUBMIT\n"
             + "Codes checked: MAST-12\n"
             + "Evidence: tests passed\n"
             + "Repair attempts used: 0\n"
@@ -946,7 +946,7 @@ Final decision: submit
             append_text(
                 self.transcript,
                 none_reflection(checkpoint_id(prompt))
-                + "\nFinal ATLAS status: READY_TO_SUBMIT\n"
+                + "\nFinal AdaMAST status: READY_TO_SUBMIT\n"
                 + "Codes checked: none\n"
                 + "Evidence: targeted verification passed\n"
                 + "Repair attempts used: 0\n"
@@ -971,7 +971,7 @@ Final decision: submit
             },
             self.config,
         )
-        self.assertEqual(duplicate, (0, "ATLAS episode already committed."))
+        self.assertEqual(duplicate, (0, "AdaMAST episode already committed."))
 
         traces = sorted(
             ProgramWorkspace(self.trace_output).pending.iter_traces(),
@@ -1004,11 +1004,11 @@ Final decision: submit
 
         with (
             patch(
-                "atlas_integration.claude_code.runtime.enqueue_claude_learning_job",
+                "adamast_integration.claude_code.runtime.enqueue_claude_learning_job",
                 return_value="claude-generation-five",
             ) as enqueue,
             patch(
-                "atlas_runtime.generation._atlas_generate",
+                "adamast_runtime.generation._adamast_generate",
                 side_effect=AssertionError("provider generation must not run"),
             ) as provider,
         ):
@@ -1028,7 +1028,7 @@ Final decision: submit
                 append_text(
                     self.transcript,
                     none_reflection(checkpoint_id(prompt))
-                    + "\nFinal ATLAS status: READY_TO_SUBMIT\n"
+                    + "\nFinal AdaMAST status: READY_TO_SUBMIT\n"
                     + "Codes checked: none\n"
                     + "Evidence: targeted verification passed\n"
                     + "Repair attempts used: 0\n"
@@ -1069,12 +1069,12 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
             path = root / "config.json"
             config = ClaudeCodeConfig(
                 trace_output=root / "program",
-                atlas_model="gpt-5",
+                adamast_model="gpt-5",
                 store_dir=root / "store",
                 trace_root=root / "learning-traces",
                 dashboard=False,
                 openai_base_url="http://127.0.0.1:8742/v1",
-                openai_api_key_env="ATLAS_PROXY_KEY",
+                openai_api_key_env="ADAMAST_PROXY_KEY",
                 generation_threshold=7,
                 generation_stops=True,
                 skip_judge=True,
@@ -1091,7 +1091,7 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
                 loaded.openai_base_url,
                 "http://127.0.0.1:8742/v1",
             )
-            self.assertEqual(loaded.openai_api_key_env, "ATLAS_PROXY_KEY")
+            self.assertEqual(loaded.openai_api_key_env, "ADAMAST_PROXY_KEY")
             self.assertEqual(loaded.generation_threshold, 7)
             self.assertTrue(loaded.generation_stops)
             self.assertTrue(loaded.skip_judge)
@@ -1111,7 +1111,7 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
                 json.dumps(
                     {
                         "trace_output": str(Path(td) / "program"),
-                        "atlas_model": "gpt-5",
+                        "adamast_model": "gpt-5",
                         "openai_api_key": "secret-value",
                     }
                 ),
@@ -1134,7 +1134,7 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
                     clear=False,
                 ),
                 patch(
-                    "atlas_integration.claude_code.install.shutil.which",
+                    "adamast_integration.claude_code.install.shutil.which",
                     return_value=str(from_path),
                 ),
             ):
@@ -1146,7 +1146,7 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
                     clear=False,
                 ),
                 patch(
-                    "atlas_integration.claude_code.install.shutil.which",
+                    "adamast_integration.claude_code.install.shutil.which",
                     return_value=str(from_path),
                 ),
             ):
@@ -1159,7 +1159,7 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
             transcript.write_text("", encoding="utf-8")
             config = ClaudeCodeConfig(
                 trace_output=root / "program",
-                atlas_model="gpt-5",
+                adamast_model="gpt-5",
                 store_dir=STORE_DIR,
                 dashboard=False,
                 generation_threshold=7,
@@ -1208,7 +1208,7 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
             )
             completed = unittest.mock.Mock(stdout="2.1.185 (Claude Code)\n")
             with patch(
-                "atlas_integration.claude_code.install.subprocess.run",
+                "adamast_integration.claude_code.install.subprocess.run",
                 return_value=completed,
             ):
                 version = verify_installed_hooks(executable)
@@ -1220,7 +1220,7 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
             root = Path(td)
             config = ClaudeCodeConfig(
                 trace_output=root / "program",
-                atlas_model="test-model",
+                adamast_model="test-model",
                 store_dir=STORE_DIR,
             )
             first = install(root, config, verify=False)
@@ -1236,7 +1236,7 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
                 # goes stale when the install mode or location changes, and
                 # then every hook event fails.
                 self.assertIn(
-                    "-m atlas_integration.claude_code.dispatcher",
+                    "-m adamast_integration.claude_code.dispatcher",
                     command,
                 )
                 self.assertNotIn("dispatcher.py", command)
@@ -1248,7 +1248,7 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
             root = Path(td)
             config = ClaudeCodeConfig(
                 trace_output=root / "program",
-                atlas_model="test-model",
+                adamast_model="test-model",
                 store_dir=STORE_DIR,
                 built_in_hooks=parse_built_in_hooks({
                     "SubagentStop": False,
@@ -1284,25 +1284,25 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
             settings.write_text("{broken", encoding="utf-8")
             config = ClaudeCodeConfig(
                 trace_output=root / "program",
-                atlas_model="test-model",
+                adamast_model="test-model",
                 store_dir=STORE_DIR,
             )
             with self.assertRaisesRegex(RuntimeError, "refusing to overwrite"):
                 install(root, config, verify=False)
             self.assertEqual(settings.read_text(encoding="utf-8"), "{broken")
-            self.assertFalse((claude / "atlas-skill.json").exists())
+            self.assertFalse((claude / "adamast.json").exists())
 
     def test_verification_failure_writes_nothing(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             config = ClaudeCodeConfig(
                 trace_output=root / "program",
-                atlas_model="test-model",
+                adamast_model="test-model",
                 store_dir=STORE_DIR,
             )
             with (
                 patch(
-                    "atlas_integration.claude_code.install.verify_installed_hooks",
+                    "adamast_integration.claude_code.install.verify_installed_hooks",
                     side_effect=RuntimeError("missing hook"),
                 ),
                 self.assertRaisesRegex(RuntimeError, "missing hook"),
@@ -1315,11 +1315,11 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
             root = Path(td)
             with (
                 patch(
-                    "atlas_integration.claude_code.install.Path.home",
+                    "adamast_integration.claude_code.install.Path.home",
                     return_value=root,
                 ),
                 patch(
-                    "atlas_integration.claude_code.install.verify_installed_hooks",
+                    "adamast_integration.claude_code.install.verify_installed_hooks",
                     return_value="9.9.9",
                 ),
                 redirect_stdout(io.StringIO()) as output,
@@ -1331,13 +1331,13 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
             result = json.loads(output.getvalue())
             self.assertEqual(result["scope"], "user")
             config = ClaudeCodeConfig.load(
-                root / ".claude" / "atlas-skill.json"
+                root / ".claude" / "adamast.json"
             )
             self.assertEqual(
                 config.trace_output.resolve(),
-                (root / ".atlas-skill" / "interactive").resolve(),
+                (root / ".adamast" / "interactive").resolve(),
             )
-            self.assertEqual(config.atlas_model, "interactive-session")
+            self.assertEqual(config.adamast_model, "interactive-session")
             self.assertEqual(config.project_scope, "auto")
             self.assertEqual(config.session_selector, "prompt")
             self.assertEqual(config.selector_surface, "browser")
@@ -1359,11 +1359,11 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
 
             with (
                 patch(
-                    "atlas_integration.claude_code.install.resolver.resolve",
+                    "adamast_integration.claude_code.install.resolver.resolve",
                     return_value="tax-django-orm-001",
                 ) as resolve,
                 patch(
-                    "atlas_integration.claude_code.install.install",
+                    "adamast_integration.claude_code.install.install",
                     side_effect=fake_install,
                 ),
             ):
@@ -1374,7 +1374,7 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
                             str(root),
                             "--trace-output",
                             str(root / "program"),
-                            "--atlas-model",
+                            "--adamast-model",
                             "gpt-5",
                             "--store-dir",
                             str(STORE_DIR),
@@ -1397,11 +1397,11 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
 
             with (
                 patch(
-                    "atlas_integration.claude_code.install.resolver.resolve",
+                    "adamast_integration.claude_code.install.resolver.resolve",
                     return_value="tax-django-orm-001",
                 ) as resolve,
                 patch(
-                    "atlas_integration.claude_code.install.install",
+                    "adamast_integration.claude_code.install.install",
                     side_effect=fake_install,
                 ),
             ):
@@ -1412,7 +1412,7 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
                             str(root),
                             "--trace-output",
                             str(root / "program"),
-                            "--atlas-model",
+                            "--adamast-model",
                             "gpt-5",
                             "--store-dir",
                             str(STORE_DIR),
@@ -1424,12 +1424,12 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
             self.assertEqual(captured["inherit"], "tax-django-orm-001")
             self.assertEqual(resolve.call_count, 1)
 
-    def test_uninstall_removes_only_atlas_registration_and_config(self):
+    def test_uninstall_removes_only_adamast_registration_and_config(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             config = ClaudeCodeConfig(
                 trace_output=root / "program",
-                atlas_model="test-model",
+                adamast_model="test-model",
                 store_dir=STORE_DIR,
             )
             info = install(root, config, verify=False)
@@ -1466,12 +1466,12 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
             )
             self.assertNotIn("SessionStart", remaining["hooks"])
 
-    def test_uninstall_preserves_atlas_named_unrelated_hook(self):
+    def test_uninstall_preserves_adamast_named_unrelated_hook(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             config = ClaudeCodeConfig(
                 trace_output=root / "program",
-                atlas_model="test-model",
+                adamast_model="test-model",
                 store_dir=STORE_DIR,
             )
             info = install(root, config, verify=False)
@@ -1482,7 +1482,7 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
                     "hooks": [
                         {
                             "type": "command",
-                            "command": "my-atlas-failure-modes-notifier stop",
+                            "command": "my-adamast-failure-modes-notifier stop",
                         }
                     ]
                 }
@@ -1493,7 +1493,7 @@ class ClaudeCodeInstallerTests(unittest.TestCase):
 
             remaining = json.loads(settings_path.read_text(encoding="utf-8"))
             self.assertIn(
-                "my-atlas-failure-modes-notifier",
+                "my-adamast-failure-modes-notifier",
                 json.dumps(remaining),
             )
 

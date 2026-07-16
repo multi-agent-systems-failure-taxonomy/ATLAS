@@ -1,4 +1,4 @@
-"""Prompt asset loader/renderers for the ATLAS Reflection Judge."""
+"""Prompt asset loader/renderers for the AdaMAST Reflection Judge."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-# OfficeQA Pro — ATLAS agent evaluation
+# OfficeQA Pro — AdaMAST agent evaluation
 
 Agent evaluation on **OfficeQA Pro** (133 hard questions; Databricks,
 [arXiv:2603.08655](https://arxiv.org/pdf/2603.08655)): Claude Code on AWS
@@ -7,23 +7,23 @@ page(s) provided as parsed text), scored with the official `reward.py` from
 [databricks/officeqa](https://github.com/databricks/officeqa).
 
 Same model, same harness, same 133 questions in both arms — the only
-difference is the ATLAS layer.
+difference is the AdaMAST layer.
 
 ## Results
 
 | System | Accuracy (official scorer, exact match) |
 |---|---|
-| Baseline (no ATLAS) | 44.4% (59/133) |
-| **ATLAS** | **51.9% (69/133)** |
+| Baseline (no AdaMAST) | 44.4% (59/133) |
+| **AdaMAST** | **51.9% (69/133)** |
 
-Net **+10 questions**. The lift comes from the ATLAS reflection/repair gate
+Net **+10 questions**. The lift comes from the AdaMAST reflection/repair gate
 before submission.
 
 ## Files
 
 | File | What it is |
 |---|---|
-| `officeqa_taxonomy.json` | The 15-code failure-mode taxonomy used in the ATLAS run. |
+| `officeqa_taxonomy.json` | The 15-code failure-mode taxonomy used in the AdaMAST run. |
 
 Per-question predictions, scorer rows, prompts, and run manifests are not
 included. The table above is a reported summary and cannot be recomputed from
@@ -31,9 +31,9 @@ the files in this directory alone.
 
 ## The taxonomy
 
-Generated from the baseline run's own transcripts (outcome-blind) with ATLAS
+Generated from the baseline run's own transcripts (outcome-blind) with AdaMAST
 taxonomy generation, then hand-curated to the 15 codes in
-`officeqa_taxonomy.json`. It was frozen during the ATLAS run (no in-run
+`officeqa_taxonomy.json`. It was frozen during the AdaMAST run (no in-run
 refinement), so both arms are a clean A/B.
 
 ## Replicating the experiment
@@ -45,11 +45,11 @@ refinement), so both arms are a clean A/B.
    Claude Haiku 4.5), one isolated working directory per question, tools
    Read/Grep/Glob/Bash, system prompt from the paper's Appendix E.5, answers
    in `<FINAL_ANSWER>` tags.
-3. **ATLAS arm**: install the ATLAS skill
+3. **AdaMAST arm**: install the AdaMAST skill
    (`pip install "git+https://github.com/multi-agent-systems-failure-taxonomy/ATLAS.git"`),
    register the included taxonomy
-   (`atlas-register-taxonomy --file officeqa_taxonomy.json --id <id>`), and
+   (`adamast-register-taxonomy --file officeqa_taxonomy.json --id <id>`), and
    install the Claude Code hooks with that taxonomy inherited
-   (`atlas-claude-install`), learning frozen (`"freeze": true`).
-4. **Baseline arm**: identical, without the ATLAS hooks.
+   (`adamast-claude-install`), learning frozen (`"freeze": true`).
+4. **Baseline arm**: identical, without the AdaMAST hooks.
 5. Score both runs with the official reward and compare accuracy.

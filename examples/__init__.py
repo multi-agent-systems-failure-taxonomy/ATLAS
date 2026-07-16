@@ -1,1 +1,1 @@
-"""Runnable ATLAS examples."""
+"""Runnable AdaMAST examples."""

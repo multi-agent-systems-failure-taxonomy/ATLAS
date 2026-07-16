@@ -31,11 +31,11 @@ jobs:
           cache: pip
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[test,anthropic,bedrock]"
-      - run: python -m ruff check atlas_runtime atlas_integration finding judge_types tests
+      - run: python -m ruff check adamast_runtime adamast_integration finding judge_types tests
       - run: >-
           python -m pytest -q
-          --cov=atlas_runtime
-          --cov=atlas_integration
+          --cov=adamast_runtime
+          --cov=adamast_integration
           --cov=finding
           --cov=judge_types
           --cov-report=term
@@ -53,6 +53,6 @@ jobs:
       - run: python -m build
       - run: python -m twine check dist/*
       - run: python -m pip install --force-reinstall dist/*.whl
-      - run: atlas-codex-install --help
-      - run: atlas-claude-install --help
+      - run: adamast-codex-install --help
+      - run: adamast-claude-install --help
       - run: python -m mkdocs build --strict

@@ -1,37 +1,37 @@
 # Codex integration
 
 The Codex integration installs user-level or project-local hooks that call
-ATLAS from Codex session and boundary events.
+AdaMAST from Codex session and boundary events.
 
 ## Install for every Codex conversation
 
 ```bash
-atlas-codex-install --user-level
-atlas-doctor --codex
+adamast-codex-install --user-level
+adamast-doctor --codex
 ```
 
-No `atlas.json` or separate model API key is required. The installer writes
-`~/.codex/hooks.json`, `~/.codex/atlas-skill.json`, and the guidance skill at
-`~/.agents/skills/atlas-failure-modes`.
+No `adamast.json` or separate model API key is required. The installer writes
+`~/.codex/hooks.json`, `~/.codex/adamast.json`, and the guidance skill at
+`~/.agents/skills/adamast-failure-modes`.
 
 The defaults are automatic Git-project scoping, task group `default`, the
 conversation selector, generation after five traces, and native
 `codex_subagent` learning in the active task. Open `/hooks` inside Codex and
-trust the installed ATLAS hooks. Native learning uses the task's existing Codex
+trust the installed AdaMAST hooks. Native learning uses the task's existing Codex
 session, so no separately runnable CLI or second login is required.
 
 ## Install project-local hooks
 
 ```bash
-atlas-codex-install --project-dir . --config atlas.json
+adamast-codex-install --project-dir . --config adamast.json
 ```
 
 This writes:
 
 - `.codex/hooks.json`
-- `.codex/atlas-skill.json`
+- `.codex/adamast.json`
 
-Open `/hooks` inside Codex and trust the ATLAS hooks before relying on them.
+Open `/hooks` inside Codex and trust the AdaMAST hooks before relying on them.
 
 ## Default events
 
@@ -41,7 +41,7 @@ The default Codex setup uses:
 2. `UserPromptSubmit`: open a new conversation's taxonomy library and handle episode boundaries.
 3. `Stop`: capture the compact final checkpoint and commit the episode in one callback.
 4. `SubagentStop`: capture a compact subagent checkpoint when present without blocking.
-5. `PostToolUse`: poll durable ATLAS state after supported successful tools.
+5. `PostToolUse`: poll durable AdaMAST state after supported successful tools.
 
 ## Hook visibility
 
@@ -49,14 +49,14 @@ Routine hook calls are sensors, not chat messages. Codex may show the transient
 status message attached to each hook while it runs, but successful
 `PostToolUse` polls, ordinary state reconciliation, repeated standing context,
 and duplicate Stop callbacks do not add assistant messages. The always-loaded
-ATLAS skill tells the agent to produce one compact checkpoint after an actual
+AdaMAST skill tells the agent to produce one compact checkpoint after an actual
 tool failure and before its next tool call.
 
 Taxonomy generation/refinement triggers, activation, retention, and failure
 produce one concise lifecycle update. The
 [Codex Hooks documentation](https://learn.chatgpt.com/docs/hooks) documents
 `additionalContext` for `SessionStart` and `UserPromptSubmit`, not
-`PostToolUse`, so ATLAS only consumes queued lifecycle notices at those two
+`PostToolUse`, so AdaMAST only consumes queued lifecycle notices at those two
 model-context events.
 
 Learning notices are not consumed by `Stop` or `SubagentStop`, because those
@@ -73,8 +73,8 @@ install, configure it explicitly:
 
 ```json
 {
-  "trace_output": "~/.atlas-skill/interactive",
-  "atlas_model": "interactive-session",
+  "trace_output": "~/.adamast/interactive",
+  "adamast_model": "interactive-session",
   "codex": {
     "project_scope": "auto",
     "task_group": "default",
@@ -85,14 +85,14 @@ install, configure it explicitly:
 }
 ```
 
-A new conversation opens the localhost ATLAS catalog from its first real
+A new conversation opens the localhost AdaMAST catalog from its first real
 `UserPromptSubmit`. Deferring the launch prevents Codex background tasks and
 spawned agent sessions from opening selectors during their own startup. The
 first substantive request is held while the user chooses. The catalog recommends
 MAST for an unbound project and includes compatible stored taxonomies plus `No
 taxonomy`. Its `/choose` handler validates the session's allowed options, updates
 Codex state, and binds a stored taxonomy to the project/task group before
-rendering the activation page. `No taxonomy` disables ATLAS gates and trace
+rendering the activation page. `No taxonomy` disables AdaMAST gates and trace
 capture only for that conversation.
 
 Catalog and chat surfaces use `display_name` when present and otherwise fall
@@ -101,7 +101,7 @@ secondary metadata and continues to be the immutable storage and lineage key.
 
 When a project already has a learned taxonomy, the numbered choices are the
 learned shared default, `MAST`, and `No taxonomy`. Choosing `MAST` means
-"start fresh": ATLAS creates a durable `fresh-<conversation>` task group,
+"start fresh": AdaMAST creates a durable `fresh-<conversation>` task group,
 starts that conversation from MAST, and learns a separate taxonomy from zero.
 The existing project taxonomy remains the default for every other conversation.
 
@@ -115,10 +115,10 @@ transcript after the saved selector boundary. An exact offered reply such as
 prose does not match. New selector state is never created at `SessionStart`, so
 background host tasks and spawned agents cannot open a browser on startup.
 
-The installer flag is equivalent and overrides `atlas.json` for that install:
+The installer flag is equivalent and overrides `adamast.json` for that install:
 
 ```bash
-atlas-codex-install --project-dir . --config atlas.json --selector-surface inline
+adamast-codex-install --project-dir . --config adamast.json --selector-surface inline
 ```
 
 The selector includes the resolved project path. Start a task from the actual
@@ -166,7 +166,7 @@ The native worker candidate schema accepts 1 through 30 replacement codes.
 Thirty is a safety cap, not a target, so a small five-trace generation snapshot
 may produce fewer codes. Every proposed code must cite one or more frozen trace
 IDs, include an exact quote from every cited trace, and explain the support.
-ATLAS checks the quotes against the immutable snapshot and stores the validation
+AdaMAST checks the quotes against the immutable snapshot and stores the validation
 record inline for audit. A refinement that chooses `no_change` returns no codes;
 the coordinator retains the current taxonomy verbatim.
 
@@ -183,16 +183,16 @@ configuration compatibility but are not used by the in-task worker.
 ## Optional skill guidance
 
 ```bash
-atlas-codex-install --project-dir . --config atlas.json --install-skill
+adamast-codex-install --project-dir . --config adamast.json --install-skill
 ```
 
-This copies the ATLAS guidance skill into the documented user skill location,
+This copies the AdaMAST guidance skill into the documented user skill location,
 `~/.agents/skills`. Pass `--skills-dir ./.agents/skills` when you explicitly
 want a repository-local copy instead.
 
 ## Custom hook policy
 
-Use `codex.hooks` in `atlas.json` when you want ATLAS to trigger only on selected Codex events:
+Use `codex.hooks` in `adamast.json` when you want AdaMAST to trigger only on selected Codex events:
 
 ```json
 {
@@ -218,18 +218,18 @@ Keep the compact final checkpoint on `Stop`; use advisory hooks for noisier even
 User-level:
 
 ```bash
-atlas-codex-uninstall --user-level
+adamast-codex-uninstall --user-level
 ```
 
 Project-local:
 
 ```bash
-atlas-codex-uninstall --project-dir .
+adamast-codex-uninstall --project-dir .
 ```
 
-This removes ATLAS hook config and, for the user-level default, the managed
+This removes AdaMAST hook config and, for the user-level default, the managed
 guidance skill. It does not delete learned taxonomies or trace folders.
 
 ## More implementation detail
 
-See [atlas_integration/codex/README.md](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/atlas_integration/codex/README.md) for the adapter file map.
+See [adamast_integration/codex/README.md](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/adamast_integration/codex/README.md) for the adapter file map.

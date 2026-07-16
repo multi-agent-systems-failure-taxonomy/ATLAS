@@ -26,7 +26,7 @@ queued -> claimed -> awaiting_reconcile -> support_queued
        -> activated | no_change | rejected | failed
 ```
 
-1. ATLAS freezes the exact trace references and source taxonomy version.
+1. AdaMAST freezes the exact trace references and source taxonomy version.
 2. A `UserPromptSubmit` or supported `SessionStart` boundary claims the job
    with a time-bound token. Codex installs `SessionStart` for startup, resume,
    and context compaction so long-running desktop tasks have a second supported
@@ -88,5 +88,5 @@ the host cannot inject output into an idle conversation.
 - Legacy detached-worker jobs are retired before the native path queues a
   replacement from the persisted evidence.
 
-Use `atlas-status` to inspect the active taxonomy, trace counts, and learning
+Use `adamast-status` to inspect the active taxonomy, trace counts, and learning
 state. See [Troubleshooting](TROUBLESHOOTING.md) when a job remains queued.

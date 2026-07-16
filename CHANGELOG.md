@@ -4,6 +4,49 @@ All notable user-facing changes are documented here.
 
 ## Unreleased
 
+## 0.1.0 - 2026-07-16
+
+AdaMAST is the new name of this project (previously ATLAS, distributed as
+`atlas-skill`). Versioning restarts at 0.1.0 under the new `adamast`
+distribution name; entries below 0.1.0 describe the `atlas-skill` lineage.
+
+### Changed
+
+- Package renamed `atlas-skill` → `adamast`; every `atlas-*` console command
+  is now `adamast-*` (`adamast-claude-install`, `adamast-doctor`, …).
+- Python packages renamed: `atlas_integration` → `adamast_integration` and
+  `atlas_runtime` → `adamast_runtime`.
+- User-level config and state paths renamed: `~/.claude/atlas-skill.json` →
+  `~/.claude/adamast.json`, `~/.codex/atlas-skill.json` →
+  `~/.codex/adamast.json`, data home `~/.atlas-skill` → `~/.adamast`, and
+  the project-local config default `atlas.json` → `adamast.json`.
+- Environment variables renamed to `ADAMAST_*` (`ADAMAST_HOME`,
+  `ADAMAST_STORE_DIR`, `ADAMAST_TRACE_ROOT`, `ADAMAST_DISABLE_DASHBOARD`,
+  `ADAMAST_JUDGE_CAP`); the config/manifest key `atlas_model` is now
+  `adamast_model`; the learning receipt tag is now
+  `<ADAMAST_TAXONOMY_RECEIPT>`.
+- The vendored research generation pipeline is now `vendor/adamast` (env
+  vars `ADAMAST_MODEL`, `ADAMAST_TIMEOUT`, `ADAMAST_MAX_WORKERS`,
+  `ADAMAST_MAX_CODES`), and the paper is referenced as the AdaMAST paper
+  (`docs/adamast_paper.pdf`). The built-in MAST taxonomy is unchanged.
+
+### Added
+
+- The `release` workflow publishes to PyPI through Trusted Publishing after
+  the GitHub release job succeeds.
+
+### Migration
+
+- Uninstall the old package before installing the new one — both ship the
+  shared `finding`, `judge_types`, and `vendor` modules and would collide:
+  run `atlas-claude-uninstall --user-level` / `atlas-codex-uninstall
+  --user-level`, `pip uninstall atlas-skill`, then `pip install adamast` and
+  re-run `adamast-claude-install --user-level` /
+  `adamast-codex-install --user-level`.
+- To keep learned state, move `~/.atlas-skill` to `~/.adamast`, rename
+  `.atlas-*` marker files and directories inside it to `.adamast-*`, and
+  rename the `atlas_model` key in program manifests to `adamast_model`.
+
 ## 1.1.0b7 - 2026-07-15
 
 ### Changed
@@ -85,7 +128,7 @@ All notable user-facing changes are documented here.
 - Codex conversations open a session-bound localhost taxonomy library directly
   from `SessionStart`. The browser applies and persists the choice before
   reporting success, without depending on a later `UserPromptSubmit` event.
-- The taxonomy library now uses the ATLAS runtime visual language, provides a
+- The taxonomy library now uses the AdaMAST runtime visual language, provides a
   searchable taxonomy rail and full code inspection, and treats generated
   evidence as secondary expandable provenance.
 - Claude Code taxonomy learning now uses native Agent subtasks in the active
@@ -111,7 +154,7 @@ All notable user-facing changes are documented here.
   keys. Older records fall back to their domain, and new native candidates may
   provide a concise display name.
 - Host-neutral browser transport, fresh-session routing, threshold polling,
-  and receipt validation now live in `atlas_integration/interactive`; Codex and
+  and receipt validation now live in `adamast_integration/interactive`; Codex and
   Claude Code retain stable facade modules for compatibility.
 
 ### Fixed
@@ -127,7 +170,7 @@ All notable user-facing changes are documented here.
   affected path instead of silently changing the evidence set.
 - Codex compact checkpoints recognize `no further action required` as complete.
 - Codex and Claude uninstallers now remove exact managed dispatcher commands
-  while preserving unrelated hooks with ATLAS-like names or config paths.
+  while preserving unrelated hooks with AdaMAST-like names or config paths.
 - Repository licensing, vendored-pipeline provenance, result-artifact claims,
   package maps, linting, and a 78% coverage floor now match the shipped files.
 
@@ -141,14 +184,14 @@ All notable user-facing changes are documented here.
   selected as a lineage seed from the generated or refined taxonomy currently
   active. Checkpoints are explicitly directed to the active taxonomy's codes
   instead of continuing to present MAST as pinned after activation.
-- Resumed Codex and Claude Code conversations now retain their original ATLAS
+- Resumed Codex and Claude Code conversations now retain their original AdaMAST
   program scope even when the host reports a different current working
   directory. Existing selected or disabled session state is migrated into the
   new durable conversation-scope binding before a selector can reopen.
 - The browser selector confirmation now names the active host instead of
   always telling Claude Code users to return to Codex.
 - Codex Desktop sessions that omit `UserPromptSubmit` no longer remain stuck in
-  `ATLAS is waiting for taxonomy selection` after a browser choice.
+  `AdaMAST is waiting for taxonomy selection` after a browser choice.
 - The Codex selector now displays MAST as a numbered choice even when the
   project already has a learned taxonomy; its reply instructions no longer
   advertise a hidden option.
@@ -157,7 +200,7 @@ All notable user-facing changes are documented here.
   all other Claude subagents retain the existing checkpoint behavior.
 
 - The user-level interactive placeholder model (`interactive-session`)
-  adopts whatever ATLAS model a program already records instead of raising
+  adopts whatever AdaMAST model a program already records instead of raising
   a conflict. Program state written by an earlier release (which recorded
   the old default model) no longer fails every hook event in previously
   used projects.
@@ -167,7 +210,7 @@ All notable user-facing changes are documented here.
 ### Fixed
 
 - Claude Code hooks are registered as `python -m
-  atlas_integration.claude_code.dispatcher` instead of an absolute dispatcher
+  adamast_integration.claude_code.dispatcher` instead of an absolute dispatcher
   file path, so switching between wheel and editable installs (or relocating
   the package) no longer breaks every hook event.
 - Shared state files (program manifest, session state, worker heartbeats,
@@ -192,13 +235,13 @@ All notable user-facing changes are documented here.
 - One completed assistant episode per trace for interactive conversations.
 - Automatic Git-project and task-group scoping shared across conversations.
 - In-chat taxonomy selection with MAST, compatible stored taxonomies, and an
-  ATLAS-off choice.
+  AdaMAST-off choice.
 - Detached native taxonomy generation and refinement workers that reuse the
   signed-in Codex or Claude Code CLI instead of requiring a separate API key.
 - Visible, exactly-once generation and refinement trigger/completion notices.
 - Durable, idempotent learning jobs with frozen evidence snapshots, stale-job
   recovery, validation before activation, and taxonomy lineage.
-- Interactive installation and native-worker diagnostics in `atlas-doctor`.
+- Interactive installation and native-worker diagnostics in `adamast-doctor`.
 
 ### Changed
 
@@ -206,7 +249,7 @@ All notable user-facing changes are documented here.
   `~/.agents/skills`.
 - Codex and Claude Code use a shared interactive learning-state contract while
   retaining host-specific worker launchers.
-- Bedrock taxonomy calls honor the configured ATLAS timeout and adaptive retry
+- Bedrock taxonomy calls honor the configured AdaMAST timeout and adaptive retry
   policy.
 
 ### Compatibility
@@ -218,6 +261,6 @@ All notable user-facing changes are documented here.
 
 ## 1.0.0
 
-- Initial packaged ATLAS runtime with MAST fallback, trace persistence,
+- Initial packaged AdaMAST runtime with MAST fallback, trace persistence,
   generation/refinement, dashboard, Claude Code, Codex, single-LLM, and
   harness-neutral integrations.

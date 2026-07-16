@@ -13,14 +13,14 @@ from types import SimpleNamespace
 
 from finding import store
 
-from atlas_integration.codex.learning_jobs import (
+from adamast_integration.codex.learning_jobs import (
     drain_learning_notices,
     enqueue_learning_job,
     poll_learning_jobs,
     reconcile_learning_jobs,
 )
-from atlas_integration.codex.native_worker import run_worker
-from atlas_integration.codex.subagent_protocol import (
+from adamast_integration.codex.native_worker import run_worker
+from adamast_integration.codex.subagent_protocol import (
     RECEIPT_CLOSE,
     RECEIPT_OPEN,
     capture_learning_receipt,
@@ -28,8 +28,8 @@ from atlas_integration.codex.subagent_protocol import (
     complete_learning_job,
     complete_support_review,
 )
-from atlas_runtime import GenerationTrace, ProgramWorkspace
-from atlas_runtime.traces import TraceStore
+from adamast_runtime import GenerationTrace, ProgramWorkspace
+from adamast_runtime.traces import TraceStore
 
 
 class CodexLearningJobTests(unittest.TestCase):
@@ -149,9 +149,9 @@ class CodexLearningJobTests(unittest.TestCase):
     def test_native_host_job_claims_without_resolving_or_spawning_cli(self) -> None:
         self._append_pending(1, 5)
         with patch(
-            "atlas_integration.interactive.learning_jobs.resolve_codex_cli"
+            "adamast_integration.interactive.learning_jobs.resolve_codex_cli"
         ) as resolve_cli, patch(
-            "atlas_integration.interactive.learning_jobs._spawn_worker"
+            "adamast_integration.interactive.learning_jobs._spawn_worker"
         ) as spawn_worker:
             job_id = enqueue_learning_job(
                 self.workspace,
@@ -815,12 +815,12 @@ class CodexLearningJobTests(unittest.TestCase):
 
         def fail_manifest_once(source, destination):
             nonlocal failed
-            if Path(destination).name == ".atlas-program.json" and not failed:
+            if Path(destination).name == ".adamast-program.json" and not failed:
                 failed = True
                 raise OSError("injected manifest replacement failure")
             return real_replace(source, destination)
 
-        with patch("atlas_runtime.program.os.replace", side_effect=fail_manifest_once):
+        with patch("adamast_runtime.program.os.replace", side_effect=fail_manifest_once):
             reconcile_learning_jobs(
                 self.workspace,
                 store_dir=self.store_dir,
@@ -952,7 +952,7 @@ class CodexLearningJobTests(unittest.TestCase):
             import sys
             from pathlib import Path
 
-            from atlas_integration.codex.native_worker import _run_codex
+            from adamast_integration.codex.native_worker import _run_codex
 
             echo = (
                 "import sys;"

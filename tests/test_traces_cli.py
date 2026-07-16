@@ -9,8 +9,8 @@ import time
 import unittest
 from pathlib import Path
 
-from atlas_runtime.traces import GenerationTrace, TraceStore
-from atlas_runtime.traces_cli import collection_status, export_traces, prune_traces
+from adamast_runtime.traces import GenerationTrace, TraceStore
+from adamast_runtime.traces_cli import collection_status, export_traces, prune_traces
 
 
 def sample_trace(problem_id: str) -> GenerationTrace:
@@ -46,7 +46,7 @@ class TraceCliTests(unittest.TestCase):
         import contextlib
         import io
 
-        from atlas_runtime.traces_cli import main
+        from adamast_runtime.traces_cli import main
 
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -128,7 +128,7 @@ class TraceCliTests(unittest.TestCase):
                 [
                     sys.executable,
                     "-m",
-                    "atlas_runtime.traces_cli",
+                    "adamast_runtime.traces_cli",
                     "export",
                     "--trace-root",
                     str(root / "traces"),

@@ -7,9 +7,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from atlas_runtime.program import ProgramWorkspace
-from atlas_runtime.status import main, program_health
-from atlas_runtime.traces import GenerationTrace
+from adamast_runtime.program import ProgramWorkspace
+from adamast_runtime.status import main, program_health
+from adamast_runtime.traces import GenerationTrace
 
 
 class ProgramHealthTests(unittest.TestCase):
@@ -53,7 +53,7 @@ class ProgramHealthTests(unittest.TestCase):
             root = Path(td)
             program = root / "program"
             ProgramWorkspace(program)
-            config = root / "atlas.json"
+            config = root / "adamast.json"
             config.write_text(
                 json.dumps({"version": 1, "trace_output": str(program)}),
                 encoding="utf-8",

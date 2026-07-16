@@ -2,4 +2,4 @@
 
 import os
 
-os.environ.setdefault("ATLAS_DISABLE_DASHBOARD", "1")
+os.environ.setdefault("ADAMAST_DISABLE_DASHBOARD", "1")

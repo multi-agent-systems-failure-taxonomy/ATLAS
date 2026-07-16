@@ -14,13 +14,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from atlas_integration.claude_code.config import ClaudeCodeConfig
-from atlas_integration.claude_code.hooks import session_start as claude_start
-from atlas_integration.claude_code.hooks import stop as claude_stop
-from atlas_integration.codex.config import CodexConfig
-from atlas_integration.codex.runtime import session_start as codex_start
-from atlas_integration.codex.runtime import stop as codex_stop
-from atlas_runtime.evidence import EVIDENCE_FILE
+from adamast_integration.claude_code.config import ClaudeCodeConfig
+from adamast_integration.claude_code.hooks import session_start as claude_start
+from adamast_integration.claude_code.hooks import stop as claude_stop
+from adamast_integration.codex.config import CodexConfig
+from adamast_integration.codex.runtime import session_start as codex_start
+from adamast_integration.codex.runtime import stop as codex_stop
+from adamast_runtime.evidence import EVIDENCE_FILE
 
 ROOT = Path(__file__).resolve().parent.parent
 STORE_DIR = ROOT / "tests" / "fixtures" / "taxonomies"
@@ -59,7 +59,7 @@ def _checkpoint_id(prompt: str) -> str:
 
 
 def _clean_final_report(checkpoint_id: str) -> str:
-    return f"""ATLAS reflection:
+    return f"""AdaMAST reflection:
 - Checkpoint ID: {checkpoint_id}
 - Observe: The final answer was checked.
 - Map:
@@ -67,7 +67,7 @@ def _clean_final_report(checkpoint_id: str) -> str:
 - Correlate: The verification failure mode does not occur.
 - Decide: no change needed, because verification is present.
 
-Final ATLAS status: READY_TO_SUBMIT
+Final AdaMAST status: READY_TO_SUBMIT
 Codes checked: MAST-12
 Evidence: verification is present
 Repair attempts used: 0
@@ -82,7 +82,7 @@ class AdapterContractTests(unittest.TestCase):
                 name="claude_code",
                 make_config=lambda root: ClaudeCodeConfig(
                     trace_output=root / "program",
-                    atlas_model="test-model",
+                    adamast_model="test-model",
                     store_dir=STORE_DIR,
                     dashboard=False,
                 ),
@@ -96,7 +96,7 @@ class AdapterContractTests(unittest.TestCase):
                 name="codex",
                 make_config=lambda root: CodexConfig(
                     trace_output=root / "program",
-                    atlas_model="test-model",
+                    adamast_model="test-model",
                     store_dir=STORE_DIR,
                     dashboard=False,
                 ),
@@ -124,7 +124,7 @@ class AdapterContractTests(unittest.TestCase):
 
                     start = case.session_start(event, config)
                     rendered_start = json.dumps(start) if isinstance(start, dict) else str(start)
-                    self.assertIn("ATLAS runtime interaction is active", rendered_start)
+                    self.assertIn("AdaMAST runtime interaction is active", rendered_start)
 
                     _append_transcript(transcript, "Solve the task.", role="user")
                     if case.single_pass:

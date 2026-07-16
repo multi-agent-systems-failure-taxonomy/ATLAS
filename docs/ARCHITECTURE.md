@@ -1,6 +1,6 @@
 # Architecture
 
-ATLAS separates the taxonomy engine from the places where agents run. This
+AdaMAST separates the taxonomy engine from the places where agents run. This
 keeps Codex, Claude Code, scripts, and custom harnesses on one trace and
 activation contract.
 
@@ -8,14 +8,14 @@ activation contract.
 
 | Path | Owns | Does not own |
 |---|---|---|
-| [`atlas_runtime/`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/tree/main/atlas_runtime) | Sessions, gates, trace persistence, generation/refinement lifecycle, validation, activation, evidence, dashboard data | Host hook formats |
-| [`atlas_integration/interactive/`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/tree/main/atlas_integration/interactive) | Conversation selector, browser transport, project/task-group routes, durable native jobs, receipt protocol | Codex or Claude transcript parsing |
-| [`atlas_integration/codex/`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/tree/main/atlas_integration/codex) | Codex hook installation, event translation, transcript normalization, compact Stop checkpoint | Taxonomy acceptance |
-| [`atlas_integration/claude_code/`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/tree/main/atlas_integration/claude_code) | Claude hook installation, blocking gates, transcript handling, custom hooks | Taxonomy acceptance |
+| [`adamast_runtime/`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/tree/main/adamast_runtime) | Sessions, gates, trace persistence, generation/refinement lifecycle, validation, activation, evidence, dashboard data | Host hook formats |
+| [`adamast_integration/interactive/`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/tree/main/adamast_integration/interactive) | Conversation selector, browser transport, project/task-group routes, durable native jobs, receipt protocol | Codex or Claude transcript parsing |
+| [`adamast_integration/codex/`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/tree/main/adamast_integration/codex) | Codex hook installation, event translation, transcript normalization, compact Stop checkpoint | Taxonomy acceptance |
+| [`adamast_integration/claude_code/`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/tree/main/adamast_integration/claude_code) | Claude hook installation, blocking gates, transcript handling, custom hooks | Taxonomy acceptance |
 | [`finding/`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/tree/main/finding) | Built-in MAST, taxonomy registry, display metadata, local selector and dashboard views | Learning policy |
 | [`judge_types/`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/tree/main/judge_types) | Selection, mapping, coverage, quality, calibration, and reflection judges | Host orchestration |
-| [`ATLAS_as_a_Judge/`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/tree/main/ATLAS_as_a_Judge) | Judge-focused evaluation checks | Production runtime behavior |
-| [`vendor/atlas/`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/tree/main/vendor/atlas) | Vendored research taxonomy-generation pipeline | Interactive hooks |
+| [`AdaMAST_as_a_Judge/`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/tree/main/AdaMAST_as_a_Judge) | Judge-focused evaluation checks | Production runtime behavior |
+| [`vendor/adamast/`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/tree/main/vendor/adamast) | Vendored research taxonomy-generation pipeline | Interactive hooks |
 | [`examples/`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/tree/main/examples) | Runnable demonstrations | Production state |
 | [`runs/`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/tree/main/runs) | Evaluation artifacts and reproduction notes | Package code |
 
@@ -25,11 +25,11 @@ activation contract.
 Host event
   -> host adapter resolves project and conversation
   -> interactive selector and route resolve the program
-  -> atlas_runtime opens or closes an episode
+  -> adamast_runtime opens or closes an episode
   -> gate evidence and one canonical trace are persisted
   -> interactive polling checks generation/refinement thresholds
   -> a native host subagent proposes a candidate
-  -> atlas_runtime validates and atomically activates it
+  -> adamast_runtime validates and atomically activates it
 ```
 
 The main agent always owns the user's task. The taxonomy worker receives an
@@ -43,7 +43,7 @@ User-level Codex and Claude installs resolve the canonical Git root and store
 program state under:
 
 ```text
-~/.atlas-skill/interactive/
+~/.adamast/interactive/
   projects/<project-key>/
     groups/<task-group>/
       program/
@@ -58,7 +58,7 @@ default.
 The first resolved program path is also bound to the host's stable conversation
 ID. Subsequent events use that binding before inspecting `cwd`, which keeps a
 resumed conversation on the same taxonomy even after a shell or directory
-change. On upgrade, ATLAS locates an existing selected or disabled session and
+change. On upgrade, AdaMAST locates an existing selected or disabled session and
 writes the binding before it can create a new pending selector.
 
 ## Stability rules

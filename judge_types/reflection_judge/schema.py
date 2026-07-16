@@ -1,4 +1,4 @@
-"""Schema for the ATLAS Reflection Judge output.
+"""Schema for the AdaMAST Reflection Judge output.
 
 Pure stdlib; no provider-specific imports.
 

@@ -1,8 +1,8 @@
-"""Tests for atlas-register-taxonomy — the no-rejudge entry point.
+"""Tests for adamast-register-taxonomy — the no-rejudge entry point.
 
 The whole point of this CLI is: you have a taxonomy.json from somewhere
 (custom pipeline, hand-edited, sibling project) and want to make it
-inheritable in the atlas-skill store WITHOUT re-running judges or
+inheritable in the adamast store WITHOUT re-running judges or
 generation. These tests exercise the no-traces happy paths, the
 optional refinement path (with a stub LLM), batch register, --replace,
 and the validation guards.
@@ -15,7 +15,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from atlas_runtime.register_taxonomy import (
+from adamast_runtime.register_taxonomy import (
     RegisteredTaxonomyResult,
     _expand_paths,
     load_candidate,
@@ -25,7 +25,7 @@ from atlas_runtime.register_taxonomy import (
 from finding import store
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
-REAL_ATLAS_OUTPUT = FIXTURES / "real_atlas_generation_output.json"
+REAL_ADAMAST_OUTPUT = FIXTURES / "real_adamast_generation_output.json"
 
 FLAT = {
     "repo": "demo",
@@ -38,7 +38,7 @@ FLAT = {
     ],
 }
 
-ATLAS_SHAPE = {
+ADAMAST_SHAPE = {
     "annotation_layer": {
         "category_a": [{"code": "A.1", "name": "Loop", "definition": "loops"}],
         "category_b": [],
@@ -61,16 +61,16 @@ class LoadCandidateTests(unittest.TestCase):
             self.assertEqual(len(c["codes"]), 2)
             self.assertEqual(c["repo"], "demo")
 
-    def test_loads_atlas_pipeline_shape(self) -> None:
+    def test_loads_adamast_pipeline_shape(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             p = Path(td) / "t.json"
-            p.write_text(json.dumps(ATLAS_SHAPE))
+            p.write_text(json.dumps(ADAMAST_SHAPE))
             c = load_candidate(p)
             # Round-trip via Taxonomy: 2 codes survive, renumbered A.1 / C.1.
             self.assertEqual({c["category"] for c in c["codes"]}, {"A", "C"})
 
-    def test_loads_real_atlas_pipeline_shape_with_annotation_codes(self) -> None:
-        c = load_candidate(REAL_ATLAS_OUTPUT)
+    def test_loads_real_adamast_pipeline_shape_with_annotation_codes(self) -> None:
+        c = load_candidate(REAL_ADAMAST_OUTPUT)
         self.assertEqual({code["id"] for code in c["codes"]}, {"A.1", "B.1"})
         self.assertEqual(c["domain"], "Software Engineering / Code Repair")
 
@@ -109,22 +109,22 @@ class RegisterTaxonomyFileTests(unittest.TestCase):
             rec = store.fetch_by_id(r.taxonomy_id, td / "store")
             self.assertEqual(rec["taxonomy_id"], "bom-import")
 
-    def test_registers_atlas_pipeline_file_without_traces(self) -> None:
+    def test_registers_adamast_pipeline_file_without_traces(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             td = Path(td)
             src = td / "t.json"
-            src.write_text(json.dumps(ATLAS_SHAPE))
+            src.write_text(json.dumps(ADAMAST_SHAPE))
             r = register_taxonomy_file(src, store_dir=td / "store")
             rec = store.fetch_by_id(r.taxonomy_id, td / "store")
             self.assertEqual({c["category"] for c in rec["codes"]}, {"A", "C"})
 
-    def test_registers_real_atlas_pipeline_file_without_traces(self) -> None:
+    def test_registers_real_adamast_pipeline_file_without_traces(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             td = Path(td)
             r = register_taxonomy_file(
-                REAL_ATLAS_OUTPUT,
+                REAL_ADAMAST_OUTPUT,
                 store_dir=td / "store",
-                taxonomy_id="real-atlas-output",
+                taxonomy_id="real-adamast-output",
             )
             rec = store.fetch_by_id(r.taxonomy_id, td / "store")
             self.assertEqual({code["id"] for code in rec["codes"]}, {"A.1", "B.1"})
@@ -177,7 +177,7 @@ class RegisterTaxonomyFileTests(unittest.TestCase):
             rec = store.fetch_by_id(r.taxonomy_id, td / "store")
             self.assertEqual(rec["repo"], "overridden")
 
-    def test_traces_requires_atlas_model(self) -> None:
+    def test_traces_requires_adamast_model(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             td = Path(td)
             src = td / "t.json"
@@ -190,11 +190,11 @@ class RegisterTaxonomyFileTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 register_taxonomy_file(
                     src, store_dir=td / "store", traces=traces,
-                    # no atlas_model
+                    # no adamast_model
                 )
 
     def test_traces_runs_reflection_refinement(self) -> None:
-        """When traces + atlas_model + injected LLMs are provided, the
+        """When traces + adamast_model + injected LLMs are provided, the
         refinement path runs. The judge stub returns no failure_points
         (so existing codes look unused on the support set) — that surfaces
         a retirement signal, so the refiner stub IS called. We return
@@ -230,7 +230,7 @@ class RegisterTaxonomyFileTests(unittest.TestCase):
 
             r = register_taxonomy_file(
                 src, store_dir=td / "store",
-                traces=traces, atlas_model="stub-model",
+                traces=traces, adamast_model="stub-model",
                 judge_call=judge_stub, refiner_call=refiner_stub,
             )
             self.assertEqual(r.trace_count, 1)

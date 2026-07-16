@@ -1,4 +1,4 @@
-"""ATLAS skill judge types.
+"""AdaMAST skill judge types.
 
 The simple LLM judges are natural-language assets under ``judge_types/assets``
 run by ``JudgeController``. Reflection remains a deeper orchestrated judge, and

@@ -1,4 +1,4 @@
-"""Shared atlas.json configuration tests."""
+"""Shared adamast.json configuration tests."""
 
 from __future__ import annotations
 
@@ -14,12 +14,12 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from atlas_runtime.config import ALL_FIELDS, config_value, load_atlas_config
+from adamast_runtime.config import ALL_FIELDS, config_value, load_adamast_config
 
 
-class AtlasConfigTests(unittest.TestCase):
+class AdaMASTConfigTests(unittest.TestCase):
     def test_published_schema_matches_loader_fields(self):
-        schema_path = files("atlas_runtime").joinpath("assets", "atlas_config.schema.json")
+        schema_path = files("adamast_runtime").joinpath("assets", "adamast_config.schema.json")
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
         self.assertEqual(schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
         self.assertFalse(schema["additionalProperties"])
@@ -28,7 +28,7 @@ class AtlasConfigTests(unittest.TestCase):
     def test_loads_and_normalizes_relative_paths(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            config_path = root / "atlas.json"
+            config_path = root / "adamast.json"
             config_path.write_text(
                 json.dumps({
                     "version": 1,
@@ -36,42 +36,42 @@ class AtlasConfigTests(unittest.TestCase):
                     "trace_root": "traces",
                     "store_dir": "taxonomies",
                     "evidence_export": "exports",
-                    "atlas_model": "gpt-5",
+                    "adamast_model": "gpt-5",
                     "dashboard": False,
                 }),
                 encoding="utf-8",
             )
-            config = load_atlas_config(config_path)
+            config = load_adamast_config(config_path)
         self.assertEqual(config["trace_output"], (root / "program").resolve())
         self.assertEqual(config["trace_root"], (root / "traces").resolve())
         self.assertEqual(config["store_dir"], (root / "taxonomies").resolve())
         self.assertEqual(config["evidence_export"], (root / "exports").resolve())
-        self.assertEqual(config["atlas_model"], "gpt-5")
+        self.assertEqual(config["adamast_model"], "gpt-5")
         self.assertFalse(config["dashboard"])
 
     def test_loads_windows_utf8_bom_config(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            config_path = root / "atlas.json"
+            config_path = root / "adamast.json"
             config_path.write_text(
                 json.dumps({
                     "trace_output": "program",
                     "trace_root": "traces",
                     "store_dir": "taxonomies",
-                    "atlas_model": "gpt-5",
+                    "adamast_model": "gpt-5",
                 }),
                 encoding="utf-8-sig",
             )
-            config = load_atlas_config(config_path)
+            config = load_adamast_config(config_path)
         self.assertEqual(config["trace_output"], (root / "program").resolve())
-        self.assertEqual(config["atlas_model"], "gpt-5")
+        self.assertEqual(config["adamast_model"], "gpt-5")
 
     def test_unknown_field_is_rejected(self):
         with tempfile.TemporaryDirectory() as td:
-            path = Path(td) / "atlas.json"
+            path = Path(td) / "adamast.json"
             path.write_text(json.dumps({"trace_outpt": "typo"}), encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "unknown ATLAS config field"):
-                load_atlas_config(path)
+            with self.assertRaisesRegex(ValueError, "unknown AdaMAST config field"):
+                load_adamast_config(path)
 
     def test_explicit_cli_value_wins_over_config(self):
         args = SimpleNamespace(trace_output=Path("cli-program"))
@@ -81,13 +81,13 @@ class AtlasConfigTests(unittest.TestCase):
     def test_doctor_cli_reads_config_file(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            config_path = root / "atlas.json"
+            config_path = root / "adamast.json"
             config_path.write_text(
                 json.dumps({
                     "trace_output": "program",
                     "trace_root": "traces",
                     "store_dir": "taxonomies",
-                    "atlas_model": "gpt-5",
+                    "adamast_model": "gpt-5",
                 }),
                 encoding="utf-8",
             )
@@ -95,7 +95,7 @@ class AtlasConfigTests(unittest.TestCase):
                 [
                     sys.executable,
                     "-m",
-                    "atlas_runtime.doctor",
+                    "adamast_runtime.doctor",
                     "--config",
                     str(config_path),
                     "--json",
@@ -107,12 +107,12 @@ class AtlasConfigTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         payload = json.loads(proc.stdout)
         self.assertTrue(any(item["name"] == "trace output" for item in payload))
-        self.assertTrue(any(item["name"] == "atlas model" for item in payload))
+        self.assertTrue(any(item["name"] == "adamast model" for item in payload))
 
     def test_traces_status_cli_reads_trace_root_from_config(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            config_path = root / "atlas.json"
+            config_path = root / "adamast.json"
             config_path.write_text(
                 json.dumps({"trace_root": "traces"}),
                 encoding="utf-8",
@@ -122,7 +122,7 @@ class AtlasConfigTests(unittest.TestCase):
                 [
                     sys.executable,
                     "-m",
-                    "atlas_runtime.traces_cli",
+                    "adamast_runtime.traces_cli",
                     "status",
                     "--config",
                     str(config_path),
@@ -139,11 +139,11 @@ class AtlasConfigTests(unittest.TestCase):
     def test_single_llm_cli_can_take_required_values_from_config(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            config_path = root / "atlas.json"
+            config_path = root / "adamast.json"
             config_path.write_text(
                 json.dumps({
                     "model": "gpt-5",
-                    "atlas_model": "gpt-5",
+                    "adamast_model": "gpt-5",
                     "trace_output": "program",
                     "trace_root": "traces",
                     "dashboard": False,
@@ -153,15 +153,15 @@ class AtlasConfigTests(unittest.TestCase):
             fake_result = SimpleNamespace(answer="done")
             with (
                 patch(
-                    "atlas_integration.single_llm.cli.provider_call",
+                    "adamast_integration.single_llm.cli.provider_call",
                     return_value=lambda _messages: "done",
                 ),
                 patch(
-                    "atlas_integration.single_llm.cli.run_single_llm",
+                    "adamast_integration.single_llm.cli.run_single_llm",
                     return_value=fake_result,
                 ) as run,
             ):
-                from atlas_integration.single_llm.cli import main
+                from adamast_integration.single_llm.cli import main
 
                 with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                     code = main(["--config", str(config_path), "--task", "do it"])
@@ -171,11 +171,11 @@ class AtlasConfigTests(unittest.TestCase):
     def test_claude_install_cli_can_take_required_values_from_config(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            config_path = root / "atlas.json"
+            config_path = root / "adamast.json"
             config_path.write_text(
                 json.dumps({
                     "project_dir": "project",
-                    "atlas_model": "gpt-5",
+                    "adamast_model": "gpt-5",
                     "trace_output": "program",
                     "store_dir": "taxonomies",
                     "dashboard": False,
@@ -195,10 +195,10 @@ class AtlasConfigTests(unittest.TestCase):
                 return {}
 
             with patch(
-                "atlas_integration.claude_code.install.install",
+                "adamast_integration.claude_code.install.install",
                 side_effect=fake_install,
             ):
-                from atlas_integration.claude_code.install import main
+                from adamast_integration.claude_code.install import main
 
                 with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                     code = main(["--config", str(config_path)])
@@ -216,11 +216,11 @@ class AtlasConfigTests(unittest.TestCase):
     def test_claude_install_cli_prefers_scoped_adapter_config(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            config_path = root / "atlas.json"
+            config_path = root / "adamast.json"
             config_path.write_text(
                 json.dumps({
                     "project_dir": "project",
-                    "atlas_model": "gpt-5",
+                    "adamast_model": "gpt-5",
                     "trace_output": "program",
                     "store_dir": "taxonomies",
                     "built_in_hooks": {"SubagentStop": True},
@@ -245,10 +245,10 @@ class AtlasConfigTests(unittest.TestCase):
                 return {}
 
             with patch(
-                "atlas_integration.claude_code.install.install",
+                "adamast_integration.claude_code.install.install",
                 side_effect=fake_install,
             ):
-                from atlas_integration.claude_code.install import main
+                from adamast_integration.claude_code.install import main
 
                 with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                     code = main(["--config", str(config_path)])
@@ -261,11 +261,11 @@ class AtlasConfigTests(unittest.TestCase):
     def test_codex_install_cli_can_take_required_values_from_config(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            config_path = root / "atlas.json"
+            config_path = root / "adamast.json"
             config_path.write_text(
                 json.dumps({
                     "project_dir": "project",
-                    "atlas_model": "gpt-5",
+                    "adamast_model": "gpt-5",
                     "trace_output": "program",
                     "store_dir": "taxonomies",
                     "dashboard": False,
@@ -285,10 +285,10 @@ class AtlasConfigTests(unittest.TestCase):
                 return {}
 
             with patch(
-                "atlas_integration.codex.install.install",
+                "adamast_integration.codex.install.install",
                 side_effect=fake_install,
             ):
-                from atlas_integration.codex.install import main
+                from adamast_integration.codex.install import main
 
                 with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                     code = main(["--config", str(config_path)])
@@ -304,11 +304,11 @@ class AtlasConfigTests(unittest.TestCase):
     def test_codex_install_cli_prefers_scoped_adapter_config(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            config_path = root / "atlas.json"
+            config_path = root / "adamast.json"
             config_path.write_text(
                 json.dumps({
                     "project_dir": "project",
-                    "atlas_model": "gpt-5",
+                    "adamast_model": "gpt-5",
                     "trace_output": "program",
                     "store_dir": "taxonomies",
                     "codex_hooks": {"SubagentStop": True},
@@ -329,10 +329,10 @@ class AtlasConfigTests(unittest.TestCase):
                 return {}
 
             with patch(
-                "atlas_integration.codex.install.install",
+                "adamast_integration.codex.install.install",
                 side_effect=fake_install,
             ):
-                from atlas_integration.codex.install import main
+                from adamast_integration.codex.install import main
 
                 with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                     code = main(["--config", str(config_path)])
@@ -354,10 +354,10 @@ class AtlasConfigTests(unittest.TestCase):
                 }) + "\n",
                 encoding="utf-8",
             )
-            config_path = root / "atlas.json"
+            config_path = root / "adamast.json"
             config_path.write_text(
                 json.dumps({
-                    "atlas_model": "gpt-5",
+                    "adamast_model": "gpt-5",
                     "store_dir": "taxonomies",
                     "trace_root": "trace-root",
                 }),
@@ -365,15 +365,15 @@ class AtlasConfigTests(unittest.TestCase):
             )
             fake_result = SimpleNamespace(to_dict=lambda: {"taxonomy_id": "tax-one"})
             with patch(
-                "atlas_runtime.import_generation.generate_imported_taxonomy",
+                "adamast_runtime.import_generation.generate_imported_taxonomy",
                 return_value=fake_result,
             ) as generate:
-                from atlas_runtime.import_generation import main
+                from adamast_runtime.import_generation import main
 
                 with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                     code = main(["--config", str(config_path), "--traces", str(traces)])
         self.assertEqual(code, 0)
-        self.assertEqual(generate.call_args.kwargs["atlas_model"], "gpt-5")
+        self.assertEqual(generate.call_args.kwargs["adamast_model"], "gpt-5")
         self.assertEqual(generate.call_args.kwargs["store_dir"], (root / "taxonomies").resolve())
         self.assertEqual(generate.call_args.kwargs["trace_root"], (root / "trace-root").resolve())
 
@@ -396,7 +396,7 @@ class AtlasConfigTests(unittest.TestCase):
                 }),
                 encoding="utf-8",
             )
-            config_path = root / "atlas.json"
+            config_path = root / "adamast.json"
             config_path.write_text(
                 json.dumps({"store_dir": "taxonomies"}),
                 encoding="utf-8",
@@ -405,7 +405,7 @@ class AtlasConfigTests(unittest.TestCase):
                 [
                     sys.executable,
                     "-m",
-                    "atlas_runtime.register_taxonomy",
+                    "adamast_runtime.register_taxonomy",
                     "--config",
                     str(config_path),
                     "--file",

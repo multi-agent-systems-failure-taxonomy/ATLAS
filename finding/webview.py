@@ -1,4 +1,4 @@
-"""Local ATLAS taxonomy library and blocking selection web view."""
+"""Local AdaMAST taxonomy library and blocking selection web view."""
 
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ def _render_table(
         options[0] if options else None,
     )
     body = _render_workspace(options, selected_option, store_dir, picker_context)
-    return _PAGE.format(title="ATLAS taxonomy library", body=body)
+    return _PAGE.format(title="AdaMAST taxonomy library", body=body)
 
 
 def _render_detail(taxonomy_id, store_dir) -> str:
@@ -159,8 +159,8 @@ def _render_workspace(
     detail = _render_option_detail(selected, store_dir) if selected else _empty_detail()
     return (
         '<main class="app-shell">'
-        '<header class="atlas-header">'
-        '<div class="brand-line"><span class="brand">ATLAS</span>'
+        '<header class="adamast-header">'
+        '<div class="brand-line"><span class="brand">AdaMAST</span>'
         '<span class="header-divider"></span><span class="product">Taxonomy library</span></div>'
         '<div class="header-copy"><div><h1>Select the failure model for this conversation</h1>'
         '<p>Inspect the scope and failure modes before activating a taxonomy.</p></div>'
@@ -204,7 +204,7 @@ def _render_option_detail(option: dict[str, Any], store_dir) -> str:
         {str(code.get("category") or "Uncategorized") for code in codes}
     )
     action = (
-        "Disable ATLAS for this conversation"
+        "Disable AdaMAST for this conversation"
         if kind == "disabled"
         else f"Use {label}"
     )
@@ -217,14 +217,14 @@ def _render_option_detail(option: dict[str, Any], store_dir) -> str:
     elif option.get("recommended"):
         notice = (
             '<div class="mode-notice recommended"><strong>Recommended for this scope.</strong> '
-            "ATLAS will use this as the conversation's failure model.</div>"
+            "AdaMAST will use this as the conversation's failure model.</div>"
         )
 
     code_rows = "".join(_render_code(code) for code in codes)
     if not code_rows:
         code_rows = (
             '<div class="no-codes"><strong>No failure-mode gates will run.</strong>'
-            " Trace learning and ATLAS checkpoints are disabled only for this conversation.</div>"
+            " Trace learning and AdaMAST checkpoints are disabled only for this conversation.</div>"
         )
     code_tools = ""
     if codes:
@@ -439,7 +439,7 @@ def _success_page(
         f"<h1>{label}</h1><p>{html.escape(next_step)}</p>"
         f'<p class="stable-id">{html.escape(choice)}</p>{session_line}</main>'
     )
-    return _PAGE.format(title="ATLAS selection activated", body=body)
+    return _PAGE.format(title="AdaMAST selection activated", body=body)
 
 
 def _error_page(title: str, message: str) -> str:

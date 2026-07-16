@@ -1,17 +1,17 @@
-# Integrating ATLAS into a pipeline
+# Integrating AdaMAST into a pipeline
 
-This is the harness-author contract: what your application owns, what ATLAS
+This is the harness-author contract: what your application owns, what AdaMAST
 owns, and the minimum call sequence needed to get runtime reflection,
 trace capture, generation, refinement, and lineage.
 
 If you only want a ready-made integration, start with:
 
-- Claude Code: [`atlas_integration/claude_code/`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/atlas_integration/claude_code/)
-- Single LLM call: [`atlas_integration/single_llm/`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/atlas_integration/single_llm/)
+- Claude Code: [`adamast_integration/claude_code/`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/adamast_integration/claude_code/)
+- Single LLM call: [`adamast_integration/single_llm/`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/adamast_integration/single_llm/)
 
 ## The boundary
 
-ATLAS owns:
+AdaMAST owns:
 
 - taxonomy selection by `taxonomy_id`;
 - the built-in MAST fallback when no taxonomy is inherited;
@@ -38,7 +38,7 @@ when two task streams should learn independently.
 ## Minimal lifecycle
 
 ```python
-from atlas_runtime import (
+from adamast_runtime import (
     GenerationTrace,
     end_session,
     pre_submission,
@@ -47,8 +47,8 @@ from atlas_runtime import (
 )
 
 session = start_session(
-    trace_output="./atlas-program",
-    atlas_model="gpt-5",
+    trace_output="./adamast-program",
+    adamast_model="gpt-5",
     inherit=None,  # omit this argument entirely for the default MAST path
 )
 
@@ -58,7 +58,7 @@ session = start_session(
 
 # At a meaningful checkpoint:
 # - deliver session.delivery.taxonomy plus your recent trajectory window
-# - ask the agent to produce the required ATLAS reflection shape
+# - ask the agent to produce the required AdaMAST reflection shape
 #   (Observe -> Correlate -> Map -> Decide)
 # - continue only after your harness accepts/records that reflection
 
@@ -105,13 +105,13 @@ selection.
 
 ## Claude Code hook selection
 
-`atlas-claude-install` installs every built-in hook by default for backwards
+`adamast-claude-install` installs every built-in hook by default for backwards
 compatibility. Projects can reduce noise by disabling a built-in event or by
 restricting tool-result hooks to selected Claude Code tool matchers:
 
 ```bash
-atlas-claude-install \
-  --config atlas.json \
+adamast-claude-install \
+  --config adamast.json \
   --disable-hook SubagentStop \
   --post-tool-use-matchers Bash,Edit \
   --post-tool-use-failure-matchers Bash
@@ -123,13 +123,13 @@ values enable or disable an event; lists set matchers for `PostToolUse` and
 
 ## Runtime configuration surface
 
-ATLAS supports a dependency-free `atlas.json` config file for shared runtime
+AdaMAST supports a dependency-free `adamast.json` config file for shared runtime
 values:
 
 ```json
 {
-  "trace_output": "./atlas-program",
-  "atlas_model": "gpt-5"
+  "trace_output": "./adamast-program",
+  "adamast_model": "gpt-5"
 }
 ```
 
@@ -139,34 +139,34 @@ the config file. Unknown fields are rejected so spelling mistakes fail loudly.
 Explicit CLI/API arguments win over config-file values.
 
 Set `evidence_export` when a pipeline needs a durable JSON snapshot outside the
-program trace folder. `atlas-status` reads the program manifest and reports the
+program trace folder. `adamast-status` reads the program manifest and reports the
 learning-call usage ledger; unavailable provider token/cost data is reported as
 unavailable, not estimated.
 
 Supported operational CLIs:
 
-- `atlas-claude-install --config atlas.json`
-- `atlas-single-run --config atlas.json`
-- `atlas-import-traces --config atlas.json`
-- `atlas-register-taxonomy --config atlas.json`
-- `atlas-doctor --config atlas.json`
-- `atlas-traces status|export|prune --config atlas.json`
+- `adamast-claude-install --config adamast.json`
+- `adamast-single-run --config adamast.json`
+- `adamast-import-traces --config adamast.json`
+- `adamast-register-taxonomy --config adamast.json`
+- `adamast-doctor --config adamast.json`
+- `adamast-traces status|export|prune --config adamast.json`
 
-Custom harnesses can load the same file with `atlas_runtime.load_atlas_config`.
+Custom harnesses can load the same file with `adamast_runtime.load_adamast_config`.
 
-Use `atlas-doctor` in installation flows to verify the resolved values:
+Use `adamast-doctor` in installation flows to verify the resolved values:
 
 ```bash
-atlas-doctor \
-  --config atlas.json \
-  --trace-output ./atlas-program \
-  --atlas-model gpt-5 \
+adamast-doctor \
+  --config adamast.json \
+  --trace-output ./adamast-program \
+  --adamast-model gpt-5 \
   --dashboard-port 0
 ```
 
 ## Model and credential expectations
 
-`atlas_model` is the model used by ATLAS generation, judging, and refinement.
+`adamast_model` is the model used by AdaMAST generation, judging, and refinement.
 Keep it separate from the task agent's model if your pipeline exposes both.
 
 Transport selection is model-id based:
@@ -176,12 +176,12 @@ Transport selection is model-id based:
 - Gemini-shaped IDs use `GEMINI_API_KEY` or `GOOGLE_API_KEY`.
 - OpenAI-shaped IDs use the OpenAI client and honor `OPENAI_BASE_URL`.
 
-Do not write credential values into ATLAS config. Store only environment
+Do not write credential values into AdaMAST config. Store only environment
 variable names or let the provider SDK read its normal environment.
 
 ## Trace privacy and redaction
 
-ATLAS stores traces and may send trace excerpts to the ATLAS model for
+AdaMAST stores traces and may send trace excerpts to the AdaMAST model for
 generation, judging, and refinement. A harness should redact secrets before
 calling `record_trace()`.
 
@@ -201,10 +201,10 @@ The runtime strips known outcome fields from learning inputs, but it cannot
 guess secrets inside `raw_trajectory`. Treat redaction as a harness
 responsibility.
 
-ATLAS ships a small helper for common credential shapes:
+AdaMAST ships a small helper for common credential shapes:
 
 ```python
-from atlas_runtime import GenerationTrace, redact_trace, record_trace
+from adamast_runtime import GenerationTrace, redact_trace, record_trace
 
 trace = GenerationTrace(
     problem_id="task-1",
@@ -228,11 +228,11 @@ your pipeline knows are sensitive.
 Useful commands for pipeline installers:
 
 ```bash
-atlas-doctor --trace-output ./atlas-program --atlas-model gpt-5
-atlas-find --list
-atlas-traces status --trace-output ./atlas-program
-atlas-traces export --taxonomy-id <taxonomy_id> --output traces.jsonl
-atlas-traces prune --older-than-days 90 --taxonomy-id <taxonomy_id>
+adamast-doctor --trace-output ./adamast-program --adamast-model gpt-5
+adamast-find --list
+adamast-traces status --trace-output ./adamast-program
+adamast-traces export --taxonomy-id <taxonomy_id> --output traces.jsonl
+adamast-traces prune --older-than-days 90 --taxonomy-id <taxonomy_id>
 ```
 
-`atlas-traces prune` is dry-run by default; require `--yes` for deletion.
+`adamast-traces prune` is dry-run by default; require `--yes` for deletion.

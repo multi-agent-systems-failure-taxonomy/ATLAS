@@ -1,14 +1,14 @@
 # Interactive setup
 
-This is the shortest path for using ATLAS in ordinary Codex or Claude Code
-conversations. It does not require `atlas.json` or a separate model API key.
+This is the shortest path for using AdaMAST in ordinary Codex or Claude Code
+conversations. It does not require `adamast.json` or a separate model API key.
 
 ## Choose a host
 
 | Host | Install command | Native learning process |
 |---|---|---|
-| Codex | `atlas-codex-install --user-level` | Native subagent in the active task |
-| Claude Code | `atlas-claude-install --user-level` | Native Agent subtask in the active session |
+| Codex | `adamast-codex-install --user-level` | Native subagent in the active task |
+| Claude Code | `adamast-claude-install --user-level` | Native Agent subtask in the active session |
 | Both | Run both commands | Shared project/task-group taxonomy state |
 
 The hooks and trace runtime work in the host conversation. In Codex and Claude
@@ -27,18 +27,18 @@ python -m pip install --upgrade "git+https://github.com/multi-agent-systems-fail
 ## 2A. Enable Codex
 
 ```bash
-atlas-codex-install --user-level
-atlas-doctor --codex
+adamast-codex-install --user-level
+adamast-doctor --codex
 ```
 
 The installer writes `~/.codex/hooks.json` and
-`~/.codex/atlas-skill.json`, then installs the guidance skill under
-`~/.agents/skills/atlas-failure-modes`. Open `/hooks` in Codex and trust the
-ATLAS hooks.
+`~/.codex/adamast.json`, then installs the guidance skill under
+`~/.agents/skills/adamast-failure-modes`. Open `/hooks` in Codex and trust the
+AdaMAST hooks.
 
 Codex taxonomy learning uses the active task's native subagent capability. It
 does not need a separately runnable Codex CLI, a second login, or an external
-model API key. `atlas-doctor --codex` verifies the hook and configuration
+model API key. `adamast-doctor --codex` verifies the hook and configuration
 contract before generation reaches its default five-trace threshold. The
 installed `SessionStart` hook includes context compaction, allowing a queued
 native job to reach the active task even when an already-running desktop task
@@ -47,12 +47,12 @@ does not emit `UserPromptSubmit`.
 ## 2B. Enable Claude Code
 
 ```bash
-atlas-claude-install --user-level
-atlas-doctor --claude-code
+adamast-claude-install --user-level
+adamast-doctor --claude-code
 ```
 
-The installer merges ATLAS hooks into `~/.claude/settings.json` and writes
-`~/.claude/atlas-skill.json`. It preserves unrelated settings and plugins.
+The installer merges AdaMAST hooks into `~/.claude/settings.json` and writes
+`~/.claude/adamast.json`. It preserves unrelated settings and plugins.
 The doctor verifies the installed hook and configuration contract. Native
 learning uses the already-running Claude Code session; it does not invoke a
 separate CLI login.
@@ -69,7 +69,7 @@ No taxonomy
 ```
 
 The browser applies the choice directly before showing the activation page; it
-does not wait for a later host message. `No taxonomy` disables ATLAS only for
+does not wait for a later host message. `No taxonomy` disables AdaMAST only for
 that conversation.
 The browser catalog shows every locally stored taxonomy with a human-readable
 name, scope, summary, code count, and detailed failure codes. This global list
@@ -93,7 +93,7 @@ conversation.
 
 Native replacement candidates contain 1 to 30 failure codes. Each code must
 cite the frozen trace IDs that support it, quote an exact span from every cited
-trace, and include a rationale. ATLAS verifies those spans before activation
+trace, and include a rationale. AdaMAST verifies those spans before activation
 and keeps the result for audit. A refinement `no_change` receipt contains no
 replacement codes and leaves the stored taxonomy byte-for-byte unchanged.
 
@@ -102,7 +102,7 @@ replacement codes and leaves the stored taxonomy byte-for-byte unchanged.
 User-level installations resolve the Git root for each task and store state at:
 
 ```text
-~/.atlas-skill/interactive/projects/<project-key>/groups/default/program
+~/.adamast/interactive/projects/<project-key>/groups/default/program
 ```
 
 Codex and Claude Code use the same path and runtime identity, so tasks started
@@ -113,12 +113,12 @@ workspace differs from the repository being edited.
 ## Remove the integration
 
 ```bash
-atlas-codex-uninstall --user-level
-atlas-claude-uninstall --user-level
+adamast-codex-uninstall --user-level
+adamast-claude-uninstall --user-level
 ```
 
 Uninstalling hooks does not delete learned taxonomies or trace history under
-`~/.atlas-skill`.
+`~/.adamast`.
 
 For explicit provider models, custom thresholds, or repository-committed hook
 configuration, use the [project-local setup](GETTING_STARTED.md).

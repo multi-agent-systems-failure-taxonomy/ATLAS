@@ -7,26 +7,26 @@ from pathlib import Path
 from unittest.mock import patch
 from urllib.request import urlopen
 
-from atlas_integration.claude_code.config import ClaudeCodeConfig
-from atlas_integration.claude_code.runtime import session_start, user_prompt_submit
-from atlas_integration.claude_code.state import load_state, save_state
-from atlas_integration.codex.config import CodexConfig
-from atlas_integration.codex.runtime import session_start as codex_session_start
-from atlas_integration.codex.runtime import (
+from adamast_integration.claude_code.config import ClaudeCodeConfig
+from adamast_integration.claude_code.runtime import session_start, user_prompt_submit
+from adamast_integration.claude_code.state import load_state, save_state
+from adamast_integration.codex.config import CodexConfig
+from adamast_integration.codex.runtime import session_start as codex_session_start
+from adamast_integration.codex.runtime import (
     user_prompt_submit as codex_user_prompt_submit,
 )
-from atlas_integration.codex.state import load_state as codex_load_state
-from atlas_integration.codex.state import save_state as save_codex_state
-from atlas_integration.interactive.browser_picker import (
+from adamast_integration.codex.state import load_state as codex_load_state
+from adamast_integration.codex.state import save_state as save_codex_state
+from adamast_integration.interactive.browser_picker import (
     picker_alive,
     picker_page_context,
 )
-from atlas_integration.interactive.selector import (
+from adamast_integration.interactive.selector import (
     build_selection,
     render_active_selection_context,
 )
-from atlas_runtime import ProgramWorkspace
-from atlas_runtime.project_scope import project_program_path
+from adamast_runtime import ProgramWorkspace
+from adamast_runtime.project_scope import project_program_path
 from finding import mast, store, webview
 
 
@@ -37,7 +37,7 @@ class ConversationScopeTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
-        self.routing_root = self.root / "atlas-home"
+        self.routing_root = self.root / "adamast-home"
         self.project = self.root / "project"
         self.project.mkdir()
         self.transcript = self.root / "transcript.jsonl"
@@ -49,7 +49,7 @@ class ConversationScopeTests(unittest.TestCase):
     def config(self, *, selector_surface: str) -> ClaudeCodeConfig:
         return ClaudeCodeConfig(
             trace_output=self.routing_root,
-            atlas_model="test-model",
+            adamast_model="test-model",
             store_dir=STORE_DIR,
             trace_root=self.root / "traces",
             dashboard=False,
@@ -84,12 +84,12 @@ class ConversationScopeTests(unittest.TestCase):
 
         self.assertEqual(resumed.trace_output, original.trace_output)
         with patch(
-            "atlas_integration.claude_code.runtime.start_browser_picker"
+            "adamast_integration.claude_code.runtime.start_browser_picker"
         ) as open_picker:
             output = session_start(resumed_event, resumed)
         open_picker.assert_not_called()
         self.assertIn(
-            "ATLAS taxonomy is pinned to MAST",
+            "AdaMAST taxonomy is pinned to MAST",
             output["hookSpecificOutput"]["additionalContext"],
         )
 
@@ -133,19 +133,19 @@ class ConversationScopeTests(unittest.TestCase):
 
         self.assertEqual(resumed.trace_output, original_program)
         with patch(
-            "atlas_integration.claude_code.runtime.start_browser_picker"
+            "adamast_integration.claude_code.runtime.start_browser_picker"
         ) as open_picker:
             output = session_start(resumed_event, resumed)
         open_picker.assert_not_called()
         self.assertIn(
-            "ATLAS taxonomy is pinned to MAST",
+            "AdaMAST taxonomy is pinned to MAST",
             output["hookSpecificOutput"]["additionalContext"],
         )
 
     def test_codex_conversation_scope_is_stable_after_cwd_changes(self) -> None:
         config = CodexConfig(
             trace_output=self.routing_root,
-            atlas_model="test-model",
+            adamast_model="test-model",
             store_dir=STORE_DIR,
             trace_root=self.root / "traces",
             dashboard=False,
@@ -167,7 +167,7 @@ class ConversationScopeTests(unittest.TestCase):
     def test_learned_taxonomy_replaces_mast_in_host_context(self) -> None:
         config = CodexConfig(
             trace_output=self.routing_root,
-            atlas_model="test-model",
+            adamast_model="test-model",
             store_dir=STORE_DIR,
             trace_root=self.root / "traces",
             dashboard=False,
@@ -215,7 +215,7 @@ class ConversationScopeTests(unittest.TestCase):
         output = codex_session_start(event, scoped)
         context = output["hookSpecificOutput"]["additionalContext"]
 
-        self.assertIn("ATLAS active taxonomy is", context)
+        self.assertIn("AdaMAST active taxonomy is", context)
         self.assertIn(store.display_name(record), context)
         self.assertIn(taxonomy_id, context)
         self.assertIn("selected MAST lineage", context)
@@ -263,7 +263,7 @@ class ConversationScopeTests(unittest.TestCase):
         output = session_start(event, scoped)
         context = output["hookSpecificOutput"]["additionalContext"]
 
-        self.assertIn("ATLAS active taxonomy is", context)
+        self.assertIn("AdaMAST active taxonomy is", context)
         self.assertIn(store.display_name(record), context)
         self.assertIn(taxonomy_id, context)
         self.assertIn("selected MAST lineage", context)
@@ -298,11 +298,11 @@ class ConversationScopeTests(unittest.TestCase):
         }
         with (
             patch(
-                "atlas_integration.claude_code.runtime.start_browser_picker",
+                "adamast_integration.claude_code.runtime.start_browser_picker",
                 return_value=picker,
             ) as launch,
             patch(
-                "atlas_integration.claude_code.runtime.open_browser_picker",
+                "adamast_integration.claude_code.runtime.open_browser_picker",
                 return_value=True,
             ) as opened,
         ):
@@ -373,15 +373,15 @@ class ConversationScopeTests(unittest.TestCase):
         }
         with (
             patch(
-                "atlas_integration.claude_code.runtime.picker_alive",
+                "adamast_integration.claude_code.runtime.picker_alive",
                 return_value=False,
             ),
             patch(
-                "atlas_integration.claude_code.runtime.start_browser_picker",
+                "adamast_integration.claude_code.runtime.start_browser_picker",
                 return_value=fresh_picker,
             ) as relaunch,
             patch(
-                "atlas_integration.claude_code.runtime.open_browser_picker",
+                "adamast_integration.claude_code.runtime.open_browser_picker",
                 return_value=True,
             ) as opened,
         ):
@@ -398,14 +398,14 @@ class ConversationScopeTests(unittest.TestCase):
 
         with (
             patch(
-                "atlas_integration.claude_code.runtime.picker_alive",
+                "adamast_integration.claude_code.runtime.picker_alive",
                 return_value=True,
             ),
             patch(
-                "atlas_integration.claude_code.runtime.start_browser_picker"
+                "adamast_integration.claude_code.runtime.start_browser_picker"
             ) as relaunch,
             patch(
-                "atlas_integration.claude_code.runtime.open_browser_picker"
+                "adamast_integration.claude_code.runtime.open_browser_picker"
             ) as opened,
         ):
             waiting = user_prompt_submit({**event, "prompt": "still here"}, config)
@@ -425,7 +425,7 @@ class ConversationScopeTests(unittest.TestCase):
         }
         config = CodexConfig(
             trace_output=self.routing_root,
-            atlas_model="test-model",
+            adamast_model="test-model",
             store_dir=STORE_DIR,
             trace_root=self.root / "traces",
             dashboard=False,
@@ -467,15 +467,15 @@ class ConversationScopeTests(unittest.TestCase):
         }
         with (
             patch(
-                "atlas_integration.codex.runtime.picker_alive",
+                "adamast_integration.codex.runtime.picker_alive",
                 return_value=False,
             ),
             patch(
-                "atlas_integration.codex.runtime.start_browser_picker",
+                "adamast_integration.codex.runtime.start_browser_picker",
                 return_value=fresh_picker,
             ) as relaunch,
             patch(
-                "atlas_integration.codex.runtime.open_browser_picker",
+                "adamast_integration.codex.runtime.open_browser_picker",
                 return_value=True,
             ) as opened,
         ):

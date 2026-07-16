@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from atlas_runtime.project_scope import (
+from adamast_runtime.project_scope import (
     canonical_project_root,
     project_key,
     project_program_path,
@@ -19,7 +19,7 @@ class ProjectScopeTests(unittest.TestCase):
             nested = root / "src" / "feature"
             nested.mkdir(parents=True)
             with patch(
-                "atlas_runtime.project_scope._git_top_level",
+                "adamast_runtime.project_scope._git_top_level",
                 return_value=str(root),
             ):
                 self.assertEqual(
@@ -36,15 +36,15 @@ class ProjectScopeTests(unittest.TestCase):
             first.mkdir()
             second.mkdir()
             with patch(
-                "atlas_runtime.project_scope._git_top_level",
+                "adamast_runtime.project_scope._git_top_level",
                 return_value="",
             ):
                 first_program = project_program_path(
-                    base / "atlas",
+                    base / "adamast",
                     cwd=first,
                 )
                 second_program = project_program_path(
-                    base / "atlas",
+                    base / "adamast",
                     cwd=second,
                 )
             self.assertNotEqual(first_program, second_program)
@@ -54,9 +54,9 @@ class ProjectScopeTests(unittest.TestCase):
             base = Path(temp)
             project = base / "project"
             project.mkdir()
-            default = project_program_path(base / "atlas", cwd=project)
+            default = project_program_path(base / "adamast", cwd=project)
             billing = project_program_path(
-                base / "atlas",
+                base / "adamast",
                 cwd=project,
                 task_group="billing",
             )

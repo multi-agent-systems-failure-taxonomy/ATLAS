@@ -1,12 +1,12 @@
 # finding/
 
-ATLAS Taxonomy Finding: the taxonomy store + picker + MAST loader. Owns
+AdaMAST Taxonomy Finding: the taxonomy store + picker + MAST loader. Owns
 the on-disk flat-JSON taxonomy format (one file per taxonomy keyed by
 `taxonomy_id`), the inheritance resolver, the built-in MAST floor, and the
 interactive web picker.
 
-Configured via `ATLAS_HOME` (default `~/.atlas-skill/`); the store lives
-under `$ATLAS_HOME/taxonomies/`.
+Configured via `ADAMAST_HOME` (default `~/.adamast/`); the store lives
+under `$ADAMAST_HOME/taxonomies/`.
 
 ## Programs
 
@@ -14,7 +14,7 @@ under `$ATLAS_HOME/taxonomies/`.
 |---|---|
 | [`__init__.py`](__init__.py) | Public API exports |
 | [`__main__.py`](__main__.py) | Lets `python -m finding` route to the CLI |
-| [`cli.py`](cli.py) | `atlas-find` CLI: list / show / resolve / register taxonomies |
+| [`cli.py`](cli.py) | `adamast-find` CLI: list / show / resolve / register taxonomies |
 | [`mast.py`](mast.py) | Built-in MAST floor taxonomy (Cemri et al., 2025) — used as the fallback when no other taxonomy is inherited |
 | [`resolver.py`](resolver.py) | Inheritance resolver implementing absent (none), explicit `<taxonomy_id>`, and interactive picker selection |
 | [`store.py`](store.py) | Flat-JSON store: one file per taxonomy, atomic register/unregister, list_all, fetch_by_id, schema validation |
@@ -31,7 +31,7 @@ used as the basename of the on-disk record (`<store-dir>/<taxonomy_id>.json`)
 and as the directory name under the trace root. Reserved: the literal
 string `mast` is the built-in MAST floor and cannot be used as a stored id.
 
-When auto-allocated (by `atlas-import-traces`, `atlas-register-taxonomy`,
+When auto-allocated (by `adamast-import-traces`, `adamast-register-taxonomy`,
 or end-of-generation activation), ids take the shape:
 
 ```
@@ -45,7 +45,7 @@ tax-<UTC-stamp>-<digest>-<uuid>
 - `<uuid>` — first 6 hex chars of a uuid4; collision-breaker.
 
 The `tax-` prefix is a convention, not a requirement — when registering
-with `atlas-register-taxonomy --id <id>` you can pass any filesystem-safe
+with `adamast-register-taxonomy --id <id>` you can pass any filesystem-safe
 string (except `mast`). Auto-allocators always use the `tax-...` shape so
 downstream tooling can filter on it cheaply.
 

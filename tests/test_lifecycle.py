@@ -5,20 +5,20 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from atlas_runtime.lifecycle import (
+from adamast_runtime.lifecycle import (
     end_session,
     pre_submission,
     record_trace,
     start_session,
 )
-from atlas_runtime.program import ProgramConflict, ProgramWorkspace
-from atlas_runtime.traces import GenerationTrace, TraceStore
+from adamast_runtime.program import ProgramConflict, ProgramWorkspace
+from adamast_runtime.traces import GenerationTrace, TraceStore
 from finding import resolver
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent.parent
 STORE_DIR = ROOT / "tests" / "fixtures" / "taxonomies"
-TRACE_FIXTURE = Path(__file__).parent / "fixtures" / "atlas_generation_trace.json"
+TRACE_FIXTURE = Path(__file__).parent / "fixtures" / "adamast_generation_trace.json"
 
 
 def real_trace() -> GenerationTrace:
@@ -44,14 +44,14 @@ class LifecycleTests(unittest.TestCase):
             self.assertEqual(session.delivery.taxonomy["taxonomy_id"], "mast")
             self.assertFalse(session.generation_stops)
             self.assertIn(
-                "ATLAS pre-submission gate",
+                "AdaMAST pre-submission gate",
                 session.delivery.runtime_protocol,
             )
 
     def test_session_automatically_starts_dashboard(self):
         with tempfile.TemporaryDirectory() as td:
             with patch(
-                "atlas_runtime.dashboard.ensure_dashboard",
+                "adamast_runtime.dashboard.ensure_dashboard",
                 return_value="http://127.0.0.1:9999/",
             ) as ensure:
                 session = start_session(
@@ -129,13 +129,13 @@ class LifecycleTests(unittest.TestCase):
                     store_dir=STORE_DIR,
                 )
 
-    def test_conflicting_atlas_model_is_rejected(self):
+    def test_conflicting_adamast_model_is_rejected(self):
         with tempfile.TemporaryDirectory() as td:
             first = start_session(
                 resolver.ABSENT,
                 trace_output=td,
                 store_dir=STORE_DIR,
-                atlas_model="gpt-5",
+                adamast_model="gpt-5",
             )
             end_session(first)
             with self.assertRaises(ProgramConflict):
@@ -143,7 +143,7 @@ class LifecycleTests(unittest.TestCase):
                     resolver.ABSENT,
                     trace_output=td,
                     store_dir=STORE_DIR,
-                    atlas_model="claude-haiku",
+                    adamast_model="claude-haiku",
                 )
 
     def test_interactive_session_model_adopts_recorded_program_model(self):
@@ -156,20 +156,20 @@ class LifecycleTests(unittest.TestCase):
                 resolver.ABSENT,
                 trace_output=td,
                 store_dir=STORE_DIR,
-                atlas_model="gpt-5",
+                adamast_model="gpt-5",
             )
             end_session(first)
             adopted = start_session(
                 resolver.ABSENT,
                 trace_output=td,
                 store_dir=STORE_DIR,
-                atlas_model="interactive-session",
+                adamast_model="interactive-session",
             )
             end_session(adopted)
             manifest = json.loads(
-                (Path(td) / ".atlas-program.json").read_text(encoding="utf-8")
+                (Path(td) / ".adamast-program.json").read_text(encoding="utf-8")
             )
-            self.assertEqual(manifest["atlas_model"], "gpt-5")
+            self.assertEqual(manifest["adamast_model"], "gpt-5")
 
     def test_gate_uses_session_retry_limit(self):
         with tempfile.TemporaryDirectory() as td:
@@ -181,12 +181,12 @@ class LifecycleTests(unittest.TestCase):
             )
             blocked = pre_submission(
                 session,
-                "Final ATLAS status: REPAIR_REQUIRED\nRepair attempts used: 1",
+                "Final AdaMAST status: REPAIR_REQUIRED\nRepair attempts used: 1",
                 repair_attempts_used=1,
             )
             allowed = pre_submission(
                 session,
-                "Final ATLAS status: REPAIR_REQUIRED\nRepair attempts used: 2",
+                "Final AdaMAST status: REPAIR_REQUIRED\nRepair attempts used: 2",
                 repair_attempts_used=2,
             )
             self.assertFalse(blocked.allow)

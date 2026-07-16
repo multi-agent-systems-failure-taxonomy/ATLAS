@@ -18,36 +18,36 @@ from urllib.request import urlopen
 
 from finding import store
 
-from atlas_integration.claude_code.config import ClaudeCodeConfig
-from atlas_integration.claude_code.dispatcher import (
+from adamast_integration.claude_code.config import ClaudeCodeConfig
+from adamast_integration.claude_code.dispatcher import (
     _merge_notices,
     main as dispatcher_main,
 )
-from atlas_integration.claude_code.install import install
-from atlas_integration.claude_code.learning_jobs import (
+from adamast_integration.claude_code.install import install
+from adamast_integration.claude_code.learning_jobs import (
     claim_learning_job,
     drain_learning_notices,
     enqueue_claude_learning_job,
     poll_learning_jobs,
     reconcile_learning_jobs,
 )
-from atlas_integration.claude_code.native_worker import run_worker
-from atlas_integration.claude_code.runtime import session_start, user_prompt_submit
-from atlas_integration.claude_code.state import load_state, save_state
-from atlas_integration.claude_code.subagent_protocol import (
+from adamast_integration.claude_code.native_worker import run_worker
+from adamast_integration.claude_code.runtime import session_start, user_prompt_submit
+from adamast_integration.claude_code.state import load_state, save_state
+from adamast_integration.claude_code.subagent_protocol import (
     RECEIPT_CLOSE,
     RECEIPT_OPEN,
     complete_support_review,
 )
-from atlas_integration.claude_code.browser_picker import (
+from adamast_integration.claude_code.browser_picker import (
     apply_browser_choice,
     start_browser_picker,
 )
-from atlas_integration.claude_code.hooks import subagent_stop
-from atlas_integration.claude_code.uninstall import uninstall
-from atlas_integration.codex.config import CodexConfig
-from atlas_runtime import GenerationTrace, ProgramWorkspace
-from atlas_integration.interactive.selector import build_selection
+from adamast_integration.claude_code.hooks import subagent_stop
+from adamast_integration.claude_code.uninstall import uninstall
+from adamast_integration.codex.config import CodexConfig
+from adamast_runtime import GenerationTrace, ProgramWorkspace
+from adamast_integration.interactive.selector import build_selection
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -58,7 +58,7 @@ class ClaudeNativeLearningTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
-        self.base_program = self.root / "atlas-home"
+        self.base_program = self.root / "adamast-home"
         self.project = self.root / "project"
         self.project.mkdir()
         self.transcript = self.root / "transcript.jsonl"
@@ -70,7 +70,7 @@ class ClaudeNativeLearningTests(unittest.TestCase):
     def config(self, **changes) -> ClaudeCodeConfig:
         fields = {
             "trace_output": self.base_program,
-            "atlas_model": "test-model",
+            "adamast_model": "test-model",
             "store_dir": STORE_DIR,
             "trace_root": self.root / "traces",
             "dashboard": False,
@@ -113,7 +113,7 @@ class ClaudeNativeLearningTests(unittest.TestCase):
             self.event("UserPromptSubmit", prompt="MAST"),
             config,
         )
-        self.assertIn("ATLAS selected MAST", accepted["systemMessage"])
+        self.assertIn("AdaMAST selected MAST", accepted["systemMessage"])
         self.assertIn(
             "Build the company tools demo",
             accepted["hookSpecificOutput"]["additionalContext"],
@@ -143,7 +143,7 @@ class ClaudeNativeLearningTests(unittest.TestCase):
 
         browser_config = self.config(selector_surface="browser")
         with patch(
-            "atlas_integration.claude_code.runtime.start_browser_picker"
+            "adamast_integration.claude_code.runtime.start_browser_picker"
         ) as launch:
             resumed = session_start(self.event("SessionStart"), browser_config)
 
@@ -168,7 +168,7 @@ class ClaudeNativeLearningTests(unittest.TestCase):
         claude = self.config(project_scope="auto", task_group="platform")
         codex = CodexConfig(
             trace_output=self.base_program,
-            atlas_model="test-model",
+            adamast_model="test-model",
             store_dir=STORE_DIR,
             trace_root=self.root / "traces",
             dashboard=False,
@@ -453,7 +453,7 @@ class ClaudeNativeLearningTests(unittest.TestCase):
             self.event("UserPromptSubmit", prompt="MAST"),
             config,
         )
-        self.assertIn("ATLAS selected MAST", accepted["systemMessage"])
+        self.assertIn("AdaMAST selected MAST", accepted["systemMessage"])
         routed = config.for_event(event)
         self.assertNotEqual(routed.trace_output, self.base_program)
         self.assertTrue(routed.task_group.startswith("fresh-"))
@@ -531,7 +531,7 @@ class ClaudeNativeLearningTests(unittest.TestCase):
             project_scope="explicit",
             generation_threshold=5,
         )
-        config_path = self.root / "atlas-claude.json"
+        config_path = self.root / "adamast-claude.json"
         config_path.write_text(
             json.dumps(config.to_dict(), indent=2),
             encoding="utf-8",
@@ -546,7 +546,7 @@ class ClaudeNativeLearningTests(unittest.TestCase):
         self.assertEqual(code, 0, stderr.getvalue())
         output = json.loads(stdout.getvalue())
         context = output["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("ATLAS native taxonomy learning is ready", context)
+        self.assertIn("AdaMAST native taxonomy learning is ready", context)
         self.assertIn("Claude Code's native Agent tool", context)
         jobs = list((program / "learning_jobs").glob("*/job.json"))
         self.assertEqual(len(jobs), 1)
@@ -583,7 +583,7 @@ class ClaudeNativeLearningTests(unittest.TestCase):
             store_dir=STORE_DIR,
             selection=selection,
             event={"cwd": str(self.project), "session_id": session_id},
-            routing_root=self.root / "atlas-home",
+            routing_root=self.root / "adamast-home",
             default_trace_output=program,
             task_group="default",
             project_scope="explicit",
@@ -620,7 +620,7 @@ class ClaudeNativeLearningTests(unittest.TestCase):
             import sys
             from pathlib import Path
 
-            from atlas_integration.claude_code.native_worker import _run_claude
+            from adamast_integration.claude_code.native_worker import _run_claude
 
             echo = (
                 "import sys;"
@@ -659,7 +659,7 @@ class ClaudeNativeLearningTests(unittest.TestCase):
         merged = _merge_notices(
             None,
             event_name="Stop",
-            notices=["ATLAS taxonomy refinement finished"],
+            notices=["AdaMAST taxonomy refinement finished"],
         )
         self.assertIn("refinement finished", merged["systemMessage"])
         self.assertIn(
@@ -676,7 +676,7 @@ class ClaudeNativeLearningTests(unittest.TestCase):
             encoding="utf-8",
         )
         with patch(
-            "atlas_integration.claude_code.install.Path.home",
+            "adamast_integration.claude_code.install.Path.home",
             return_value=self.root,
         ):
             result = install(
@@ -692,7 +692,7 @@ class ClaudeNativeLearningTests(unittest.TestCase):
         self.assertEqual(result["scope"], "user")
 
         with patch(
-            "atlas_integration.claude_code.uninstall.Path.home",
+            "adamast_integration.claude_code.uninstall.Path.home",
             return_value=self.root,
         ):
             removed = uninstall(self.root, user_level=True)

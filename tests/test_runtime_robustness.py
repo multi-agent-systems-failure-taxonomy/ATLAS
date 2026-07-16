@@ -8,8 +8,8 @@ import time
 import unittest
 from pathlib import Path
 
-from atlas_runtime.evidence import _file_lock
-from atlas_runtime.program import MANIFEST_NAME, ProgramConflict, ProgramWorkspace
+from adamast_runtime.evidence import _file_lock
+from adamast_runtime.program import MANIFEST_NAME, ProgramConflict, ProgramWorkspace
 
 
 class EvidenceLockTests(unittest.TestCase):

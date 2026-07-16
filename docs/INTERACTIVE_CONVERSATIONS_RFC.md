@@ -1,6 +1,6 @@
 # Interactive conversations runtime RFC
 
-Status: Implemented for Codex and Claude Code in ATLAS 1.1.0b4. This document
+Status: Implemented for Codex and Claude Code in AdaMAST 1.1.0b4. This document
 retains the design rationale and records remaining management-surface work.
 
 This RFC adds a conversation-oriented runtime without changing the existing
@@ -26,7 +26,7 @@ become independent traces.
 Other current limitations are:
 
 - User-level Codex and Claude Code installers use the same default
-  `~/.atlas-skill/interactive` root so both hosts share a project program.
+  `~/.adamast/interactive` root so both hosts share a project program.
   Explicit project configs can still choose separate roots.
 - Taxonomy inheritance is explicit or program-local; there is no semantic
   automatic selector for a new task group.
@@ -54,7 +54,7 @@ evidence sources; they do not create additional learning traces by default.
 
 Do not count:
 
-- ATLAS control commands;
+- AdaMAST control commands;
 - a prompt rejected before the agent runs;
 - an empty session that exits before a user turn;
 - duplicate Stop delivery for an already committed episode.
@@ -112,7 +112,7 @@ Project identity resolution order:
 The runtime stores project data outside the repository by default:
 
 ```text
-~/.atlas-skill/projects/<project-key>/groups/<group-id>/
+~/.adamast/projects/<project-key>/groups/<group-id>/
   program/
   conversations/
   jobs/
@@ -138,21 +138,21 @@ is insufficient, selection returns MAST.
 The control surface should support:
 
 ```text
-atlas context status
-atlas context group use billing
-atlas context use auto --scope conversation
-atlas context use mast --scope conversation
-atlas context use tax-company-tools-1 --scope conversation
-atlas context use tax-company-tools-1 --scope group
-atlas context lock tax-company-tools-1
-atlas context follow-latest
-atlas learning refine --now
-atlas learning pause
-atlas learning resume
+adamast context status
+adamast context group use billing
+adamast context use auto --scope conversation
+adamast context use mast --scope conversation
+adamast context use tax-company-tools-1 --scope conversation
+adamast context use tax-company-tools-1 --scope group
+adamast context lock tax-company-tools-1
+adamast context follow-latest
+adamast learning refine --now
+adamast learning pause
+adamast learning resume
 ```
 
 In an app, a user may express the same command as a dedicated first control
-turn, for example, `Atlas: use tax-company-tools-1 for this conversation`.
+turn, for example, `AdaMAST: use tax-company-tools-1 for this conversation`.
 Control turns are acknowledged but excluded from learning traces. The
 SessionStart hook injects an opaque conversation token so the agent can call
 the CLI without guessing which concurrent conversation to update.
@@ -187,7 +187,7 @@ API credential.
 
 ### Native taxonomy worker
 
-The worker is a dedicated `atlas-taxonomy-worker` agent. It receives only:
+The worker is a dedicated `adamast-taxonomy-worker` agent. It receives only:
 
 - the job manifest;
 - a frozen, redacted, outcome-blind trace snapshot;
@@ -271,14 +271,14 @@ long reflection internal. The user-facing learning notices use one
 cross-harness vocabulary:
 
 ```text
-ATLAS: Episode 5 accepted; trace saved; generation threshold reached.
-ATLAS: Taxonomy generation queued; worker atlas-taxonomy-worker; MAST remains active.
-ATLAS: Taxonomy generation running in the background.
-ATLAS: Taxonomy generation completed; tax-company-tools-1 activates next turn.
-ATLAS: Refinement review queued for tax-company-tools-1.
-ATLAS: Refinement completed; tax-company-tools-1 -> tax-company-tools-2 activates next turn.
-ATLAS: Refinement reviewed; no taxonomy change was justified.
-ATLAS: Learning failed; the current taxonomy remains active; traces were preserved.
+AdaMAST: Episode 5 accepted; trace saved; generation threshold reached.
+AdaMAST: Taxonomy generation queued; worker adamast-taxonomy-worker; MAST remains active.
+AdaMAST: Taxonomy generation running in the background.
+AdaMAST: Taxonomy generation completed; tax-company-tools-1 activates next turn.
+AdaMAST: Refinement review queued for tax-company-tools-1.
+AdaMAST: Refinement completed; tax-company-tools-1 -> tax-company-tools-2 activates next turn.
+AdaMAST: Refinement reviewed; no taxonomy change was justified.
+AdaMAST: Learning failed; the current taxonomy remains active; traces were preserved.
 ```
 
 Codex should emit these through hook `systemMessage` output. Claude Code should
@@ -329,7 +329,7 @@ The implemented Codex configuration is:
 ```json
 {
   "version": 1,
-  "trace_output": "~/.atlas-skill/interactive",
+  "trace_output": "~/.adamast/interactive",
   "generation_threshold": 5,
   "k_init": 10,
   "k": 20,
@@ -350,7 +350,7 @@ The implemented Codex configuration is:
    exclusion, interrupted-episode recovery, Codex transcript normalization, and
    cross-adapter regression tests. Implemented in this branch.
 2. **Project registry:** automatic project keys, named groups, conversation
-   leases, and `atlas context` controls.
+   leases, and `adamast context` controls.
 3. **Learning job protocol:** frozen snapshots, staging, claims, receipts,
    validation, activation, stale-worker recovery, and audit records. Implemented
    for Codex and Claude Code.
@@ -370,12 +370,12 @@ For Codex, `selector_surface: "browser"` makes the first real
 `UserPromptSubmit` launch a session-bound localhost selector; `SessionStart`
 only recovers an existing choice. This keeps background host tasks and spawned
 agents from opening browser windows. The browser deterministically applies a
-stored taxonomy, MAST, or ATLAS-off under the program lock before reporting
+stored taxonomy, MAST, or AdaMAST-off under the program lock before reporting
 success. `selector_surface: "inline"` preserves the prompt-based compatibility
 path. A first substantive request becomes the episode task after selection,
 while the selector exchange stays outside the episode task label.
 Stored-taxonomy selection binds the existing
-project/task-group program contract. ATLAS-off bypasses gates and trace capture
+project/task-group program contract. AdaMAST-off bypasses gates and trace capture
 for the conversation.
 
 ## Verification matrix

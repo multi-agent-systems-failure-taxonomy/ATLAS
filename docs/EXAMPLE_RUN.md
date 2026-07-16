@@ -1,7 +1,7 @@
 # An example run
 
 This page shows what the agent actually sees and produces at each stage of one
-ATLAS-supervised task. The running example is the bundled demo taxonomy
+AdaMAST-supervised task. The running example is the bundled demo taxonomy
 (orbital task scheduling); every shape below is the real format the runtime
 parses. Try the matching dashboard locally with
 `python -m examples.dashboard_demo`.
@@ -42,7 +42,7 @@ Before the final answer is released, the pre-submission gate requires this
 exact format and allows at most `repair_rounds` repairs:
 
 ```text
-Final ATLAS status: READY_TO_SUBMIT
+Final AdaMAST status: READY_TO_SUBMIT
 Codes checked: ORB-01, ORB-04
 Evidence: The dispatched plan cites ephemeris revision 214 and all
           boundaries are expressed in UTC; validation re-ran after repair.
@@ -59,7 +59,7 @@ instead of claiming clean success.
 Everything the gates record — firings, clean checkpoints, evidence snippets,
 and per-task UID filters — is browsable live:
 
-![ATLAS runtime dashboard](assets/screenshots/dashboard-demo.png)
+![AdaMAST runtime dashboard](assets/screenshots/dashboard-demo.png)
 
 ## 5. What learning produces
 

@@ -9,9 +9,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from atlas_runtime.import_generation import generate_imported_taxonomy
-from atlas_runtime.lifecycle import end_session, start_session
-from atlas_runtime.traces import TraceStore
+from adamast_runtime.import_generation import generate_imported_taxonomy
+from adamast_runtime.lifecycle import end_session, start_session
+from adamast_runtime.traces import TraceStore
 from finding import store
 
 
@@ -83,7 +83,7 @@ class ImportedTaxonomyTests(unittest.TestCase):
             trace_root = root / "learning-traces"
             result = generate_imported_taxonomy(
                 source,
-                atlas_model="gpt-5",
+                adamast_model="gpt-5",
                 store_dir=store_dir,
                 trace_root=trace_root,
                 repo="user-project",
@@ -102,7 +102,7 @@ class ImportedTaxonomyTests(unittest.TestCase):
             self.assertTrue((result.artifacts_path / "import.json").is_file())
 
             # Importing creates no program and activates nothing by itself.
-            self.assertFalse((root / "program" / ".atlas-program.json").exists())
+            self.assertFalse((root / "program" / ".adamast-program.json").exists())
             session = start_session(
                 result.taxonomy_id,
                 trace_output=root / "program",
@@ -133,7 +133,7 @@ class ImportedTaxonomyTests(unittest.TestCase):
             )
             store_dir = root / "taxonomies"
             trace_root = root / "traces"
-            # Generator returns an ATLAS-shaped output with ZERO codes -> the
+            # Generator returns an AdaMAST-shaped output with ZERO codes -> the
             # candidate is structurally invalid, generate_imported_taxonomy
             # must raise ValueError before writing anything.
             empty_output = {
@@ -146,7 +146,7 @@ class ImportedTaxonomyTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 generate_imported_taxonomy(
                     source,
-                    atlas_model="gpt-5",
+                    adamast_model="gpt-5",
                     store_dir=store_dir,
                     trace_root=trace_root,
                     skip_judge=True,
@@ -168,7 +168,7 @@ class ImportedTaxonomyTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "no valid traces"):
                 generate_imported_taxonomy(
                     source,
-                    atlas_model="gpt-5",
+                    adamast_model="gpt-5",
                     store_dir=root / "store",
                     trace_root=root / "traces",
                     generator=lambda traces: called.append(traces),
@@ -188,7 +188,7 @@ class ImportedTaxonomyTests(unittest.TestCase):
                         "metadata": {},
                     }
                 ],
-                atlas_model="gpt-5",
+                adamast_model="gpt-5",
                 store_dir=root / "store",
                 trace_root=root / "traces",
                 skip_judge=True,
@@ -207,7 +207,7 @@ class ImportedTaxonomyTests(unittest.TestCase):
             )
             result = generate_imported_taxonomy(
                 source,
-                atlas_model="gpt-5",
+                adamast_model="gpt-5",
                 store_dir=root / "store",
                 trace_root=root / "traces",
                 skip_judge=True,
@@ -225,7 +225,7 @@ class ImportedTaxonomyTests(unittest.TestCase):
             store_dir = root / "store"
             trace_root = root / "traces"
             with patch(
-                "atlas_runtime.import_generation._persist_artifacts",
+                "adamast_runtime.import_generation._persist_artifacts",
                 side_effect=OSError("artifact write failed"),
             ):
                 with self.assertRaisesRegex(OSError, "artifact write failed"):
@@ -238,7 +238,7 @@ class ImportedTaxonomyTests(unittest.TestCase):
                                 "metadata": {},
                             }
                         ],
-                        atlas_model="gpt-5",
+                        adamast_model="gpt-5",
                         store_dir=store_dir,
                         trace_root=trace_root,
                         skip_judge=True,

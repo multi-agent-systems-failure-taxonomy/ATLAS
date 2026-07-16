@@ -1,6 +1,6 @@
-# ATLAS customization guide
+# AdaMAST customization guide
 
-ATLAS is split so users can change public behavior without touching runtime
+AdaMAST is split so users can change public behavior without touching runtime
 controllers whenever possible.
 
 Use this rule of thumb:
@@ -14,32 +14,32 @@ Use this rule of thumb:
 
 | Goal | Edit |
 |---|---|
-| Change checkpoint reflection wording | [`atlas_runtime/assets/checkpoint_reflection.md`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/atlas_runtime/assets/checkpoint_reflection.md) |
-| Change final-gate protocol | [`atlas_runtime/assets/pre_submission_protocol.md`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/atlas_runtime/assets/pre_submission_protocol.md) and, for Claude Code, [`atlas_integration/claude_code/assets/final_gate_tail.md`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/atlas_integration/claude_code/assets/final_gate_tail.md) |
-| Change Claude Code standing instruction | [`atlas_integration/claude_code/assets/standing_prompt.md`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/atlas_integration/claude_code/assets/standing_prompt.md) |
-| Change single-LLM standing instruction | [`atlas_integration/single_llm/assets/standing_prompt.md`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/atlas_integration/single_llm/assets/standing_prompt.md) |
+| Change checkpoint reflection wording | [`adamast_runtime/assets/checkpoint_reflection.md`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/adamast_runtime/assets/checkpoint_reflection.md) |
+| Change final-gate protocol | [`adamast_runtime/assets/pre_submission_protocol.md`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/adamast_runtime/assets/pre_submission_protocol.md) and, for Claude Code, [`adamast_integration/claude_code/assets/final_gate_tail.md`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/adamast_integration/claude_code/assets/final_gate_tail.md) |
+| Change Claude Code standing instruction | [`adamast_integration/claude_code/assets/standing_prompt.md`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/adamast_integration/claude_code/assets/standing_prompt.md) |
+| Change single-LLM standing instruction | [`adamast_integration/single_llm/assets/standing_prompt.md`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/adamast_integration/single_llm/assets/standing_prompt.md) |
 | Change simple judge prompts | [`judge_types/assets/`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/judge_types/assets/) |
 | Change Reflection Judge staged prompts | [`judge_types/reflection_judge/assets/`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/judge_types/reflection_judge/assets/) |
-| Change refinement prompt wording | [`atlas_runtime/assets/standard_refinement_prompt.md`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/atlas_runtime/assets/standard_refinement_prompt.md), [`reflection_refiner_system.md`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/atlas_runtime/assets/reflection_refiner_system.md), [`reflection_refiner_user.md`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/atlas_runtime/assets/reflection_refiner_user.md), [`refinement_support_judge.md`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/atlas_runtime/assets/refinement_support_judge.md), [`refinement_repair.md`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/atlas_runtime/assets/refinement_repair.md) |
-| Change taxonomy-generation prompt wording | [`vendor/atlas/pipeline/assets/`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/vendor/atlas/pipeline/assets/) |
-| Change classifier prompt wording | [`vendor/atlas/assets/classifier_system.md`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/vendor/atlas/assets/classifier_system.md), [`classifier_user.md`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/vendor/atlas/assets/classifier_user.md) |
-| Change recognized model context profiles | [`atlas_runtime/assets/model_profiles.json`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/atlas_runtime/assets/model_profiles.json) |
-| Change Claude Code event lists | [`atlas_integration/claude_code/assets/hook_events.json`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/atlas_integration/claude_code/assets/hook_events.json) |
+| Change refinement prompt wording | [`adamast_runtime/assets/standard_refinement_prompt.md`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/adamast_runtime/assets/standard_refinement_prompt.md), [`reflection_refiner_system.md`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/adamast_runtime/assets/reflection_refiner_system.md), [`reflection_refiner_user.md`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/adamast_runtime/assets/reflection_refiner_user.md), [`refinement_support_judge.md`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/adamast_runtime/assets/refinement_support_judge.md), [`refinement_repair.md`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/adamast_runtime/assets/refinement_repair.md) |
+| Change taxonomy-generation prompt wording | [`vendor/adamast/pipeline/assets/`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/vendor/adamast/pipeline/assets/) |
+| Change classifier prompt wording | [`vendor/adamast/assets/classifier_system.md`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/vendor/adamast/assets/classifier_system.md), [`classifier_user.md`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/vendor/adamast/assets/classifier_user.md) |
+| Change recognized model context profiles | [`adamast_runtime/assets/model_profiles.json`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/adamast_runtime/assets/model_profiles.json) |
+| Change Claude Code event lists | [`adamast_integration/claude_code/assets/hook_events.json`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/adamast_integration/claude_code/assets/hook_events.json) |
 | Change Reflection Judge schema enums | [`judge_types/reflection_judge/assets/schema_enums.json`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/judge_types/reflection_judge/assets/schema_enums.json) |
-| Change generation seed role definitions | [`vendor/atlas/pipeline/assets/role_definitions.json`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/vendor/atlas/pipeline/assets/role_definitions.json) |
-| Change checker keyword lists | [`vendor/atlas/pipeline/assets/checker_terms.json`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/vendor/atlas/pipeline/assets/checker_terms.json) |
-| Change config-file validation | [`atlas_runtime/assets/atlas_config.schema.json`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/atlas_runtime/assets/atlas_config.schema.json) plus Python config loaders |
+| Change generation seed role definitions | [`vendor/adamast/pipeline/assets/role_definitions.json`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/vendor/adamast/pipeline/assets/role_definitions.json) |
+| Change checker keyword lists | [`vendor/adamast/pipeline/assets/checker_terms.json`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/vendor/adamast/pipeline/assets/checker_terms.json) |
+| Change config-file validation | [`adamast_runtime/assets/adamast_config.schema.json`](https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/adamast_runtime/assets/adamast_config.schema.json) plus Python config loaders |
 
 ## Config file first
 
-For most deployments, prefer an `atlas.json` checked into the project rather
+For most deployments, prefer an `adamast.json` checked into the project rather
 than long command lines:
 
 ```json
 {
   "version": 1,
-  "trace_output": "./atlas-program",
-  "atlas_model": "gpt-5",
+  "trace_output": "./adamast-program",
+  "adamast_model": "gpt-5",
   "generation_threshold": 5,
   "generation_stops": false,
   "k_init": 10,
@@ -66,8 +66,8 @@ so misspellings do not silently change behavior.
 Claude Code has two hook layers:
 
 1. built-in hooks, configured with `claude_code.built_in_hooks`;
-2. custom hooks, configured with `atlas-claude-add-hook` or the
-   `claude_code.custom_hooks` array in `atlas.json`.
+2. custom hooks, configured with `adamast-claude-add-hook` or the
+   `claude_code.custom_hooks` array in `adamast.json`.
 
 Built-in hook policy belongs in project config:
 
@@ -89,7 +89,7 @@ Built-in hook policy belongs in project config:
 Custom hooks are for additional events:
 
 ```bash
-atlas-claude-add-hook \
+adamast-claude-add-hook \
   --project-dir . \
   --name pre-bash \
   --event PreToolUse \
@@ -138,13 +138,13 @@ A taxonomy record is selected only by `taxonomy_id`.
 Register an existing taxonomy:
 
 ```bash
-atlas-register-taxonomy --file taxonomy.json --id my-taxonomy-v1
+adamast-register-taxonomy --file taxonomy.json --id my-taxonomy-v1
 ```
 
 Use it:
 
 ```bash
-atlas-single-run --config atlas.json --inherit my-taxonomy-v1 --model gpt-5 --task "..."
+adamast-single-run --config adamast.json --inherit my-taxonomy-v1 --model gpt-5 --task "..."
 ```
 
 `display_name`, `repo`, `domain`, and `summary` are display metadata. They do
@@ -158,13 +158,13 @@ These Python modules are deliberately behavioral:
 
 | Area | Why it should stay Python |
 |---|---|
-| `atlas_runtime/lifecycle.py` | owns session boundaries and generation/refinement trigger timing |
-| `atlas_runtime/program.py` | owns lock-coordinated program state and pending traces |
-| `atlas_runtime/traces.py` | owns canonical trace persistence and integration into taxonomy trace folders |
-| `atlas_runtime/reflection.py` | parses the reflection contract from model text |
-| `atlas_runtime/protocol.py` | validates final-gate shape and retry envelope |
+| `adamast_runtime/lifecycle.py` | owns session boundaries and generation/refinement trigger timing |
+| `adamast_runtime/program.py` | owns lock-coordinated program state and pending traces |
+| `adamast_runtime/traces.py` | owns canonical trace persistence and integration into taxonomy trace folders |
+| `adamast_runtime/reflection.py` | parses the reflection contract from model text |
+| `adamast_runtime/protocol.py` | validates final-gate shape and retry envelope |
 | `judge_types/*/schema.py`, validators, and controllers | enforce output structure after model calls |
-| `atlas_integration/*/runtime.py` | adapts host events to runtime calls |
+| `adamast_integration/*/runtime.py` | adapts host events to runtime calls |
 
 If you change these, run the full test suite.
 
@@ -173,7 +173,7 @@ If you change these, run the full test suite.
 Run at least:
 
 ```bash
-python -m compileall atlas_runtime atlas_integration finding judge_types vendor
+python -m compileall adamast_runtime adamast_integration finding judge_types vendor
 python -m pytest -q
 git diff --check
 ```

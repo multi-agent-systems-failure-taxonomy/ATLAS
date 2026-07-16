@@ -7,14 +7,14 @@ import time
 import unittest
 from pathlib import Path
 
-from atlas_runtime.traces import (
+from adamast_runtime.traces import (
     GenerationTrace,
     RetentionPolicy,
     TraceReadError,
     TraceStore,
 )
 
-FIXTURE = Path(__file__).parent / "fixtures" / "atlas_generation_trace.json"
+FIXTURE = Path(__file__).parent / "fixtures" / "adamast_generation_trace.json"
 
 
 def real_trace() -> GenerationTrace:

@@ -1,11 +1,11 @@
-"""Tests for the ported Taxonomy data model in atlas_runtime.taxonomy_data."""
+"""Tests for the ported Taxonomy data model in adamast_runtime.taxonomy_data."""
 
 import json
 import tempfile
 import unittest
 from pathlib import Path
 
-from atlas_runtime.taxonomy_data import (
+from adamast_runtime.taxonomy_data import (
     Code,
     CostMeter,
     JudgeLog,
@@ -25,7 +25,7 @@ FLAT_FIXTURE = {
     ],
 }
 
-ATLAS_FIXTURE = {
+ADAMAST_FIXTURE = {
     "annotation_layer": {
         "category_a": [
             {"code": "A.1", "name": "Loop", "definition": "Agent loops",
@@ -62,8 +62,8 @@ class TaxonomyConstructorTests(unittest.TestCase):
         # Codes are renumbered to canonical A.1, B.1, C.1.
         self.assertEqual({c.code for c in tax.codes}, {"A.1", "B.1", "C.1"})
 
-    def test_from_dict_reads_atlas_layers(self) -> None:
-        tax = Taxonomy.from_dict(ATLAS_FIXTURE)
+    def test_from_dict_reads_adamast_layers(self) -> None:
+        tax = Taxonomy.from_dict(ADAMAST_FIXTURE)
         self.assertEqual(len(tax.codes), 2)
         a = next(c for c in tax.codes if c.category == "A")
         self.assertEqual(a.detection_heuristics, ["repeated tool call"])
@@ -73,7 +73,7 @@ class TaxonomyConstructorTests(unittest.TestCase):
     def test_from_json_loads_from_disk(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "tax.json"
-            path.write_text(json.dumps(ATLAS_FIXTURE))
+            path.write_text(json.dumps(ADAMAST_FIXTURE))
             tax = Taxonomy.from_json(path)
             self.assertEqual(len(tax.codes), 2)
             self.assertEqual(tax.metadata.get("seed_path"), str(path))
