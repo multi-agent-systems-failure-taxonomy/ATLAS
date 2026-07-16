@@ -216,6 +216,41 @@ class CodexIntegrationTests(unittest.TestCase):
             self.assertEqual(stdout.getvalue(), "")
             self.assertFalse(config.trace_output.exists())
 
+    def test_dispatcher_does_not_claim_learning_before_browser_selection(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            config = replace(
+                self.selector_config(root),
+                selector_surface="browser",
+                learning_backend="codex_subagent",
+            )
+            config_path = root / "atlas-skill.json"
+            config_path.write_text(json.dumps(config.to_dict()), encoding="utf-8")
+            event = {
+                "hook_event_name": "SessionStart",
+                "session_id": "internal-child-session",
+                "cwd": str(root),
+                "source": "startup",
+            }
+            stdout = io.StringIO()
+
+            with (
+                patch("sys.stdin", io.StringIO(json.dumps(event))),
+                redirect_stdout(stdout),
+                patch("atlas_integration.codex.dispatcher.poll_learning_jobs") as poll,
+                patch("atlas_integration.codex.dispatcher.claim_learning_job") as claim,
+            ):
+                code = dispatcher_main(["--config", str(config_path)])
+
+            self.assertEqual(code, 0)
+            self.assertEqual(stdout.getvalue(), "")
+            self.assertEqual(
+                load_state(config.trace_output, event["session_id"]),
+                {},
+            )
+            poll.assert_not_called()
+            claim.assert_not_called()
+
     def test_dispatcher_polls_and_claims_missed_generation_on_user_prompt(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -1093,7 +1128,7 @@ class CodexIntegrationTests(unittest.TestCase):
             )
             self.assertIn("recovered", resumed["systemMessage"].lower())
 
-    def test_browser_catalog_launches_on_session_start_and_applies_directly(self):
+    def test_browser_catalog_waits_for_user_prompt_and_applies_directly(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             transcript = root / "codex.jsonl"
@@ -1127,11 +1162,28 @@ class CodexIntegrationTests(unittest.TestCase):
                 started = session_start(
                     {**event, "hook_event_name": "SessionStart"}, config
                 )
+                self.assertIsNone(started)
+                self.assertFalse(config.trace_output.exists())
+                launch.assert_not_called()
+                opened.assert_not_called()
+
+                started = user_prompt_submit(
+                    {
+                        **event,
+                        "hook_event_name": "UserPromptSubmit",
+                        "prompt": "Inspect the project.",
+                    },
+                    config,
+                )
             self.assertIn("taxonomy library opened", started["systemMessage"])
             launch.assert_called_once()
             opened.assert_called_once_with(picker)
             waiting = load_state(config.trace_output, event["session_id"])
             self.assertEqual(waiting["selection"]["status"], "browser_pending")
+            self.assertEqual(
+                waiting["selection"]["pending_task"],
+                "Inspect the project.",
+            )
 
             apply_browser_choice(
                 {

@@ -69,11 +69,11 @@ scope-mismatch warning; the runtime never silently moves an active conversation
 between project programs.
 
 With `session_selector` set to `prompt`, a new Codex conversation opens the
-session-bound localhost taxonomy library from `SessionStart`. The browser
-applies the choice directly to the conversation before it reports success, so
-selection does not depend on a later `UserPromptSubmit` hook. The first
-substantive request remains outside the selector exchange and becomes the
-episode task on the next lifecycle event.
+session-bound localhost taxonomy library from its first real
+`UserPromptSubmit`. `SessionStart` only recovers an existing selection, so
+background host work and spawned agent sessions cannot open unsolicited browser
+windows. The browser applies the choice directly to the conversation before it
+reports success, and the held substantive request becomes the episode task.
 
 For an unbound project, MAST is recommended alongside the compatible stored
 taxonomies and `No taxonomy`. The picker runs in a detached, time-bounded
@@ -88,13 +88,14 @@ capture for only that conversation.
 
 `learning_backend: "codex_subagent"` uses a native subagent in the active
 Codex task and does not require a standalone CLI login or external API key.
-Every hook polls the durable project state: it reconciles completed receipts,
-checks the generation or refinement threshold, and idempotently queues any
-missing job. On the next `SessionStart` or `UserPromptSubmit`, the active agent
-receives a claimed task and launches the taxonomy subagent while normal work
-continues. The subagent reads an immutable outcome-blind snapshot and returns
-a staged receipt through `SubagentStop`; hook reconciliation alone owns
-validation and activation.
+Every hook in an already selected conversation polls the durable project state:
+it reconciles completed receipts, checks the generation or refinement threshold,
+and idempotently queues any missing job. On the next `SessionStart` or
+`UserPromptSubmit`, the active agent receives a claimed task and launches the
+taxonomy subagent while normal work continues. Unselected internal sessions do
+not poll or claim learning jobs. The subagent reads an immutable outcome-blind
+snapshot and returns a staged receipt through `SubagentStop`; hook reconciliation
+alone owns validation and activation.
 
 The installer writes:
 
@@ -110,8 +111,8 @@ trust against the hook definition hash, so changed hooks need review again.
 
 | Event | ATLAS behavior |
 |---|---|
-| `SessionStart` | Start/load ATLAS or open the session-bound taxonomy library. |
-| `UserPromptSubmit` | Inline-selector fallback and episode boundary handling where the host emits this event. |
+| `SessionStart` | Recover ATLAS state for an already selected conversation. |
+| `UserPromptSubmit` | Open the taxonomy library for a new user conversation and handle episode boundaries. |
 | `Stop` | Single-pass compact final checkpoint and episode commit. |
 | `SubagentStop` | Observational, non-blocking compact checkpoint capture. |
 | `PostToolUse` | Advisory failure nudge after selected failed tool outputs. |

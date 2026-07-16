@@ -1,6 +1,6 @@
 # Interactive conversations runtime RFC
 
-Status: Implemented for Codex and Claude Code in ATLAS 1.1.0b3. This document
+Status: Implemented for Codex and Claude Code in ATLAS 1.1.0b4. This document
 retains the design rationale and records remaining management-surface work.
 
 This RFC adds a conversation-oriented runtime without changing the existing
@@ -360,13 +360,15 @@ The implemented Codex configuration is:
 
 The interactive prototype supports `session_selector: "prompt"` in both
 `codex` and `claude_code` adapter configuration.
-For Codex, `selector_surface: "browser"` makes `SessionStart` launch a
-session-bound localhost selector. The browser deterministically applies a stored
-taxonomy, MAST, or ATLAS-off under the program lock before reporting success;
-it does not rely on `UserPromptSubmit`. `selector_surface: "inline"` preserves
-the prompt-based compatibility path. A first substantive request becomes the
-episode task after selection, while the selector exchange stays outside the
-episode task label. Stored-taxonomy selection binds the existing
+For Codex, `selector_surface: "browser"` makes the first real
+`UserPromptSubmit` launch a session-bound localhost selector; `SessionStart`
+only recovers an existing choice. This keeps background host tasks and spawned
+agents from opening browser windows. The browser deterministically applies a
+stored taxonomy, MAST, or ATLAS-off under the program lock before reporting
+success. `selector_surface: "inline"` preserves the prompt-based compatibility
+path. A first substantive request becomes the episode task after selection,
+while the selector exchange stays outside the episode task label.
+Stored-taxonomy selection binds the existing
 project/task-group program contract. ATLAS-off bypasses gates and trace capture
 for the conversation.
 

@@ -37,8 +37,8 @@ Open `/hooks` inside Codex and trust the ATLAS hooks before relying on them.
 
 The default Codex setup uses:
 
-1. `SessionStart`: deliver standing context or open the session-bound taxonomy library.
-2. `UserPromptSubmit`: inline-selector fallback and episode boundary handling when emitted by the host.
+1. `SessionStart`: recover standing context for an already selected conversation.
+2. `UserPromptSubmit`: open a new conversation's taxonomy library and handle episode boundaries.
 3. `Stop`: capture the compact final checkpoint and commit the episode in one callback.
 4. `SubagentStop`: capture a compact subagent checkpoint when present without blocking.
 5. `PostToolUse`: add advisory nudges after selected failed tool outputs.
@@ -62,14 +62,15 @@ install, configure it explicitly:
 }
 ```
 
-A new conversation opens the localhost ATLAS catalog directly from
-`SessionStart`. It recommends MAST for an unbound project and includes compatible
-stored taxonomies plus `No taxonomy`. The catalog is global storage, not a list
-of taxonomies already imported into the project. Its `/choose` handler validates
-the session's allowed options, updates Codex state, and binds a stored taxonomy
-to the project/task group before rendering the activation page. No later prompt
-hook is required. `No taxonomy` disables ATLAS gates and trace capture only for
-that conversation.
+A new conversation opens the localhost ATLAS catalog from its first real
+`UserPromptSubmit`. Deferring the launch prevents Codex background tasks and
+spawned agent sessions from opening selectors during their own startup. The
+first substantive request is held while the user chooses. The catalog recommends
+MAST for an unbound project and includes compatible stored taxonomies plus `No
+taxonomy`. Its `/choose` handler validates the session's allowed options, updates
+Codex state, and binds a stored taxonomy to the project/task group before
+rendering the activation page. `No taxonomy` disables ATLAS gates and trace
+capture only for that conversation.
 
 Catalog and chat surfaces use `display_name` when present and otherwise fall
 back to the taxonomy domain. The generated `taxonomy_id` remains visible as
@@ -81,15 +82,15 @@ learned shared default, `MAST`, and `No taxonomy`. Choosing `MAST` means
 starts that conversation from MAST, and learns a separate taxonomy from zero.
 The existing project taxonomy remains the default for every other conversation.
 
-Set `selector_surface` to `"inline"` only for a host that reliably emits
-`UserPromptSubmit` and where opening a local browser is undesirable. Browser is
-the default because current Codex Desktop builds may omit that event.
+Set `selector_surface` to `"inline"` when opening a local browser is undesirable.
+Both surfaces resolve the choice during `UserPromptSubmit`; the browser remains
+the default because it provides the complete searchable taxonomy library.
 
-When upgrading an older inline-selector task, SessionStart also checks the
+When upgrading an older inline-selector task, `SessionStart` also checks the
 transcript after the saved selector boundary. An exact offered reply such as
-`MAST` is migrated before a browser can reopen; ordinary task prose does not
-match. Codex maintenance tasks rooted in `~/.codex/memories` are ignored by
-the user-level dispatcher and never open a selector.
+`MAST` is migrated before the next prompt can open a browser; ordinary task
+prose does not match. New selector state is never created at `SessionStart`, so
+background host tasks and spawned agents cannot open a browser on startup.
 
 The installer flag is equivalent and overrides `atlas.json` for that install:
 

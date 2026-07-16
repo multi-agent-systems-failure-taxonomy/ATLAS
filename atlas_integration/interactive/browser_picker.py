@@ -100,7 +100,10 @@ def start_browser_picker(
         kwargs["start_new_session"] = True
     process = subprocess.Popen(command, **kwargs)
 
-    deadline = time.monotonic() + 4
+    # A fresh Windows interpreter can take well over four seconds to import the
+    # picker stack while the host is running several agents. Stay inside the
+    # Codex hook timeout, but do not abandon a healthy worker prematurely.
+    deadline = time.monotonic() + min(25, max(4, int(timeout_seconds)))
     ready: dict[str, Any] = {}
     while time.monotonic() < deadline:
         try:
@@ -111,6 +114,12 @@ def start_browser_picker(
                 break
             time.sleep(0.05)
     if not ready.get("url"):
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                process.kill()
         raise RuntimeError("local taxonomy picker did not become ready")
     return {
         "pid": process.pid,

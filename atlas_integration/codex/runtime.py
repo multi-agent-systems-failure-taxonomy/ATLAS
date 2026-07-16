@@ -75,7 +75,7 @@ FAILURE_PATTERNS = (
 )
 
 
-def session_start(event: dict[str, Any], config: CodexConfig) -> dict:
+def session_start(event: dict[str, Any], config: CodexConfig) -> dict | None:
     session_id = _session_id(event)
     existing = load_state(config.trace_output, session_id)
     recovered = False
@@ -129,12 +129,7 @@ def session_start(event: dict[str, Any], config: CodexConfig) -> dict:
                 save_state(config.trace_output, session_id, existing)
                 if config.selector_surface == "inline":
                     return _selection_output("SessionStart", selection)
-                return _launch_selection_browser(
-                    existing,
-                    event,
-                    config,
-                    event_name="SessionStart",
-                )
+                return None
             if status == "browser_pending":
                 return _browser_waiting_output(selection, "SessionStart")
             if status == "disabled":
@@ -151,24 +146,14 @@ def session_start(event: dict[str, Any], config: CodexConfig) -> dict:
                 ),
             )
         if not existing:
-            selection = build_selection(
-                trace_output=config.trace_output,
-                store_dir=config.store_dir,
-                cwd=event.get("cwd"),
-                catalog_mode=config.selector_surface,
-            )
-            state = {
-                "version": 1,
-                "session_id": session_id,
-                "conversation_id": session_id,
-                "cwd": str(event.get("cwd") or ""),
-                "episode_sequence": 0,
-                "main_cursor": transcript_size(event.get("transcript_path")),
-                "episode_cursor": transcript_size(event.get("transcript_path")),
-                "selection": selection,
-                "finished": True,
-                "trace_captured": False,
-            }
+            # Codex also emits SessionStart for short-lived internal agent
+            # sessions. Opening the browser here makes those invisible host
+            # tasks look like new user conversations. Browser selection starts
+            # on the first real UserPromptSubmit instead.
+            if config.selector_surface == "browser":
+                return None
+            state = _new_selector_state(event, config)
+            selection = state["selection"]
             save_state(config.trace_output, session_id, state)
             if config.selector_surface == "inline":
                 return _selection_output("SessionStart", selection)
@@ -201,6 +186,31 @@ def session_start(event: dict[str, Any], config: CodexConfig) -> dict:
     if session.delivery.dashboard_url:
         context += f"\nLive ATLAS dashboard: {session.delivery.dashboard_url}\n"
     return _add_context(context)
+
+
+def _new_selector_state(
+    event: dict[str, Any],
+    config: CodexConfig,
+) -> dict[str, Any]:
+    session_id = _session_id(event)
+    cursor = transcript_size(event.get("transcript_path"))
+    return {
+        "version": 1,
+        "session_id": session_id,
+        "conversation_id": session_id,
+        "cwd": str(event.get("cwd") or ""),
+        "episode_sequence": 0,
+        "main_cursor": cursor,
+        "episode_cursor": cursor,
+        "selection": build_selection(
+            trace_output=config.trace_output,
+            store_dir=config.store_dir,
+            cwd=event.get("cwd"),
+            catalog_mode=config.selector_surface,
+        ),
+        "finished": True,
+        "trace_captured": False,
+    }
 
 
 def _start_episode(
@@ -295,6 +305,14 @@ def user_prompt_submit(event: dict[str, Any], config: CodexConfig) -> dict | Non
     if not state:
         session_start({**event, "hook_event_name": "SessionStart"}, config)
         state = load_state(config.trace_output, session_id)
+    if (
+        not state
+        and config.session_selector == "prompt"
+        and config.inherit is None
+        and config.selector_surface == "browser"
+    ):
+        state = _new_selector_state(event, config)
+        save_state(config.trace_output, session_id, state)
     prompt = _user_prompt(event)
 
     recovered = False
@@ -413,6 +431,13 @@ def user_prompt_submit(event: dict[str, Any], config: CodexConfig) -> dict | Non
                     event.get("transcript_path")
                 )
                 save_state(config.trace_output, session_id, state)
+            if config.selector_surface == "browser" and prompt:
+                return _launch_selection_browser(
+                    state,
+                    event,
+                    config,
+                    event_name="UserPromptSubmit",
+                )
             return _selection_output("UserPromptSubmit", selection)
 
         if choice["kind"] == "browser":
