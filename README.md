@@ -2,8 +2,8 @@
 
 ### Failure-mode taxonomies for agents, grounded in the traces they actually produce.
 
-[![Paper](https://img.shields.io/badge/paper-PDF-B31B1B)](docs/adamast_paper.pdf)
-[![Docs](https://img.shields.io/badge/docs-website-2457D6)](https://multi-agent-systems-failure-taxonomy.github.io/ATLAS/)
+[![Paper](https://img.shields.io/badge/paper-arXiv-B31B1B?logo=arxiv&logoColor=white)](https://arxiv.org/abs/2607.16387)
+[![Docs](https://img.shields.io/badge/docs-website-2457D6)](https://multi-agent-systems-failure-taxonomy.github.io/AdaMAST/docs/)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-1F8A70)](LICENSE)
 
@@ -12,9 +12,9 @@ meaningful boundaries, records evidence about recurring failures, and learns a
 project-specific taxonomy from completed traces. Your existing agent or
 harness keeps owning the task.
 
-**Paper:** [Adaptive Failure Taxonomies as Feedback for LLM-Agent Improvement Procedures](docs/adamast_paper.pdf)
+**Paper:** [Fantastic Adaptive Taxonomies and How to Use Them](https://arxiv.org/abs/2607.16387)
 
-**Documentation:** [Website](https://multi-agent-systems-failure-taxonomy.github.io/ATLAS/) · [Interactive setup](docs/INTERACTIVE_SETUP.md) · [Architecture](docs/ARCHITECTURE.md)
+**Documentation:** [Website](https://multi-agent-systems-failure-taxonomy.github.io/AdaMAST/docs/) · [Interactive setup](docs/INTERACTIVE_SETUP.md) · [Architecture](docs/ARCHITECTURE.md)
 
 ## Install in one minute
 

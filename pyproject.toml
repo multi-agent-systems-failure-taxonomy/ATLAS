@@ -53,10 +53,10 @@ adamast-single-run = "adamast_integration.single_llm.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/multi-agent-systems-failure-taxonomy/ATLAS"
-Documentation = "https://multi-agent-systems-failure-taxonomy.github.io/ATLAS/"
+Documentation = "https://multi-agent-systems-failure-taxonomy.github.io/AdaMAST/docs/"
 Repository = "https://github.com/multi-agent-systems-failure-taxonomy/ATLAS"
 Issues = "https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/issues"
-Paper = "https://github.com/multi-agent-systems-failure-taxonomy/ATLAS/blob/main/docs/adamast_paper.pdf"
+Paper = "https://arxiv.org/abs/2607.16387"
 
 [tool.setuptools]
 include-package-data = true

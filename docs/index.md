@@ -145,7 +145,7 @@ and evidence without changing the taxonomy record.
 | configure one repository | [Getting started](GETTING_STARTED.md) |
 | change thresholds or providers | [Configuration reference](CONFIGURATION.md) |
 | diagnose a queued worker or missing hook | [Troubleshooting](TROUBLESHOOTING.md) |
-| review the research and evaluation artifacts | [Paper](adamast_paper.pdf) and [example results](EXAMPLE_RUN.md) |
+| review the research and evaluation artifacts | [Paper](https://arxiv.org/abs/2607.16387) and [example results](EXAMPLE_RUN.md) |
 
 </section>
 

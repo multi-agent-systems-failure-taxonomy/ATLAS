@@ -42,11 +42,10 @@ This folder is the detailed reference for AdaMAST. The repository homepage stays
 ## Web docs
 
 The documentation website at
-[multi-agent-systems-failure-taxonomy.github.io/ATLAS](https://multi-agent-systems-failure-taxonomy.github.io/ATLAS/)
-is built from these Markdown pages with MkDocs Material (see
-[mkdocs.yml](../mkdocs.yml)) and deployed by GitHub Actions on every push to
-`main`. The site home is [index.md](index.md); this README stays the
-index for GitHub's file view.
+[multi-agent-systems-failure-taxonomy.github.io/AdaMAST/docs](https://multi-agent-systems-failure-taxonomy.github.io/AdaMAST/docs/)
+is now maintained from the public AdaMAST repository. These pages remain the
+final ATLAS documentation snapshot and backup. The site home is
+[index.md](index.md); this README stays the index for GitHub's file view.
 
 ## Lower-level package maps
 
